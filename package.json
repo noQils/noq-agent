@@ -1,0 +1,26 @@
+{
+  "name": "noq-agent",
+  "version": "1.0.0",
+  "description": "noq-agent – Local AI coding agent CLI. Analyzes repos, answers code questions, edits files, runs commands.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noQils/noq-agent.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/noQils/noq-agent/issues"
+  },
+  "homepage": "https://github.com/noQils/noq-agent#readme",
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
