@@ -1,17 +1,17 @@
-import { readFileFunction, executeReadFile } from "./readFile";
+import { readFileFunction } from "./readFile";
 
-// Define the tools available to the model
-export const allTools = [{
-    functionDeclarations: [readFileFunction]
-}];
+// Aggregate all tools into a single exportable array for easy access and management
+export const allTools: Tool[] = [readFileFunction];
 
-// Execute a tool based on its name
-export async function executeTool(functionCall: any): Promise<string> {
-    switch (functionCall.name) {
-    case "read_file":
-      const result = await executeReadFile(functionCall.args);
-      return result ?? "";
-    default:
-      return `Error: Unknown tool ${functionCall.name}`;
-  }
+// Function to execute a tool based on the function call from the model
+export interface Tool {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, { type: string; description: string }>;
+    required: string[];
+  };
+  execute: (args: any) => Promise<string> | string;
 }
+

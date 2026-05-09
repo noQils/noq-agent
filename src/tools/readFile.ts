@@ -1,26 +1,26 @@
 import path from 'node:path';
 import { readFileIfExists } from '../fileUtils';
-import { FunctionDeclaration, Type } from "@google/genai";
 import { scanDirectory } from '../scanner';
+import { Tool } from './index';
 
-// Define the function declaration for reading a file
-export const readFileFunction: FunctionDeclaration = {
+// Define the read_file tool, which attempts to read a file at the specified path and falls back to scanning the project directory if the file is not found
+export const readFileFunction: Tool = {
+  // Tool metadata for the read_file function
   name: "read_file",
   description: "Read the content of a file",
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
       filePath: {
-        type: Type.STRING,
+        type: 'string',
         description: "The path to the file to read",
       },
     },
     required: ["filePath"],
   },
-};
 
-// Export the function declaration for use in tools
-export function executeReadFile(args: { filePath: string}): string | null {
+  // Execute the tool to read a file, with fallback to scanning the project directory if the file is not found at the specified path
+  execute: async (args: { filePath: string }) => {
     const fullPath = path.resolve(process.cwd(), args.filePath);
     let content = readFileIfExists(fullPath);
 
@@ -36,4 +36,5 @@ export function executeReadFile(args: { filePath: string}): string | null {
         return `Error: File not found: ${args.filePath}`;
     }
     return content.length > 3000 ? content.slice(0, 3000) : content;
-}
+  }
+};
