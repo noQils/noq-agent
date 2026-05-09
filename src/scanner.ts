@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Recursively scan a directory and return a list of all file paths, excluding certain directories
 export function scanDirectory(dir: string): string[] {
     let results: string[] = [];
     const items = fs.readdirSync(dir);
