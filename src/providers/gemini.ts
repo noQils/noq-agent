@@ -12,15 +12,6 @@ import {
 import { type ChatMessage } from './base';
 import { allTools, type Tool } from '../tools/index';
 
-// Convert internal tool definitions to the format expected by the Gemini API
-function toGeminiFunctionDeclaration(internalTools: Tool[]): FunctionDeclaration[] {
-  return internalTools.map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: toGeminiSchema(tool.parameters),
-  }));
-}
-
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
   const apiKey = process.env.API_KEY;
@@ -28,6 +19,15 @@ function getApiKey(): string {
     throw new Error('API_KEY is not defined in the environment variables.');
   }
   return apiKey;
+}
+
+// Convert internal tool definitions to the format expected by the Gemini API
+function toGeminiFunctionDeclaration(internalTools: Tool[]): FunctionDeclaration[] {
+  return internalTools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: toGeminiSchema(tool.parameters),
+  }));
 }
 
 // Convert internal tool parameters to the format expected by the Gemini API
