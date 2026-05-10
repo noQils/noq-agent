@@ -1,5 +1,8 @@
-import ollama from 'ollama';
-import { allTools, Tool } from '../tools';
+import ollama, {
+    type Message,
+} from 'ollama';
+import { allTools, type Tool } from '../tools';
+import { type ChatMessage } from './base';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTools(internalTools: Tool[]) {
@@ -15,84 +18,98 @@ function toOllamaTools(internalTools: Tool[]) {
 
 // Main chat function to interact with the Ollama model, handling messages and tool calls
 export async function chat(
-  messages: Array<{ role: string; content?: string; tool_calls?: any[]}>,
+  messages: ChatMessage[],
   config?: { model?: string }
 ): Promise<string> {
 
-    // Determine the Ollama model to use, either from the provided config or from environment variables
     const model = config?.model ?? process.env.OLLAMA_DEFAULT_MODEL;
     if (!model) {
       throw new Error('OLLAMA model not specified');
     }
 
-    // Convert internal tools to Ollama tools
-    const ollamaTools = toOllamaTools(allTools);
     let currentMessages = [...messages];
     if (!currentMessages.some(m => m.role === 'system')) {
         currentMessages.unshift({
             role: 'system',
-            content: `You are an elite AI coding assistant. Your goal is to complete the user's request efficiently and correctly.`
+            content: `You are an AI coding assistant.
+
+Your job is to help the user accurately and efficiently.
+
+Tool-use rules:
+- You may use tools only when they are necessary to answer the user's request.
+- If the user asks about files, code, folders, or project contents, use the available tools when needed.
+- If the user is just chatting, greeting you, or asking for general explanation, respond directly without using any tools.
+- Never invent tools that are not explicitly available to you.
+- If a task requires a tool you do not have, say so clearly instead of pretending.
+- If the user asks for the contents of files in a folder, first determine which files exist before trying to read them.
+- Do not guess file paths or filenames unless the user provided them or you discovered them through available tools.
+
+Response rules:
+- Be concise, clear, and helpful.
+- If you use a tool, use the tool result faithfully.
+- If no tool is needed, answer normally.
+- Do not output fake JSON or pretend tool calls in plain text.`
         });
     }
 
-    // Main chat loop to handle interactions with the Ollama model, including tool calls
+
+    const ollamaMessages: Message[] = currentMessages.map(msg => ({
+        role: msg.role === 'model' ? 'assistant' : msg.role,
+        content: msg.content ?? '',
+    }))
+    const ollamaTools = toOllamaTools(allTools);
+    console.log(ollamaMessages);
+
     while (true) {
-        // Send the current conversation to the Ollama model and get a response
         const response = await ollama.chat({
             model,
-            messages: currentMessages.map(msg => ({
-                ...msg,
-                content: msg.content ?? ''
-            })),
+            messages: ollamaMessages,
             tools: ollamaTools,
         });
 
-        currentMessages.push(response.message);
+        ollamaMessages.push(response.message);
+        console.log(response.message);
 
-        // Check for tool calls in the response and execute them if present
         const toolCalls = response.message.tool_calls ?? [];
         if (toolCalls.length === 0 && response.message.content) {
             try {
                 const parsed = JSON.parse(response.message.content);
                 if (parsed.name && parsed.arguments) {
-                toolCalls.push({
-                    function: {
-                    name: parsed.name,
-                    arguments: parsed.arguments
-                    }
-                });
-                // Replace content to avoid returning it later
-                response.message.content = '';
+                    toolCalls.push({
+                        function: {
+                            name: parsed.name,
+                            arguments: parsed.arguments
+                        }
+                    });
+                    response.message.content = '';
                 }
             } catch (e) {
                 // Not JSON, ignore
             }
         }
 
-        // If there are no tool calls, return the text response from the model
-        if (toolCalls.length === 0) {
-            return response.message.content || '';
-        }
-
-        // If there are tool calls, execute each tool and add the results back to the conversation
         if (toolCalls.length) {
             for (const call of toolCalls) {
                 const tool = allTools.find(t => t.name === call.function.name);
                 if (!tool) {
-                    currentMessages.push({
+                    ollamaMessages.push({
                         role: 'tool',
                         content: `Error: Unknown tool ${call.function.name}`,
+                        tool_name: call.function.name,
                     });
                     continue;
                 }
 
-                // Execute the tool with the provided arguments and add the result to the conversation
                 const result = await tool.execute(call.function.arguments);
-                currentMessages.push({
+                ollamaMessages.push({
                     role: 'tool',
                     content: String(result),
+                    tool_name: call.function.name,
                 });
             }
+            continue;
         }
+
+        return response.message.content;
     }
 }
