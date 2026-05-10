@@ -1,5 +1,5 @@
 export interface ChatMessage {
-  role: 'user' | 'model' | 'tool';
+  role: 'system' | 'user' | 'model' | 'tool';
   content?: string;
   toolCalls?: any[];
   toolCallId?: string;
@@ -10,7 +10,7 @@ export interface Provider {
     generateText(prompt: string): Promise<string>;
     
     // Method to handle chat interactions with the model, including tool calls
-    chat(messages: ChatMessage[], tools?: any[]): Promise<{
+    chat(messages: ChatMessage[]): Promise<{
         text?: string;
         toolCalls?: any[];
     }>;
