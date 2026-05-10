@@ -15,7 +15,7 @@ function toOllamaTools(internalTools: Tool[]) {
 
 // Main chat function to interact with the Ollama model, handling messages and tool calls
 export async function chat(
-  messages: Array<{ role: string; content?: string; tool_calls?: any[]; tool_call_id?: string }>,
+  messages: Array<{ role: string; content?: string; tool_calls?: any[]}>,
   config?: { model?: string }
 ): Promise<string> {
 
@@ -28,6 +28,12 @@ export async function chat(
     // Convert internal tools to Ollama tools
     const ollamaTools = toOllamaTools(allTools);
     let currentMessages = [...messages];
+    if (!currentMessages.some(m => m.role === 'system')) {
+        currentMessages.unshift({
+            role: 'system',
+            content: `You are an elite AI coding assistant. Your goal is to complete the user's request efficiently and correctly.`
+        });
+    }
 
     // Main chat loop to handle interactions with the Ollama model, including tool calls
     while (true) {
@@ -39,13 +45,29 @@ export async function chat(
                 content: msg.content ?? ''
             })),
             tools: ollamaTools,
-            think: true,
         });
 
         currentMessages.push(response.message);
 
         // Check for tool calls in the response and execute them if present
-        const toolCalls = response.message.tool_calls ?? []
+        const toolCalls = response.message.tool_calls ?? [];
+        if (toolCalls.length === 0 && response.message.content) {
+            try {
+                const parsed = JSON.parse(response.message.content);
+                if (parsed.name && parsed.arguments) {
+                toolCalls.push({
+                    function: {
+                    name: parsed.name,
+                    arguments: parsed.arguments
+                    }
+                });
+                // Replace content to avoid returning it later
+                response.message.content = '';
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+        }
 
         // If there are no tool calls, return the text response from the model
         if (toolCalls.length === 0) {
