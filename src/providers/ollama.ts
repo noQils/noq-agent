@@ -58,7 +58,6 @@ Response rules:
         content: msg.content ?? '',
     }))
     const ollamaTools = toOllamaTools(allTools);
-    console.log(ollamaMessages);
 
     while (true) {
         const response = await ollama.chat({
@@ -68,7 +67,6 @@ Response rules:
         });
 
         ollamaMessages.push(response.message);
-        console.log(response.message);
 
         const toolCalls = response.message.tool_calls ?? [];
         if (toolCalls.length === 0 && response.message.content) {
@@ -83,7 +81,7 @@ Response rules:
                     });
                     response.message.content = '';
                 }
-            } catch (e) {
+            } catch {
                 // Not JSON, ignore
             }
         }
