@@ -1,7 +1,9 @@
-import { readFileFunction } from "./readFile";
+import { readFileTool } from "./readFile";
+import { globTool } from "./glob";
+import { grepTool } from "./grep";
 
 // Aggregate all tools into a single exportable array for easy access and management
-export const allTools: Tool[] = [readFileFunction];
+export const allTools: Tool[] = [readFileTool, globTool, grepTool];
 
 // Function to execute a tool based on the function call from the model
 export interface Tool {
