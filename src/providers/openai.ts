@@ -124,26 +124,22 @@ export async function chat(
     const {instructions, input} = toOpenAIHistory(initialMessages);
     const functionDeclarations = toOpenAIFunctionTool(allTools);
 
-    console.log('input:', input);
-
-    while (true) {
-      const response = await openai.responses.create({
+    let response = await openai.responses.create({
           model: model,
           instructions: instructions ?? null,
           input: input,
           tools: functionDeclarations,
       });
 
-      console.log('response:', response);
+    while (true) {
+      const toolOutputs: ResponseInputItem[] = [];
 
-      let functionCallCount = 0;
       for (const item of response.output) {
         if (item.type !== 'function_call') continue;
 
-        functionCallCount++;
         const tool = allTools.find(t => t.name === item.name);
         if (!tool) {
-          input.push({
+          toolOutputs.push({
             type: 'function_call_output',
             call_id: item.call_id,
             output: `Error: Unknown tool ${item.name}`,
@@ -155,13 +151,13 @@ export async function chat(
           const args = JSON.parse(item.arguments);
           const result = await tool.execute(args);
 
-          input.push({
+          toolOutputs.push({
             type: 'function_call_output',
             call_id: item.call_id,
             output: String(result),
           });
         } catch (error) {
-          input.push({
+          toolOutputs.push({
             type: 'function_call_output',
             call_id: item.call_id,
             output: error instanceof Error ? error.message : String(error),
@@ -169,8 +165,15 @@ export async function chat(
         }
       }
 
-      if (functionCallCount === 0) {
+      if (toolOutputs.length === 0) {
         return response.output_text ?? '';
       }
+
+      response = await openai.responses.create({
+        model: model,
+        previous_response_id: response.id,
+        input: toolOutputs,
+        tools: functionDeclarations,
+      });
     }
 }
