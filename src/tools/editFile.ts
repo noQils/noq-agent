@@ -50,5 +50,5 @@ export function editFile(filePath: string, oldText: string, newText: string) {
     
     const newContent = content.replace(oldText, newText);
     fs.writeFileSync(fullPath, newContent);
-    return newContent;
+    return `Updated file: ${filePath}`;
 }
