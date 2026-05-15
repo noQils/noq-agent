@@ -1,25 +1,28 @@
 import fg from 'fast-glob';
-import { Tool } from './index';
+import { InternalTool } from './index';
 
 // Define the glob tool, which searches for files using a glob pattern
-export const globTool: Tool = {
+export const globTool: InternalTool = {
     // Tool metadata
     name: "glob",
     description: "Search for files using a glob pattern",
     parameters: {
-        type: "object",
+        type: 'object',
         properties: {
             pattern: {
-                type: "string",
-                description: "The glob pattern to use",
+                type: 'string',
+                description: 'The glob pattern to use',
+                required: true,
             },
             cwd: {
-                type: "string",
-                description: "The directory to search in",
+                type: 'string',
+                description: 'The directory to search in',
+                required: false,
+                nullable: true,
             },
         },
-        required: ["pattern"],
     },
+
     execute: async (args: {pattern: string, cwd?: string}) => {
         const results = await glob(args.pattern, args.cwd);
         return JSON.stringify(results);

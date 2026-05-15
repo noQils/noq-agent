@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { readFileIfExists } from '../fileUtils';
-import { Tool } from './index';
+import { InternalTool } from './index';
 
 // Define the read_file tool, which attempts to read a file at the specified path and falls back to scanning the project directory if the file is not found
-export const readFileTool: Tool = {
+export const readFileTool: InternalTool = {
   // Tool metadata
   name: "read_file",
   description: "Read the content of a file",
@@ -13,9 +13,9 @@ export const readFileTool: Tool = {
       filePath: {
         type: 'string',
         description: "The path to the file to read",
+        required: true,
       },
     },
-    required: ["filePath"],
   },
 
   execute: (args: { filePath: string }) => {

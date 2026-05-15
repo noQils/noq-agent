@@ -1,7 +1,7 @@
 import fg from 'fast-glob';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { Tool } from './index';
+import { InternalTool } from './index';
 
 // Result of a grep search
 type GrepResult = {
@@ -11,7 +11,7 @@ type GrepResult = {
 };
 
 // Define the grep tool, which searches for a pattern in a directory
-export const grepTool: Tool = {
+export const grepTool: InternalTool = {
     // Tool metadata
     name: "grep",
     description: "Search for a pattern in a directory",
@@ -21,13 +21,15 @@ export const grepTool: Tool = {
             query: {
                 type: "string",
                 description: "The pattern to search for",
+                required: true,
             },
             cwd: {
                 type: "string",
                 description: "The directory to search in",
+                required: false,
+                nullable: true,
             },
         },
-        required: ["query"],
     },
 
     execute: async (args: {query: string, cwd?: string}) => {
