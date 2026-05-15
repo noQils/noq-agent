@@ -1,8 +1,9 @@
 import { readFileTool } from "./readFile";
 import { globTool } from "./glob";
 import { grepTool } from "./grep";
+import { editFileTool } from "./editFile";
 
-export const allTools: InternalTool[] = [readFileTool, globTool, grepTool];
+export const allTools: InternalTool[] = [readFileTool, globTool, grepTool, editFileTool];
 
 type PrimitiveType = 'string' | 'number' | 'integer' | 'boolean';
 
