@@ -10,19 +10,19 @@ import {
   Schema,
 } from '@google/genai';
 import { type ChatMessage } from './base';
-import { allTools, type Tool } from '../tools/index';
+import { allTools, type InternalTool } from '../tools/index';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('API_KEY is not defined in the environment variables.');
+    throw new Error('GEMINI_API_KEY is not defined in the environment variables.');
   }
   return apiKey;
 }
 
 // Convert internal tool definitions to the format expected by the Gemini API
-function toGeminiFunctionDeclaration(internalTools: Tool[]): FunctionDeclaration[] {
+function toGeminiFunctionDeclaration(internalTools: InternalTool[]): FunctionDeclaration[] {
   return internalTools.map(tool => ({
       name: tool.name,
       description: tool.description,
@@ -31,15 +31,12 @@ function toGeminiFunctionDeclaration(internalTools: Tool[]): FunctionDeclaration
 }
 
 // Convert internal tool parameters to the format expected by the Gemini API
-function toGeminiSchema(schema: Tool['parameters']): Schema {
+function toGeminiSchema(schema: InternalTool['parameters']): Schema {
   const propertyTypeMap: Record<string, Type> = {
     string: Type.STRING,
     number: Type.NUMBER,
     integer: Type.INTEGER,
     boolean: Type.BOOLEAN,
-    array: Type.ARRAY,
-    object: Type.OBJECT,
-    null: Type.NULL,
   };
 
   return {
@@ -50,10 +47,13 @@ function toGeminiSchema(schema: Tool['parameters']): Schema {
         {
           type: propertyTypeMap[value.type] ?? Type.STRING,
           description: value.description,
+          nullable: value.nullable ?? false,
         },
       ])
     ),
-    required: schema.required,  
+    required: Object.entries(schema.properties)
+      .filter(([, value]) => value.required)
+      .map(([name]) => name),
   };
 }
 
@@ -125,7 +125,7 @@ function toGeminiHistory(messages: ChatMessage[]): {
 }
 
 // Helper function to execute tool calls and return the responses
-async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Tool[]): Promise<Content[]> {
+async function executeFunctionCalls(functionCalls: FunctionCall[], tools: InternalTool[]): Promise<Content[]> {
   const toolResponses = await Promise.all (
     functionCalls.map(async (functionCall) => {
       const tool = tools.find(t => t.name === functionCall.name);
@@ -135,7 +135,7 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Tool[]
           id: functionCall.id ?? '',
           name: functionCall.name ?? '',
           response: {
-            Record: `Unknown tool: ${functionCall.name}`,
+            error: `Unknown tool: ${functionCall.name}`,
           },
         };
         return response;

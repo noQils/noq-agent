@@ -1,17 +1,31 @@
 import ollama, {
     type Message,
 } from 'ollama';
-import { allTools, type Tool } from '../tools';
+import { allTools, type InternalTool } from '../tools';
 import { type ChatMessage } from './base';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
-function toOllamaTools(internalTools: Tool[]) {
+function toOllamaTool(internalTools: InternalTool[]) {
   return internalTools.map(tool => ({
     type: 'function',
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: tool.parameters
+      parameters: {
+        type: tool.parameters.type,
+        properties: Object.fromEntries(
+          Object.entries(tool.parameters.properties).map(([name, value]) => [
+            name,
+            {
+              type: value.type,
+              description: value.description,
+            },
+          ])
+        ),
+        required: Object.entries(tool.parameters.properties)
+            .filter(([, value]) => value.required)
+            .map(([name]) => name),
+      }
     }
   }));
 }
@@ -57,7 +71,7 @@ Response rules:
         role: msg.role === 'model' ? 'assistant' : msg.role,
         content: msg.content ?? '',
     }))
-    const ollamaTools = toOllamaTools(allTools);
+    const ollamaTools = toOllamaTool(allTools);
 
     while (true) {
         const response = await ollama.chat({
@@ -69,23 +83,6 @@ Response rules:
         ollamaMessages.push(response.message);
 
         const toolCalls = response.message.tool_calls ?? [];
-        if (toolCalls.length === 0 && response.message.content) {
-            try {
-                const parsed = JSON.parse(response.message.content);
-                if (parsed.name && parsed.arguments) {
-                    toolCalls.push({
-                        function: {
-                            name: parsed.name,
-                            arguments: parsed.arguments
-                        }
-                    });
-                    response.message.content = '';
-                }
-            } catch {
-                // Not JSON, ignore
-            }
-        }
-
         if (toolCalls.length) {
             for (const call of toolCalls) {
                 const tool = allTools.find(t => t.name === call.function.name);
