@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Provider } from './base';
 import { chat as ollamaChat } from './ollama';
 import { chat as geminiChat } from './gemini';
+import { chat as openAIChat } from './openai';
 
 // Centralized provider management to allow easy switching between different LLM providers
 const providerMap: Record<string, Provider> = {
@@ -23,6 +24,18 @@ const providerMap: Record<string, Provider> = {
         },
         chat: async (messages) => {
             const response = await geminiChat(messages);
+            return {
+                text: response,
+            };
+        }
+    },
+
+    openai: {
+        generateText: async (prompt: string) => {
+            throw new Error('generateText is not implemented for OpenAI. Use chat instead.');
+        },
+        chat: async (messages) => {
+            const response = await openAIChat(messages);
             return {
                 text: response,
             };
