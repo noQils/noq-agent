@@ -8,7 +8,7 @@ import { readFileIfExists } from '../fileUtils';
 export const editFileTool: InternalTool = {
     // Tool metadata
     name: "edit_file",
-    description: "Replace the first occurrence of text in a file",
+    description: "Line-range replacement file edit tool",
     parameters: {
         type: 'object',
         properties: {
@@ -17,9 +17,14 @@ export const editFileTool: InternalTool = {
                 description: "The path to the file to edit",
                 required: true,
             },
-            oldText: {
-                type: 'string',
-                description: "The text to replace",
+            startLine: {
+                type: 'integer',
+                description: "The line number to start from",
+                required: true,
+            },
+            endLine: {
+                type: 'integer',
+                description: "The line number to end at",
                 required: true,
             },
             newText: {
@@ -30,25 +35,47 @@ export const editFileTool: InternalTool = {
         },
     },
     
-    execute: (args: { filePath: string, oldText: string, newText: string}) => {
-        const result = editFile(args.filePath, args.oldText, args.newText);
+    execute: (args: { filePath: string, startLine: number, endLine: number, newText: string}) => {
+        const result = editFile(args.filePath, args.startLine, args.endLine, args.newText);
         return result;
     },
 };
 
 // Function to read a file at the specified path
-export function editFile(filePath: string, oldText: string, newText: string) {
+export function editFile(filePath: string, startLine: number, endLine: number, newText: string) {
+    if (!Number.isInteger(startLine)) {
+        throw new TypeError("startLine must be an integer");
+    }
+    if (!Number.isInteger(endLine)) {
+        throw new TypeError("endLine must be an integer");
+    }
+    if (startLine < 1) {
+        throw new Error("startLine must be greater than 0");
+    }
+    if (startLine > endLine) {
+        throw new Error("startLine must be less than or equal to endLine");
+    }
+
     const fullPath = path.resolve(process.cwd(), filePath);
     const content = readFileIfExists(fullPath);
     if (content === null) {
         throw new Error(`File not found: ${filePath}`);
     }
 
-    if (!content.includes(oldText)) {
-        throw new Error(`Text not found in file: ${filePath}`);
+    const lines = content.split('\n');
+    if (startLine > lines.length) {
+        throw new Error(`startLine cannot be greater than the number of lines in the file`);
+    }
+    if (endLine > lines.length) {
+        throw new Error(`endLine cannot be greater than the number of lines in the file`);
     }
     
-    const newContent = content.replace(oldText, newText);
-    fs.writeFileSync(fullPath, newContent);
+    const startIndex = Math.max(0, startLine - 1);
+    const endIndex = Math.min(lines.length, endLine);
+    const deleteCount = Math.max(0, endIndex - startIndex);
+    const newLines = newText.split('\n');
+    lines.splice(startIndex, deleteCount, ...newLines);
+    
+    fs.writeFileSync(fullPath, lines.join('\n'));
     return `Updated file: ${filePath}`;
 }
