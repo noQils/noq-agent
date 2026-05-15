@@ -8,7 +8,7 @@ import { readFileIfExists } from '../fileUtils';
 export const editFileTool: InternalTool = {
     // Tool metadata
     name: "edit_file",
-    description: "Edit the content of a file",
+    description: "Replace the first occurrence of text in a file",
     parameters: {
         type: 'object',
         properties: {
