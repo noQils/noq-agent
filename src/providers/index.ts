@@ -7,38 +7,23 @@ import { chat as openAIChat } from './openai';
 // Centralized provider management to allow easy switching between different LLM providers
 const providerMap: Record<string, Provider> = {
     ollama: {
-        generateText: async (prompt: string) => {
-            return (await ollamaChat([{ role: 'user', content: prompt }]));
-        },
         chat: async (messages) => {
             const response = await ollamaChat(messages);
-            return {
-                text: response,
-            };
+            return response;
         }
     },
     
     gemini: {
-        generateText: async (prompt: string) => {
-            throw new Error('generateText is not implemented for Gemini. Use chat instead.');
-        },
         chat: async (messages) => {
             const response = await geminiChat(messages);
-            return {
-                text: response,
-            };
+            return response;
         }
     },
 
     openai: {
-        generateText: async (prompt: string) => {
-            throw new Error('generateText is not implemented for OpenAI. Use chat instead.');
-        },
         chat: async (messages) => {
             const response = await openAIChat(messages);
-            return {
-                text: response,
-            };
+            return response;
         }
     }
 }

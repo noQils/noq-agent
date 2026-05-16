@@ -1,8 +1,12 @@
 import ollama, {
     type Message,
 } from 'ollama';
+import { 
+  type ChatMessage, 
+  type ChatResult,
+  type ExecutedToolCall,
+} from './base';
 import { allTools, type InternalTool } from '../tools';
-import { type ChatMessage } from './base';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {
@@ -34,7 +38,7 @@ function toOllamaTool(internalTools: InternalTool[]) {
 export async function chat(
   messages: ChatMessage[],
   config?: { model?: string }
-): Promise<string> {
+): Promise<ChatResult> {
 
     const model = config?.model ?? process.env.OLLAMA_DEFAULT_MODEL;
     if (!model) {
@@ -72,6 +76,7 @@ Response rules:
         content: msg.content ?? '',
     }))
     const ollamaTools = toOllamaTool(allTools);
+    const executedToolCalls: ExecutedToolCall[] = [];
 
     while (true) {
         const response = await ollama.chat({
@@ -101,10 +106,18 @@ Response rules:
                     content: String(result),
                     tool_name: call.function.name,
                 });
+
+                executedToolCalls.push({
+                    toolName: tool.name,
+                    args: call.function.arguments,
+                });
             }
             continue;
         }
 
-        return response.message.content;
+        return {
+            text: response.message.content,
+            executedToolCalls: executedToolCalls,
+        };
     }
 }

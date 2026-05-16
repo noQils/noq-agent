@@ -1,9 +1,8 @@
 export interface ToolCall {
   id?: string;
   name: string;
-  arguments: Record<string, unknown>;
+  args: Record<string, unknown>;
 }
-
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'model' | 'tool';
@@ -12,13 +11,18 @@ export interface ChatMessage {
   toolCallId?: string;
 }
 
+export interface ExecutedToolCall {
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+export interface ChatResult {
+  text: string;
+  executedToolCalls?: ExecutedToolCall[];
+}
+
+
 export interface Provider {
-    // Method to generate text based on a prompt
-    generateText(prompt: string): Promise<string>;
-    
     // Method to handle chat interactions with the model, including tool calls
-    chat(messages: ChatMessage[]): Promise<{
-        text?: string;
-        toolCalls?: ToolCall[];
-    }>;
+    chat(messages: ChatMessage[]): Promise<ChatResult>;
 }

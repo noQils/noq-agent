@@ -9,7 +9,11 @@ import {
   Type, 
   Schema,
 } from '@google/genai';
-import { type ChatMessage } from './base';
+import { 
+  type ChatMessage, 
+  type ChatResult,
+  type ExecutedToolCall,
+} from './base';
 import { allTools, type InternalTool } from '../tools/index';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
@@ -175,7 +179,7 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
 export async function chat(
   messages: ChatMessage[],
   config?: { model?: string }
-): Promise<string> {
+): Promise<ChatResult> {
     const model = config?.model ?? process.env.GEMINI_MODEL;
     if (!model) {
       throw new Error('Gemini model not specified');
@@ -192,6 +196,7 @@ export async function chat(
     const gemini = new GoogleGenAI({apiKey: getApiKey()});
     const { systemInstruction, contents } = toGeminiHistory(currentMessages);
     const functionDeclarations = toGeminiFunctionDeclaration(allTools);
+    const executedToolCalls: ExecutedToolCall[] = [];
 
     while (true) {
       const response = await gemini.models.generateContent({
@@ -213,8 +218,15 @@ export async function chat(
       if (functionCalls && functionCalls.length > 0) {
         const toolResponses = await executeFunctionCalls(functionCalls, allTools);
         contents.push(...toolResponses);
+        executedToolCalls.push(...functionCalls.map(call => ({
+          toolName: call.name ?? '',
+          args: call.args ?? {},
+        })));
       } else {
-        return response.text ?? '';
+        return {
+          text: response.text ?? '',
+          executedToolCalls: executedToolCalls,
+        };
       }
     }
 }

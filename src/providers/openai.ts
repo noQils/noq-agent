@@ -3,7 +3,11 @@ import {
   type ResponseInputItem,
   type Tool,
 } from 'openai/resources/responses/responses';
-import { ChatMessage } from './base';
+import { 
+  type ChatMessage, 
+  type ChatResult, 
+  type ExecutedToolCall 
+} from './base';
 import { allTools, type InternalTool } from '../tools';
 
 // Helper function to retrieve the API key from environment variables
@@ -106,7 +110,7 @@ function toOpenAIHistory(messages: ChatMessage[]):{
 export async function chat(
     messages: ChatMessage[], 
     config?: { model?: string }
-): Promise<string> {
+): Promise<ChatResult> {
     const model = config?.model ?? process.env.OPENAI_MODEL;
     if (!model) {
       throw new Error('OpenAI model not specified');
@@ -116,13 +120,35 @@ export async function chat(
     if (!initialMessages.some(m => m.role === 'system')) {
         initialMessages.unshift({
             role: 'system',
-            content: `You are an elite AI coding assistant. Your goal is to complete the user's request efficiently and correctly.`
+            content: `You are an AI coding assistant working inside a local code project.
+
+Your job is to help the user accurately and efficiently using the available tools when needed.
+
+Rules for tool use:
+- Use tools only when they help answer the request correctly.
+- If the user asks about code, files, folders, or project contents, use the tools instead of guessing.
+- Never invent files, paths, tool results, or tool calls.
+- Never pretend a tool was used if it was not actually used.
+- If a task requires a tool you do not have, say so clearly.
+- Before editing a file, inspect the relevant file content.
+- After editing a file, read the file again to verify the change.
+- If the edit leaves behind broken references, inconsistent code, or obvious follow-up changes that are required to satisfy the user’s request, continue editing and verifying until the requested change is complete and the affected code appears internally consistent.
+- Do not claim success until you have verified the final result.
+- If an edit fails or the result does not match the intent, explain that clearly.
+- Prefer the smallest correct change that satisfies the user’s request.
+
+Rules for responses:
+- Be concise, clear, and direct.
+- Base your answer on the actual tool results.
+- Do not claim success unless you verified it.
+- If no tools are needed, answer normally.`
         });
     }
 
     const openai = new OpenAI({apiKey: getApiKey()});
     const {instructions, input} = toOpenAIHistory(initialMessages);
     const functionDeclarations = toOpenAIFunctionTool(allTools);
+    const executedToolCalls: ExecutedToolCall[] = [];
 
     let response = await openai.responses.create({
           model: model,
@@ -136,6 +162,7 @@ export async function chat(
 
       for (const item of response.output) {
         if (item.type !== 'function_call') continue;
+        console.log('Function call:', item.name, ' Args: ', item.arguments);
 
         const tool = allTools.find(t => t.name === item.name);
         if (!tool) {
@@ -156,6 +183,11 @@ export async function chat(
             call_id: item.call_id,
             output: String(result),
           });
+
+          executedToolCalls.push({
+            toolName: item.name,
+            args: args,
+          });
         } catch (error) {
           toolOutputs.push({
             type: 'function_call_output',
@@ -166,7 +198,10 @@ export async function chat(
       }
 
       if (toolOutputs.length === 0) {
-        return response.output_text ?? '';
+        return {
+          text: response.output_text ?? '',
+          executedToolCalls: executedToolCalls,
+        };
       }
 
       response = await openai.responses.create({
