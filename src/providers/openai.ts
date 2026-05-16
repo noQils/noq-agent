@@ -84,7 +84,7 @@ function toOpenAIHistory(messages: ChatMessage[]):{
     if (message.role === 'model') {
       input.push({
         role: 'assistant',
-        content: [{ text: message.content ?? '', type: 'input_text' }],
+        content: message.content ?? '',
       });
       continue;
     }
