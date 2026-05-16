@@ -22,8 +22,8 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             return response.text ?? '';
         }
         
-        const edited: Set<string> = new Set();
-        const verified: Set<string> = new Set();
+        const editedFilesNeedingVerification: Set<string> = new Set();
+        const verifiedEditedFiles: Set<string> = new Set();
 
         for (const call of executedToolCalls) {
             const toolName = call.toolName;
@@ -32,23 +32,23 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
                 const filePath = getFilePathArg(call.args);
                 if (!filePath) continue;
 
-                edited.add(filePath);
+                editedFilesNeedingVerification.add(filePath);
             }
 
             if (toolName === 'read_file') {
                 const filePath = getFilePathArg(call.args);
                 if (!filePath) continue;
                 
-                if (edited.has(filePath)) {
-                    verified.add(filePath);
+                if (editedFilesNeedingVerification.has(filePath)) {
+                    verifiedEditedFiles.add(filePath);
                 }
             }
         }
 
-        if (verified.size === edited.size) {
+        if (verifiedEditedFiles.size === editedFilesNeedingVerification.size) {
             return response.text ?? '';
         }
 
-        messages.push({ role: 'user' as const, content: 'Please verify the changes made to the following files: ' + Array.from(edited).join(', ') });
+        messages.push({ role: 'user' as const, content: 'Please verify the changes made to the following files: ' + Array.from(editedFilesNeedingVerification).join(', ') });
     }
 }
