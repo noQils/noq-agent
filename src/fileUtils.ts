@@ -1,15 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export function readFileIfExists(filePath: string): string | null {
+export function fileExists(filePath: string): boolean {
   const resolvedPath = path.resolve(process.cwd(), filePath);
-  if (fs.existsSync(resolvedPath)) {
-    return fs.readFileSync(resolvedPath, 'utf-8');
-  }
-  return null;
+  return fs.existsSync(resolvedPath);
+}
+
+export function readFileContent(filePath: string): string {
+  const resolvedPath = path.resolve(process.cwd(), filePath);
+  return fs.readFileSync(resolvedPath, 'utf-8');
 }
 
 export function writeFileContent(filePath: string, content: string) {
   const resolvedPath = path.resolve(process.cwd(), filePath);
-  fs.writeFileSync(resolvedPath, content);
+  fs.writeFileSync(resolvedPath, content, 'utf-8');
 }
