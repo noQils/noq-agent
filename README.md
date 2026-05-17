@@ -14,13 +14,15 @@ Instead of relying on a full agent framework, this project implements the core p
 The agent can currently:
 
 - inspect a codebase
+- list directory contents
 - search files with glob patterns
 - search file contents
 - read files
 - edit existing files by replacing a specific line range
 - create new files
+- run a small allowlisted set of verification commands
 
-It is designed as a terminal-first local coding assistant that can answer code questions and make small code changes inside a repository.
+It is designed as a terminal-first local coding assistant that can answer code questions, navigate a repository, make small code changes, and run basic verification commands inside a project.
 
 ## Why I Built It
 
@@ -65,11 +67,13 @@ Current providers:
 
 Current tools:
 
+- `list_dir`
 - `glob`
 - `grep`
 - `read_file`
 - `edit_file`
 - `write_file`
+- `run_command`
 
 These tools share a common internal schema and are exposed to all providers through the same tool registry.
 
@@ -105,6 +109,14 @@ npx ts-node src/index.ts "Create a new file named src/test/example.ts using the 
 
 ```bash
 npx ts-node src/index.ts "Delete the duplicated console log call in dummy-edit-test.ts and verify the final file."
+```
+
+```bash
+npx ts-node src/index.ts "Use list_dir to inspect src/tools, read the most relevant file for file creation, and summarize what it does."
+```
+
+```bash
+npx ts-node src/index.ts "Use run_command to run npx tsc --noEmit and summarize the result."
 ```
 
 ## Setup
@@ -154,7 +166,8 @@ This is still an evolving learning project, but the current version already demo
 - multi-provider tool-calling support
 - a shared internal tool schema
 - a custom orchestration layer
-- file creation and editing workflows
+- repository navigation, file creation, and file editing workflows
+- basic command execution for verification
 - basic safeguards against incomplete or unverified edits
 
 ## Next Steps
@@ -162,7 +175,8 @@ This is still an evolving learning project, but the current version already demo
 Planned improvements include:
 
 - more precise read/edit workflows
-- additional repo-navigation tools such as `list_dir`
+- safer and more configurable command execution
+- stronger post-edit verification workflows
 - better convergence controls for repeated edit loops
 - more polished CLI output
 
