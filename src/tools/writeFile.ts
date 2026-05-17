@@ -30,8 +30,7 @@ export const writeFileTool: InternalTool = {
 
 // Function to write a file at the specified path
 export function writeFile(filePath: string, content: string) {
-    const fileExists = checkPathExists(filePath);
-    if (fileExists) {
+    if (checkPathExists(filePath)) {
         throw new Error(`File already exists: ${filePath}`);
     }
 

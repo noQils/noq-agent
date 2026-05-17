@@ -53,8 +53,7 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
         throw new Error("startLine must be less than or equal to endLine");
     }
 
-    const fileExists = checkPathExists(filePath);
-    if (!fileExists) {
+    if (!checkPathExists(filePath)) {
         throw new Error(`File not found: ${filePath}`);
     }
 

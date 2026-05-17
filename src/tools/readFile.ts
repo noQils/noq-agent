@@ -25,8 +25,7 @@ export const readFileTool: InternalTool = {
 
 // Function to read a file at the specified path
 export function readFile(filePath: string): string {
-    const fileExists = checkPathExists(filePath);
-    if (!fileExists) {
+    if (!checkPathExists(filePath)) {
         throw new Error(`File not found: ${filePath}`);
     }
 
