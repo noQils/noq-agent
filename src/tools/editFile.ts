@@ -76,5 +76,5 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
     lines.splice(startIndex, deleteCount, ...newLines);
     
     fs.writeFileSync(fullPath, lines.join('\n'));
-    return `Updated ${filePath} lines ${startLine}-${endLine}`;
+    return `Updated ${filePath} at lines ${startLine}-${endLine} with ${newLines.length} replacement lines.`;
 }
