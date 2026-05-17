@@ -15,3 +15,8 @@ export function writeFileContent(filePath: string, content: string) {
   const resolvedPath = path.resolve(process.cwd(), filePath);
   fs.writeFileSync(resolvedPath, content, 'utf-8');
 }
+
+export function ensureParentDirectory(filePath: string) {
+  const resolvedPath = path.resolve(process.cwd(), filePath);
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+}
