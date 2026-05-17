@@ -1,7 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { InternalTool } from './index';
-import { readFileIfExists } from '../fileUtils';
+import { readFileIfExists, writeFileContent } from '../fileUtils';
 
 
 // Define the read_file tool, which attempts to read a file at the specified path and falls back to scanning the project directory if the file is not found
@@ -56,8 +54,7 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
         throw new Error("startLine must be less than or equal to endLine");
     }
 
-    const fullPath = path.resolve(process.cwd(), filePath);
-    const content = readFileIfExists(fullPath);
+    const content = readFileIfExists(filePath);
     if (content === null) {
         throw new Error(`File not found: ${filePath}`);
     }
@@ -75,6 +72,6 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
     const newLines = newText.split('\n');
     lines.splice(startIndex, deleteCount, ...newLines);
     
-    fs.writeFileSync(fullPath, lines.join('\n'));
+    writeFileContent(filePath, lines.join('\n'));
     return `Updated ${filePath} at lines ${startLine}-${endLine} with ${newLines.length} replacement lines.`;
 }
