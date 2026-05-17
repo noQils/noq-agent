@@ -32,7 +32,7 @@ export const editFileTool: InternalTool = {
         },
     },
     
-    execute: (args: { filePath: string, startLine: number, endLine: number, newText: string}) => {
+    execute: (args: { filePath: string, startLine: number, endLine: number, newText: string }) => {
         const result = editFile(args.filePath, args.startLine, args.endLine, args.newText);
         return result;
     },

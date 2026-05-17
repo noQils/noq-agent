@@ -22,7 +22,7 @@ export const writeFileTool: InternalTool = {
         },
     },
     
-    execute: (args: { filePath: string, content: string}) => {
+    execute: (args: { filePath: string, content: string }) => {
         const result = writeFile(args.filePath, args.content);
         return result;
     },
