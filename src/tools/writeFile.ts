@@ -1,5 +1,5 @@
 import { InternalTool } from './index';
-import { fileExists, writeFileContent, ensureParentDirectory } from '../fileUtils';
+import { checkFileExists, writeFileContent, ensureParentDirectory } from '../fileUtils';
 
 // Define the write_file tool
 export const writeFileTool: InternalTool = {
@@ -30,8 +30,8 @@ export const writeFileTool: InternalTool = {
 
 // Function to write a file at the specified path
 export function writeFile(filePath: string, content: string) {
-    const fileExistence = fileExists(filePath);
-    if (fileExistence) {
+    const fileExists = checkFileExists(filePath);
+    if (fileExists) {
         throw new Error(`File already exists: ${filePath}`);
     }
 

@@ -1,4 +1,4 @@
-import { fileExists, readFileContent } from '../fileUtils';
+import { checkFileExists, readFileContent } from '../fileUtils';
 import { InternalTool } from './index';
 
 // Define the read_file tool, which attempts to read a file at the specified path and falls back to scanning the project directory if the file is not found
@@ -25,8 +25,8 @@ export const readFileTool: InternalTool = {
 
 // Function to read a file at the specified path
 export function readFile(filePath: string): string {
-    const fileExistence = fileExists(filePath);
-    if (!fileExistence) {
+    const fileExists = checkFileExists(filePath);
+    if (!fileExists) {
         throw new Error(`File not found: ${filePath}`);
     }
 
