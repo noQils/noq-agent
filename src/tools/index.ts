@@ -4,8 +4,17 @@ import { readFileTool } from "./readFile";
 import { editFileTool } from "./editFile";
 import { writeFileTool } from "./writeFile";
 import { listDirTool } from "./listDir";
+import { runCommandTool } from "./runCommand";
 
-export const allTools: InternalTool[] = [readFileTool, globTool, grepTool, editFileTool, writeFileTool, listDirTool];
+export const allTools: InternalTool[] = [
+  readFileTool, 
+  globTool,
+  grepTool,
+  editFileTool,
+  writeFileTool,
+  listDirTool,
+  runCommandTool,
+];
 
 type PrimitiveType = 'string' | 'number' | 'integer' | 'boolean';
 
