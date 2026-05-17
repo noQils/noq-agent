@@ -3,8 +3,9 @@ import { grepTool } from "./grep";
 import { readFileTool } from "./readFile";
 import { editFileTool } from "./editFile";
 import { writeFileTool } from "./writeFile";
+import { listDirTool } from "./listDir";
 
-export const allTools: InternalTool[] = [readFileTool, globTool, grepTool, editFileTool, writeFileTool];
+export const allTools: InternalTool[] = [readFileTool, globTool, grepTool, editFileTool, writeFileTool, listDirTool];
 
 type PrimitiveType = 'string' | 'number' | 'integer' | 'boolean';
 
