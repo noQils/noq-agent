@@ -20,3 +20,19 @@ export function ensureParentDirectory(filePath: string) {
   const resolvedPath = path.resolve(process.cwd(), filePath);
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
 }
+
+export function scanDirectory(dirPath: string): string[] {
+  const resolvedPath = path.resolve(process.cwd(), dirPath);
+  const files = fs.readdirSync(resolvedPath);
+  return files.map((file) => path.join(resolvedPath, file));
+}
+
+export function checkIsDirectory(filePath: string): boolean {
+  const resolvedPath = path.resolve(process.cwd(), filePath);
+  return fs.statSync(resolvedPath).isDirectory();
+}
+
+export function getBaseName(filePath: string): string {
+  const resolvedPath = path.resolve(process.cwd(), filePath);
+  return path.basename(resolvedPath);
+}
