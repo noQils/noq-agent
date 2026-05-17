@@ -8,7 +8,7 @@ import { readFileIfExists } from '../fileUtils';
 export const editFileTool: InternalTool = {
     // Tool metadata
     name: "edit_file",
-    description: "Line-range replacement file edit tool",
+    description: "Replace a specific line range in a file. Use the smallest line range necessary for the intended change.",
     parameters: {
         type: 'object',
         properties: {
@@ -70,12 +70,11 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
         throw new Error(`endLine cannot be greater than the number of lines in the file`);
     }
     
-    const startIndex = Math.max(0, startLine - 1);
-    const endIndex = Math.min(lines.length, endLine);
-    const deleteCount = Math.max(0, endIndex - startIndex);
+    const startIndex = startLine - 1;
+    const deleteCount = endLine - startIndex;
     const newLines = newText.split('\n');
     lines.splice(startIndex, deleteCount, ...newLines);
     
     fs.writeFileSync(fullPath, lines.join('\n'));
-    return `Updated file: ${filePath}`;
+    return `Updated ${filePath} lines ${startLine}-${endLine}`;
 }
