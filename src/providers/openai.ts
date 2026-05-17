@@ -156,13 +156,15 @@ Rules for responses:
           input: input,
           tools: functionDeclarations,
       });
+      let retryCount  = 0;
 
     while (true) {
+
+
       const toolOutputs: ResponseInputItem[] = [];
 
       for (const item of response.output) {
         if (item.type !== 'function_call') continue;
-        console.log('Function call:', item.name, ' Args: ', item.arguments);
 
         const tool = allTools.find(t => t.name === item.name);
         if (!tool) {
@@ -197,7 +199,7 @@ Rules for responses:
         }
       }
 
-      if (toolOutputs.length === 0) {
+      if (toolOutputs.length === 0 || retryCount > 10) {
         return {
           text: response.output_text ?? '',
           executedToolCalls: executedToolCalls,
@@ -210,5 +212,6 @@ Rules for responses:
         input: toolOutputs,
         tools: functionDeclarations,
       });
+      retryCount++;
     }
 }

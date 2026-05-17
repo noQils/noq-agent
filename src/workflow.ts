@@ -1,5 +1,28 @@
 import { provider } from './providers';
-import { ChatMessage } from './providers/base';
+import { type ChatMessage, type ChatResult } from './providers/base';
+
+const incompleteSignals = [
+        'if you want, i can',
+        'i can also',
+        'still includes',
+        'still contains',
+        'remaining',
+        'not yet',
+        'undefined',
+        'broken reference',
+        'broken references',
+        'inconsistent',
+        'i left',
+        'leftover',
+        'follow-up',
+        'needs cleanup',
+        'need to remove',
+        'need to fix',
+    ];
+const continueMessage = 
+    'Your last response indicates the requested change is still incomplete. Continue editing and verifying the affected file(s) until the request is fully satisfied and the affected code appears internally consistent, then respond with the completed result.';
+const verifyMessage =
+    'You edited file(s) but did not verify the result. Read the edited file(s) again, confirm the requested change was applied, and then continue.';
 
 function getFilePathArg(args: Record<string, unknown>): string | null {
     const value = args.filePath;
@@ -12,14 +35,19 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     }
 
     const messages: ChatMessage[] = [{ role: 'user' as const, content: userPrompt }];
+    let response: ChatResult = { text: ''};
 
-    while (true) {
-        const response = await provider.chat(messages);
+    const maxFlowRounds = 3;
+    let flowRoundCount = 0;
+    
+    while (flowRoundCount < maxFlowRounds) {
+        response = await provider.chat(messages);
         messages.push({ role: 'model' as const, content: response.text });
+        flowRoundCount++;
 
         const executedToolCalls = response.executedToolCalls ?? [];
         if (executedToolCalls.length === 0) {
-            return response.text ?? '';
+            return response.text;
         }
         
         const editedFilesNeedingVerification: Set<string> = new Set();
@@ -46,9 +74,16 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         }
 
         if (verifiedEditedFiles.size === editedFilesNeedingVerification.size) {
-            return response.text ?? '';
+            if (!incompleteSignals.some(signal => response.text?.toLowerCase().includes(signal))) {
+                return response.text;
+            }
+
+            messages.push({ role: 'user' as const, content: continueMessage + ` Affected file(s): ${Array.from(editedFilesNeedingVerification).join(', ')}`});
+            continue;
         }
 
-        messages.push({ role: 'user' as const, content: 'Please verify the changes made to the following files: ' + Array.from(editedFilesNeedingVerification).join(', ') });
+        messages.push({ role: 'user' as const, content: verifyMessage + ` Edited file(s): ${Array.from(editedFilesNeedingVerification).join(', ')}`});
     }
+    
+    return `Stopped after reaching the workflow round limit before the task fully converged. The task may be incomplete.\n\nLatest response:\n${response.text}`;
 }
