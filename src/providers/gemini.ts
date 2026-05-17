@@ -180,53 +180,54 @@ export async function chat(
   messages: ChatMessage[],
   config?: { model?: string }
 ): Promise<ChatResult> {
-    const model = config?.model ?? process.env.GEMINI_MODEL;
-    if (!model) {
-      throw new Error('Gemini model not specified');
-    }
+  const model = config?.model ?? process.env.GEMINI_MODEL;
+  if (!model) {
+    throw new Error('Gemini model not specified');
+  }
 
-    let currentMessages = [...messages];
-    if (!currentMessages.some(m => m.role === 'system')) {
-        currentMessages.unshift({
-            role: 'system',
-            content: `You are an elite AI coding assistant. Your goal is to complete the user's request efficiently and correctly.`
-        });
-    }
-
-    const gemini = new GoogleGenAI({apiKey: getApiKey()});
-    const { systemInstruction, contents } = toGeminiHistory(currentMessages);
-    const functionDeclarations = toGeminiFunctionDeclaration(allTools);
-    const executedToolCalls: ExecutedToolCall[] = [];
-
-    while (true) {
-      const response = await gemini.models.generateContent({
-        model: model,
-        contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
-        config: {
-          systemInstruction: systemInstruction ?? '',
-          tools: [{functionDeclarations}],
-          toolConfig: {
-            functionCallingConfig: {
-              mode: FunctionCallingConfigMode.AUTO,
-            }
-          }
-        },
+  let currentMessages = [...messages];
+  if (!currentMessages.some(m => m.role === 'system')) {
+      currentMessages.unshift({
+          role: 'system',
+          content: `You are an elite AI coding assistant. Your goal is to complete the user's request efficiently and correctly.`
       });
+  }
 
-      const functionCalls = response.functionCalls ?? [];
+  const gemini = new GoogleGenAI({apiKey: getApiKey()});
+  const { systemInstruction, contents } = toGeminiHistory(currentMessages);
+  const functionDeclarations = toGeminiFunctionDeclaration(allTools);
+  const executedToolCalls: ExecutedToolCall[] = [];
+  let retryCount = 0;
 
-      if (functionCalls && functionCalls.length > 0) {
-        const toolResponses = await executeFunctionCalls(functionCalls, allTools);
-        contents.push(...toolResponses);
-        executedToolCalls.push(...functionCalls.map(call => ({
-          toolName: call.name ?? '',
-          args: call.args ?? {},
-        })));
-      } else {
-        return {
-          text: response.text ?? '',
-          executedToolCalls: executedToolCalls,
-        };
-      }
+  while (true) {
+    const response = await gemini.models.generateContent({
+      model: model,
+      contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
+      config: {
+        systemInstruction: systemInstruction ?? '',
+        tools: [{functionDeclarations}],
+        toolConfig: {
+          functionCallingConfig: {
+            mode: FunctionCallingConfigMode.AUTO,
+          }
+        }
+      },
+    });
+    retryCount++;
+
+    const functionCalls = response.functionCalls ?? [];
+    if (functionCalls.length === 0 || retryCount > 10) {
+      return {
+        text: response.text ?? '',
+        executedToolCalls,
+      };
     }
+
+    const toolResponses = await executeFunctionCalls(functionCalls, allTools);
+    contents.push(...toolResponses);
+    executedToolCalls.push(...functionCalls.map(call => ({
+      toolName: call.name ?? '',
+      args: call.args ?? {},
+    })));
+  }
 }

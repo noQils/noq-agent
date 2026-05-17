@@ -77,6 +77,7 @@ Response rules:
     }))
     const ollamaTools = toOllamaTool(allTools);
     const executedToolCalls: ExecutedToolCall[] = [];
+    let retryCount = 0;
 
     while (true) {
         const response = await ollama.chat({
@@ -86,38 +87,38 @@ Response rules:
         });
 
         ollamaMessages.push(response.message);
+        retryCount++;
 
         const toolCalls = response.message.tool_calls ?? [];
-        if (toolCalls.length) {
-            for (const call of toolCalls) {
-                const tool = allTools.find(t => t.name === call.function.name);
-                if (!tool) {
-                    ollamaMessages.push({
-                        role: 'tool',
-                        content: `Error: Unknown tool ${call.function.name}`,
-                        tool_name: call.function.name,
-                    });
-                    continue;
-                }
-
-                const result = await tool.execute(call.function.arguments);
-                ollamaMessages.push({
-                    role: 'tool',
-                    content: String(result),
-                    tool_name: call.function.name,
-                });
-
-                executedToolCalls.push({
-                    toolName: tool.name,
-                    args: call.function.arguments,
-                });
-            }
-            continue;
+        if (toolCalls.length === 0 || retryCount > 10) {
+            return {
+              text: response.message.content,
+              executedToolCalls: executedToolCalls,
+            };
         }
 
-        return {
-            text: response.message.content,
-            executedToolCalls: executedToolCalls,
-        };
+        for (const call of toolCalls) {
+          const tool = allTools.find(t => t.name === call.function.name);
+          if (!tool) {
+              ollamaMessages.push({
+                  role: 'tool',
+                  content: `Error: Unknown tool ${call.function.name}`,
+                  tool_name: call.function.name,
+              });
+              continue;
+          }
+
+          const result = await tool.execute(call.function.arguments);
+          ollamaMessages.push({
+              role: 'tool',
+              content: String(result),
+              tool_name: call.function.name,
+          });
+
+          executedToolCalls.push({
+              toolName: tool.name,
+              args: call.function.arguments,
+          });
+        }
     }
 }

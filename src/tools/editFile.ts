@@ -1,10 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { InternalTool } from './index';
-import { readFileIfExists } from '../fileUtils';
+import { checkFileExists, readFileContent, writeFileContent } from '../fileUtils';
 
-
-// Define the read_file tool, which attempts to read a file at the specified path and falls back to scanning the project directory if the file is not found
+// Define the edit_file tool
 export const editFileTool: InternalTool = {
     // Tool metadata
     name: "edit_file",
@@ -41,7 +38,7 @@ export const editFileTool: InternalTool = {
     },
 };
 
-// Function to read a file at the specified path
+// Function to edit a file at the specified path
 export function editFile(filePath: string, startLine: number, endLine: number, newText: string) {
     if (!Number.isInteger(startLine)) {
         throw new TypeError("startLine must be an integer");
@@ -56,13 +53,14 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
         throw new Error("startLine must be less than or equal to endLine");
     }
 
-    const fullPath = path.resolve(process.cwd(), filePath);
-    const content = readFileIfExists(fullPath);
-    if (content === null) {
+    const fileExists = checkFileExists(filePath);
+    if (!fileExists) {
         throw new Error(`File not found: ${filePath}`);
     }
 
+    const content = readFileContent(filePath);
     const lines = content.split('\n');
+
     if (startLine > lines.length) {
         throw new Error(`startLine cannot be greater than the number of lines in the file`);
     }
@@ -75,6 +73,6 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
     const newLines = newText.split('\n');
     lines.splice(startIndex, deleteCount, ...newLines);
     
-    fs.writeFileSync(fullPath, lines.join('\n'));
-    return `Updated ${filePath} lines ${startLine}-${endLine}`;
+    writeFileContent(filePath, lines.join('\n'));
+    return `Updated ${filePath} at lines ${startLine}-${endLine} with ${newLines.length} replacement lines.`;
 }
