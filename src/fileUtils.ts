@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export function checkFileExists(filePath: string): boolean {
+export function checkPathExists(filePath: string): boolean {
   const resolvedPath = path.resolve(process.cwd(), filePath);
   return fs.existsSync(resolvedPath);
 }

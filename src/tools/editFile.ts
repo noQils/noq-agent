@@ -1,5 +1,5 @@
 import { InternalTool } from './index';
-import { checkFileExists, readFileContent, writeFileContent } from '../fileUtils';
+import { checkPathExists, readFileContent, writeFileContent } from '../fileUtils';
 
 // Define the edit_file tool
 export const editFileTool: InternalTool = {
@@ -53,7 +53,7 @@ export function editFile(filePath: string, startLine: number, endLine: number, n
         throw new Error("startLine must be less than or equal to endLine");
     }
 
-    const fileExists = checkFileExists(filePath);
+    const fileExists = checkPathExists(filePath);
     if (!fileExists) {
         throw new Error(`File not found: ${filePath}`);
     }
