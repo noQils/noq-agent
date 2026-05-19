@@ -5,7 +5,7 @@ import { checkPathExists, readFileContent, writeFileContent } from '../fileUtils
 export const editFileTool: InternalTool = {
     // Tool metadata
     name: "edit_file",
-    description: "Replace a specific line range in a file. Use the smallest line range necessary for the intended change.",
+    description: "Replace an exact text snippet in a file. Prefer the smallest unique snippet necessary for the intended change.",
     parameters: {
         type: 'object',
         properties: {
@@ -14,14 +14,9 @@ export const editFileTool: InternalTool = {
                 description: "The path to the file to edit",
                 required: true,
             },
-            startLine: {
-                type: 'integer',
-                description: "The line number to start from",
-                required: true,
-            },
-            endLine: {
-                type: 'integer',
-                description: "The line number to end at",
+            oldText: {
+                type: 'string',
+                description: "The text to replace",
                 required: true,
             },
             newText: {
@@ -32,46 +27,38 @@ export const editFileTool: InternalTool = {
         },
     },
     
-    execute: (args: { filePath: string, startLine: number, endLine: number, newText: string }) => {
-        const result = editFile(args.filePath, args.startLine, args.endLine, args.newText);
+    execute: (args: { filePath: string, oldText: string, newText: string }) => {
+        const result = editFile(args.filePath, args.oldText, args.newText);
         return result;
     },
 };
 
 // Function to edit a file at the specified path
-export function editFile(filePath: string, startLine: number, endLine: number, newText: string) {
-    if (!Number.isInteger(startLine)) {
-        throw new TypeError("startLine must be an integer");
-    }
-    if (!Number.isInteger(endLine)) {
-        throw new TypeError("endLine must be an integer");
-    }
-    if (startLine < 1) {
-        throw new Error("startLine must be greater than 0");
-    }
-    if (startLine > endLine) {
-        throw new Error("startLine must be less than or equal to endLine");
-    }
-
+export function editFile(filePath: string, oldText: string, newText: string) {
     if (!checkPathExists(filePath)) {
         throw new Error(`File not found: ${filePath}`);
     }
+    if (oldText.length === 0) {
+        throw new Error('oldText must not be empty');
+    }
 
     const content = readFileContent(filePath);
-    const lines = content.split('\n');
+    const occurrences = content.split(oldText).length - 1;
+    if (occurrences === 0) {
+    throw new Error(`Exact text to replace was not found in ${filePath}`);
+    }
 
-    if (startLine > lines.length) {
-        throw new Error(`startLine cannot be greater than the number of lines in the file`);
+    if (occurrences > 1) {
+        throw new Error(`Exact text to replace matched ${occurrences} times in ${filePath}; provide a more specific snippet.`);
     }
-    if (endLine > lines.length) {
-        throw new Error(`endLine cannot be greater than the number of lines in the file`);
+
+    const updatedContent = content.replace(oldText, newText);
+    writeFileContent(filePath, updatedContent);
+
+    const verifiedContent = readFileContent(filePath);
+    if (verifiedContent !== updatedContent) {
+        throw new Error(`Post-write verification failed for ${filePath}`);
     }
-    
-    const startIndex = startLine - 1;
-    const deleteCount = endLine - startIndex;
-    const newLines = newText.split('\n');
-    lines.splice(startIndex, deleteCount, ...newLines);
-    
-    writeFileContent(filePath, lines.join('\n'));
-    return `Updated ${filePath} at lines ${startLine}-${endLine} with ${newLines.length} replacement lines.`;
+
+    return `Updated ${filePath} by replacing 1 exact text match.`;
 }
