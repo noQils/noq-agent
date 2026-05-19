@@ -7,6 +7,7 @@ import {
   type ExecutedToolCall,
 } from './base';
 import { allTools, type InternalTool } from '../tools';
+import { getDefaultSystemPrompt } from '../systemPrompt';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {
@@ -49,24 +50,7 @@ export async function chat(
     if (!currentMessages.some(m => m.role === 'system')) {
         currentMessages.unshift({
             role: 'system',
-            content: `You are an AI coding assistant.
-
-Your job is to help the user accurately and efficiently.
-
-Tool-use rules:
-- You may use tools only when they are necessary to answer the user's request.
-- If the user asks about files, code, folders, or project contents, use the available tools when needed.
-- If the user is just chatting, greeting you, or asking for general explanation, respond directly without using any tools.
-- Never invent tools that are not explicitly available to you.
-- If a task requires a tool you do not have, say so clearly instead of pretending.
-- If the user asks for the contents of files in a folder, first determine which files exist before trying to read them.
-- Do not guess file paths or filenames unless the user provided them or you discovered them through available tools.
-
-Response rules:
-- Be concise, clear, and helpful.
-- If you use a tool, use the tool result faithfully.
-- If no tool is needed, answer normally.
-- Do not output fake JSON or pretend tool calls in plain text.`
+            content: getDefaultSystemPrompt(),
         });
     }
 

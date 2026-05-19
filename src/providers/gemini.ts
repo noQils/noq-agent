@@ -15,6 +15,7 @@ import {
   type ExecutedToolCall,
 } from './base';
 import { allTools, type InternalTool } from '../tools/index';
+import { getDefaultSystemPrompt } from '../systemPrompt';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
@@ -189,7 +190,7 @@ export async function chat(
   if (!currentMessages.some(m => m.role === 'system')) {
       currentMessages.unshift({
           role: 'system',
-          content: `You are an elite AI coding assistant. Your goal is to complete the user's request efficiently and correctly.`
+          content: getDefaultSystemPrompt(),
       });
   }
 
