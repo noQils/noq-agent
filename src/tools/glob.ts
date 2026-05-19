@@ -64,7 +64,7 @@ export const globTool: InternalTool = {
 export async function glob(pattern: string, cwd?: string): Promise<string[]> {
     const normalizedPattern = pattern.trim();
     const normalizedCwd = cwd?.trim();
-    if (disallowedPatterns.has(pattern) || isBroadGlob(normalizedPattern, normalizedCwd)) {
+    if (disallowedPatterns.has(normalizedPattern) || isBroadGlob(normalizedPattern, normalizedCwd)) {
         throw new Error(`Glob pattern is too broad: ${normalizedPattern}. Use a narrower pattern or inspect directories with list_dir first.`);
     }
 
