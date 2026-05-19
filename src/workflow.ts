@@ -2,23 +2,23 @@ import { provider } from './providers';
 import { type ChatMessage, type ChatResult } from './providers/base';
 
 const incompleteSignals = [
-        'if you want, i can',
-        'i can also',
-        'still includes',
-        'still contains',
-        'remaining',
-        'not yet',
-        'undefined',
-        'broken reference',
-        'broken references',
-        'inconsistent',
-        'i left',
-        'leftover',
-        'follow-up',
-        'needs cleanup',
-        'need to remove',
-        'need to fix',
-    ];
+    'if you want, i can',
+    'i can also',
+    'still includes',
+    'still contains',
+    'remaining',
+    'not yet',
+    'undefined',
+    'broken reference',
+    'broken references',
+    'inconsistent',
+    'i left',
+    'leftover',
+    'follow-up',
+    'needs cleanup',
+    'need to remove',
+    'need to fix',
+];
 const continueMessage = 
     'Your last response indicates the requested change is still incomplete. Continue editing and verifying the affected file(s) until the request is fully satisfied and the affected code appears internally consistent, then respond with the completed result.';
 const verifyMessage =

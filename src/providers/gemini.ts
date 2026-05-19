@@ -194,10 +194,10 @@ export async function chat(
       });
   }
 
-  const gemini = new GoogleGenAI({apiKey: getApiKey()});
   const { systemInstruction, contents } = toGeminiHistory(currentMessages);
   const functionDeclarations = toGeminiFunctionDeclaration(allTools);
   const executedToolCalls: ExecutedToolCall[] = [];
+  const gemini = new GoogleGenAI({apiKey: getApiKey()});
   let retryCount = 0;
 
   while (true) {

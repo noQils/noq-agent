@@ -136,7 +136,7 @@ export async function chat(
           input: input,
           tools: functionDeclarations,
       });
-      let retryCount  = 0;
+    let retryCount  = 0;
 
     while (true) {
       const toolOutputs: ResponseInputItem[] = [];

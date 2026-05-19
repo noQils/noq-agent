@@ -45,7 +45,7 @@ export function editFile(filePath: string, oldText: string, newText: string) {
     const content = readFileContent(filePath);
     const occurrences = content.split(oldText).length - 1;
     if (occurrences === 0) {
-    throw new Error(`Exact text to replace was not found in ${filePath}`);
+        throw new Error(`Exact text to replace was not found in ${filePath}`);
     }
 
     if (occurrences > 1) {
