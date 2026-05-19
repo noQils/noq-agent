@@ -17,7 +17,7 @@ Examples:
 }
 
 function printVersion() {
-  console.log('noq-agent version 1.0.0');
+  console.log('1.0.0');
 }
 
 // Main function to generate content
