@@ -106,6 +106,10 @@ function toOpenAIHistory(messages: ChatMessage[]):{
   }
 }
 
+function createResponseWithRetry() {
+
+}
+
 // Main chat function
 export async function chat(
     messages: ChatMessage[], 
@@ -145,10 +149,10 @@ Rules for responses:
         });
     }
 
-    const openai = new OpenAI({apiKey: getApiKey()});
     const {instructions, input} = toOpenAIHistory(initialMessages);
     const functionDeclarations = toOpenAIFunctionTool(allTools);
     const executedToolCalls: ExecutedToolCall[] = [];
+    const openai = new OpenAI({ apiKey: getApiKey(), maxRetries: 3 });
 
     let response = await openai.responses.create({
           model: model,
@@ -159,8 +163,6 @@ Rules for responses:
       let retryCount  = 0;
 
     while (true) {
-
-
       const toolOutputs: ResponseInputItem[] = [];
 
       for (const item of response.output) {
