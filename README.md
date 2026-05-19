@@ -1,13 +1,13 @@
 # noq-agent
 
-`noq-agent` is a local AI coding agent CLI I built to learn how modern tool-using coding agents work under the hood.
+`noq-agent` is a local AI coding agent CLI built to explore how modern tool-using coding agents work under the hood.
 
-Instead of relying on a full agent framework, this project implements the core pieces directly:
+Instead of relying on a full agent framework, this project implements the main layers directly:
 
 - provider adapters for multiple model backends
-- a shared tool system
+- a shared internal tool system
 - a workflow/orchestration layer
-- bounded tool loops and verification rules for safer file edits
+- lightweight safety and verification rules for edits and commands
 
 ## What It Does
 
@@ -15,12 +15,12 @@ The agent can currently:
 
 - inspect a codebase
 - list directory contents
-- search files with glob patterns
+- search files with guarded glob patterns
 - search file contents
 - read files
-- edit existing files by replacing a specific line range
+- edit existing files by replacing an exact text snippet
 - create new files
-- run a small allowlisted set of verification commands
+- run a small trusted set of verification commands
 
 It is designed as a terminal-first local coding assistant that can answer code questions, navigate a repository, make small code changes, and run basic verification commands inside a project.
 
@@ -45,6 +45,8 @@ The project is split into a few simple layers:
   internal tool definitions and tool implementations
 - `src/workflow.ts`
   orchestration logic that manages one agent turn and enforces workflow rules
+- `src/systemPrompt.ts`
+  shared default system prompt used by providers
 - `src/fileUtils.ts`
   shared low-level file operations used by tools
 
@@ -77,6 +79,13 @@ Current tools:
 
 These tools share a common internal schema and are exposed to all providers through the same tool registry.
 
+Notable tool behavior:
+
+- `edit_file` performs exact text replacement using `oldText` and `newText`
+- `edit_file` rejects missing or ambiguous matches and verifies the final file after writing
+- `glob` rejects overly broad recursive patterns to reduce accidental repo-wide scans
+- `run_command` only allows trusted commands and rejects untrusted or dangerous ones
+
 ### Workflow Layer
 
 `runAgentTurn()` in `src/workflow.ts` acts as the orchestrator for one user request.
@@ -89,34 +98,40 @@ It currently enforces behaviors such as:
 
 This layer was added after observing that "tool calling works" is not enough by itself; the runtime also needs lightweight control over completion and verification.
 
-## Example Usage
+## CLI Usage
 
-Run the CLI with a natural-language prompt:
+After building and linking the CLI locally, you can run the agent with:
 
 ```bash
-npx ts-node src/index.ts "Inspect the tool system for this project."
+noq "Read the file src/tools/runCommand.ts. Summarize what it does."
 ```
 
-Example prompts:
+During development, you can also run:
 
 ```bash
-npx ts-node src/index.ts "Use glob to list files in src/tools, grep to find fast-glob usage, then read the relevant files and summarize them."
+npm run dev -- "Read the file src/tools/runCommand.ts. Summarize what it does."
 ```
 
-```bash
-npx ts-node src/index.ts "Create a new file named src/test/example.ts using the write_file tool and then verify its contents."
-```
+## Example Prompts
 
 ```bash
-npx ts-node src/index.ts "Delete the duplicated console log call in dummy-edit-test.ts and verify the final file."
-```
-
-```bash
-npx ts-node src/index.ts "Use list_dir to inspect src/tools, read the most relevant file for file creation, and summarize what it does."
+noq "Use list_dir to inspect src/tools, then read the most relevant command-related file and summarize it."
 ```
 
 ```bash
-npx ts-node src/index.ts "Use run_command to run npx tsc --noEmit and summarize the result."
+noq "Read src/tools/runCommand.ts, make one small clarity improvement with edit_file using an exact existing snippet, verify the edit with read_file, and summarize the result."
+```
+
+```bash
+noq "Create a new file named src/test/example.ts with write_file, verify it with read_file, and summarize the result."
+```
+
+```bash
+noq "Use run_command to run npx tsc --noEmit, then summarize the result."
+```
+
+```bash
+noq "Use list_dir to inspect src/test, create a new file named src/test/release-check.ts with write_file containing a tiny exported constant, verify it with read_file, then read the most relevant command-related tool in src/tools, make one small clarity improvement with edit_file, verify the edit, run npx tsc --noEmit with run_command, and summarize the whole result."
 ```
 
 ## Setup
@@ -143,11 +158,34 @@ GEMINI_MODEL=gemini-2.5-flash
 OLLAMA_DEFAULT_MODEL=llama3.1:8b
 ```
 
-3. Run the agent:
+3. Build the CLI:
 
 ```bash
-npx ts-node src/index.ts "your prompt"
+npm run build
 ```
+
+4. Link it locally:
+
+```bash
+npm link
+```
+
+5. Run the agent:
+
+```bash
+noq "your prompt"
+```
+
+## Current Safety Model
+
+This project uses lightweight safeguards rather than a full sandbox.
+
+- `edit_file` requires exact existing text and verifies the file after writing
+- `glob` discourages and rejects broad recursive scans
+- `run_command` only permits a trusted set of commands such as `npx tsc --noEmit`
+- workflow rounds are bounded to reduce infinite repair loops
+
+These safeguards are intentionally simple, but they noticeably improve reliability for a local learning project.
 
 ## What I Learned
 
@@ -166,19 +204,19 @@ This is still an evolving learning project, but the current version already demo
 - multi-provider tool-calling support
 - a shared internal tool schema
 - a custom orchestration layer
-- repository navigation, file creation, and file editing workflows
-- basic command execution for verification
+- repository navigation, file creation, and exact-text file editing workflows
+- trusted command execution for verification
 - basic safeguards against incomplete or unverified edits
 
 ## Next Steps
 
 Planned improvements include:
 
-- more precise read/edit workflows
+- better typo-aware file selection when users reference near-miss file paths
 - safer and more configurable command execution
-- stronger post-edit verification workflows
-- better convergence controls for repeated edit loops
-- more polished CLI output
+- stronger convergence controls for repeated edit loops
+- more polished CLI output and ergonomics
+- continued hardening of search and verification behavior
 
 ## Repository
 
