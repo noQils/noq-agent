@@ -2,8 +2,13 @@
   "name": "noq-agent",
   "version": "1.0.0",
   "description": "noq-agent – Local AI coding agent CLI. Analyzes repos, answers code questions, edits files, runs commands.",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "bin": {
+    "noq": "dist/index.js"
+  },
   "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

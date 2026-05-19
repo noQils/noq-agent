@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import 'dotenv/config';
 import { runAgentTurn } from './workflow';
 
@@ -6,7 +7,7 @@ async function main() {
   // Get the user prompt from command line arguments
   const userPrompt = process.argv.slice(2).join(' ');
   if (!userPrompt) {
-    console.error('Usage: npx ts-node src/index.ts "your prompt"');
+    console.error('Usage: noq "your prompt"');
     process.exit(1);
   }
 
