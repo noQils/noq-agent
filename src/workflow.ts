@@ -73,6 +73,10 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             }
         }
 
+        if (editedFilesNeedingVerification.size === 0) {
+            return response.text;
+        }
+        
         if (verifiedEditedFiles.size === editedFilesNeedingVerification.size) {
             if (!incompleteSignals.some(signal => response.text?.toLowerCase().includes(signal))) {
                 return response.text;
