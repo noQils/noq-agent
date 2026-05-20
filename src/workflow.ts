@@ -57,7 +57,6 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
                 continue;
             }
 
-
             messages.push({
                 role: 'system',
                 content: `The referenced file "${candidatePath}" does not exist. A close existing file match was found: "${match.candidate}". Use the existing file only if it appears to be the intended target; otherwise follow the user's request literally.`,
@@ -67,6 +66,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     }
 
     let response: ChatResult = { text: ''};
+    let stopMessage = '';
 
     const maxFlowRounds = 3;
     let flowRoundCount = 0;
@@ -107,6 +107,16 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         if (editedFilesNeedingVerification.size === 0) {
             return response.text;
         }
+
+        if (response.stopReason === 'repeated_tool_calls') {
+            stopMessage = 'Stopped because the provider began repeating the same tool calls without making new progress.';
+            break;
+        }
+
+        if (response.stopReason === 'tool_round_limit_reached') {
+            stopMessage = 'Stopped because the provider reached the maximum number of tool-call rounds before the task fully converged.';
+            break;
+        }
         
         if (verifiedEditedFiles.size === editedFilesNeedingVerification.size) {
             if (!incompleteSignals.some(signal => response.text?.toLowerCase().includes(signal))) {
@@ -119,6 +129,12 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
 
         messages.push({ role: 'user' as const, content: verifyMessage + ` Edited file(s): ${Array.from(editedFilesNeedingVerification).join(', ')}`});
     }
+
+    if (stopMessage === '') {
+        stopMessage = 'Stopped because the workflow reached its maximum number of rounds before the task fully converged.';
+    }
     
-    return `Stopped after reaching the workflow round limit before the task fully converged. The task may be incomplete.\n\nLatest response:\n${response.text}`;
+    return response.text
+        ? `${stopMessage}\n\nLatest response:\n${response.text}`
+        : stopMessage;
 }
