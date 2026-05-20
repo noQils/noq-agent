@@ -34,6 +34,18 @@ function getFilePathArg(args: Record<string, unknown>): string | null {
     return typeof value === 'string' ? value : null;
 }
 
+function getStopMessage(stopReason: ChatResult['stopReason']): string | undefined {
+    if (stopReason === 'repeated_tool_calls') {
+        return 'Stopped because the provider began repeating the same tool calls without making new progress.';
+    }
+
+    if (stopReason === 'tool_round_limit_reached') {
+        return 'Stopped because the provider reached the maximum number of tool-call rounds before the task fully converged.';
+    }
+
+    return undefined;
+}
+
 // Function to run an agent turn
 export async function runAgentTurn(userPrompt: string): Promise<string> {
     if (!provider) {
@@ -47,6 +59,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     const referencedPathGroups = buildReferencedPathGroups(userPrompt);
 
     for (const group of referencedPathGroups) {
+        console.log('Referenced paths:', group.candidatePaths);
         for (const candidatePath of group.candidatePaths) {
             if (checkPathExists(candidatePath)) {
                 break;
@@ -61,12 +74,14 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
                 role: 'system',
                 content: `The referenced file "${candidatePath}" does not exist. A close existing file match was found: "${match.candidate}". Use the existing file only if it appears to be the intended target; otherwise follow the user's request literally.`,
             });
+            console.log(messages.at(-1)?.content);
             break;
         }
     }
+    console.log('\n\nAgent response:');
 
     let response: ChatResult = { text: ''};
-    let stopMessage = '';
+    let stopMessage: string | undefined;
 
     const maxFlowRounds = 3;
     let flowRoundCount = 0;
@@ -107,30 +122,34 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         if (editedFilesNeedingVerification.size === 0) {
             return response.text;
         }
-
-        if (response.stopReason === 'repeated_tool_calls') {
-            stopMessage = 'Stopped because the provider began repeating the same tool calls without making new progress.';
-            break;
-        }
-
-        if (response.stopReason === 'tool_round_limit_reached') {
-            stopMessage = 'Stopped because the provider reached the maximum number of tool-call rounds before the task fully converged.';
-            break;
-        }
         
         if (verifiedEditedFiles.size === editedFilesNeedingVerification.size) {
             if (!incompleteSignals.some(signal => response.text?.toLowerCase().includes(signal))) {
                 return response.text;
             }
 
-            messages.push({ role: 'user' as const, content: continueMessage + ` Affected file(s): ${Array.from(editedFilesNeedingVerification).join(', ')}`});
+            const providerStopMessage = getStopMessage(response.stopReason);
+            if (providerStopMessage) {
+                stopMessage = providerStopMessage;
+                break;
+            }
+
+            messages.push({ 
+                role: 'user' as const, 
+                content: continueMessage + ` Affected file(s): ${Array.from(editedFilesNeedingVerification).join(', ')}`});
             continue;
+        }
+
+        const providerStopMessage = getStopMessage(response.stopReason);
+        if (providerStopMessage) {
+            stopMessage = providerStopMessage;
+            break;
         }
 
         messages.push({ role: 'user' as const, content: verifyMessage + ` Edited file(s): ${Array.from(editedFilesNeedingVerification).join(', ')}`});
     }
 
-    if (stopMessage === '') {
+    if (!stopMessage) {
         stopMessage = 'Stopped because the workflow reached its maximum number of rounds before the task fully converged.';
     }
     
