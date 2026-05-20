@@ -59,7 +59,6 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     const referencedPathGroups = buildReferencedPathGroups(userPrompt);
 
     for (const group of referencedPathGroups) {
-        console.log('Referenced paths:', group.candidatePaths);
         for (const candidatePath of group.candidatePaths) {
             if (checkPathExists(candidatePath)) {
                 break;
@@ -74,11 +73,9 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
                 role: 'system',
                 content: `The referenced file "${candidatePath}" does not exist. A close existing file match was found: "${match.candidate}". Use the existing file only if it appears to be the intended target; otherwise follow the user's request literally.`,
             });
-            console.log(messages.at(-1)?.content);
             break;
         }
     }
-    console.log('\n\nAgent response:');
 
     let response: ChatResult = { text: ''};
     let stopMessage: string | undefined;
