@@ -14,6 +14,8 @@ export interface ChatMessage {
 export interface ExecutedToolCall {
   toolName: string;
   args: Record<string, unknown>;
+  succeeded: boolean;
+  error?: string;
 }
 
 export type StopReason =

@@ -98,11 +98,20 @@ export async function chat(
               content: `Error: Unknown tool ${call.function.name}`,
               tool_name: call.function.name,
           });
+
+          executedToolCalls.push({
+            toolName: call.function.name,
+            args: call.function.arguments,
+            succeeded: false,
+            error: `Error: Unknown tool ${call.function.name}`,
+          });
+          
           continue;
       }
 
       try {
         const result = await tool.execute(call.function.arguments);
+
         ollamaMessages.push({
             role: 'tool',
             content: String(result),
@@ -112,14 +121,23 @@ export async function chat(
         executedToolCalls.push({
             toolName: tool.name,
             args: call.function.arguments,
+            succeeded: true,
         });
         
         } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+
         ollamaMessages.push({
             role: 'tool',
             content: `Error: ${message}`,
             tool_name: call.function.name,
+        });
+
+        executedToolCalls.push({
+          toolName: tool.name,
+          args: call.function.arguments,
+          succeeded: false,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
