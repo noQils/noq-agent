@@ -6,27 +6,10 @@ import { chat as openAIChat } from './openai';
 
 // Centralized provider management to allow easy switching between different LLM providers
 const providerMap: Record<string, Provider> = {
-    ollama: {
-        chat: async (messages) => {
-            const response = await ollamaChat(messages);
-            return response;
-        }
-    },
-    
-    gemini: {
-        chat: async (messages) => {
-            const response = await geminiChat(messages);
-            return response;
-        }
-    },
-
-    openai: {
-        chat: async (messages) => {
-            const response = await openAIChat(messages);
-            return response;
-        }
-    }
-}
+  ollama: { chat: ollamaChat },
+  gemini: { chat: geminiChat },
+  openai: { chat: openAIChat },
+};
 
 const providerName = process.env.AI_PROVIDER ?? 'ollama';
 export const provider = providerMap[providerName];
