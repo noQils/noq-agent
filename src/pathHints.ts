@@ -88,7 +88,7 @@ function getFileStem(filePath: string): string {
 function normalizePathForMatching(filePath: string): string {
   return filePath
     .trim()
-    .replace(/\\/g, '/')
+    .replaceAll('\\', '/')
     .replace(/^\.\//, '')
     .toLowerCase();
 }
