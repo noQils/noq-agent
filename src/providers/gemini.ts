@@ -15,7 +15,6 @@ import {
   type ExecutedToolCall,
 } from './base';
 import { allTools, type InternalTool } from '../tools/index';
-import { getDefaultSystemPrompt } from '../systemPrompt';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
@@ -130,10 +129,20 @@ function toGeminiHistory(messages: ChatMessage[]): {
 }
 
 // Helper function to execute tool calls and return the responses
-async function executeFunctionCalls(functionCalls: FunctionCall[], tools: InternalTool[]): Promise<Content[]> {
+async function executeFunctionCalls(functionCalls: FunctionCall[], tools: InternalTool[], seenToolCallKeys: Set<string>): Promise<{ toolResponses: FunctionResponse[], hadNewToolCall: boolean, seenToolCallKeys: Set<string>}> {
+  const seenToolCallKeysCopy = new Set(seenToolCallKeys);
+  let hadNewToolCallCopy = false;
+
   const toolResponses = await Promise.all (
     functionCalls.map(async (functionCall) => {
       const tool = tools.find(t => t.name === functionCall.name);
+
+      const toolCallKey = `${functionCall.name}:${JSON.stringify(functionCall.args)}`;
+
+      if (!seenToolCallKeysCopy.has(toolCallKey)) {
+        seenToolCallKeysCopy.add(toolCallKey);
+        hadNewToolCallCopy = true;
+      }
 
       if (!tool) {
         const response: FunctionResponse = {
@@ -155,7 +164,9 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
             output: String(result),
           },
         };
+
         return response;
+
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const response: FunctionResponse = {
@@ -165,15 +176,17 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
             error: `Error executing tool ${functionCall.name}: ${message}`,
           },
         };
+
         return response;
       }
     }),
-  )
+  );
 
-  return toolResponses.map(res => ({
-    role: 'user',
-    parts: [{ functionResponse: res }]
-  }));
+  return { 
+    toolResponses: toolResponses,
+    hadNewToolCall: hadNewToolCallCopy,
+    seenToolCallKeys: seenToolCallKeysCopy,
+  };
 }
 
 // Initialize the Gemini API client with the provided API key and function calling configuration
@@ -186,13 +199,13 @@ export async function chat(
     throw new Error('Gemini model not specified');
   }
 
-  let intialMessages = [...messages];
-
-  const { systemInstruction, contents } = toGeminiHistory(intialMessages);
+  const { systemInstruction, contents } = toGeminiHistory(messages);
   const functionDeclarations = toGeminiFunctionDeclaration(allTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const gemini = new GoogleGenAI({apiKey: getApiKey()});
-  let retryCount = 0;
+
+  let seenToolCallKeys = new Set<string>();
+  let toolRoundCount = 0;
 
   while (true) {
     const response = await gemini.models.generateContent({
@@ -208,21 +221,63 @@ export async function chat(
         }
       },
     });
-    retryCount++;
 
     const functionCalls = response.functionCalls ?? [];
-    if (functionCalls.length === 0 || retryCount > 10) {
+
+    if (functionCalls.length === 0) {
       return {
         text: response.text ?? '',
         executedToolCalls,
+        stopReason: 'no_tool_calls',
       };
     }
 
-    const toolResponses = await executeFunctionCalls(functionCalls, allTools);
-    contents.push(...toolResponses);
+    if (toolRoundCount >= 10) {
+      return {
+        text: response.text ?? '',
+        executedToolCalls,
+        stopReason: 'tool_round_limit_reached',
+      };
+    }
+
+    contents.push({
+      role: 'model',
+      parts: functionCalls.map((call) => ({ functionCall: call })),
+    });
+
+    const functionCallResult = await executeFunctionCalls(
+      functionCalls,
+      allTools,
+      seenToolCallKeys,
+    );
+
+    const {
+      toolResponses,
+      hadNewToolCall,
+      seenToolCallKeys: updatedSeenToolCallKeys,
+    } = functionCallResult;
+
+    seenToolCallKeys = updatedSeenToolCallKeys;
+
+    contents.push({
+      role: 'user',
+      parts: toolResponses.map((response) => 
+        ({ functionResponse: response })),
+    });
+
     executedToolCalls.push(...functionCalls.map(call => ({
       toolName: call.name ?? '',
       args: call.args ?? {},
     })));
+
+    if (!hadNewToolCall) {
+      return {
+        text: response.text ?? '',
+        executedToolCalls,
+        stopReason: 'repeated_tool_calls',
+      };
+    }
+
+    toolRoundCount++;
   }
 }

@@ -9,7 +9,6 @@ import {
   type ExecutedToolCall 
 } from './base';
 import { allTools, type InternalTool } from '../tools';
-import { getDefaultSystemPrompt } from '../systemPrompt';
 
 // Helper function to retrieve the API key from environment variables
 function getApiKey(): string {
@@ -109,81 +108,105 @@ function toOpenAIHistory(messages: ChatMessage[]):{
 
 // Main chat function
 export async function chat(
-    messages: ChatMessage[], 
-    config?: { model?: string }
+  messages: ChatMessage[],
+  config?: { model?: string }
 ): Promise<ChatResult> {
-    const model = config?.model ?? process.env.OPENAI_MODEL;
-    if (!model) {
-      throw new Error('OpenAI model not specified');
-    }
+  const model = config?.model ?? process.env.OPENAI_MODEL;
+  if (!model) {
+    throw new Error('OpenAI model not specified');
+  }
 
-    let initialMessages = [...messages];
+  const {instructions, input} = toOpenAIHistory(messages);
+  const functionDeclarations = toOpenAIFunctionTool(allTools);
+  const executedToolCalls: ExecutedToolCall[] = [];
+  const openai = new OpenAI({ apiKey: getApiKey(), maxRetries: 3 });
 
-    const {instructions, input} = toOpenAIHistory(initialMessages);
-    const functionDeclarations = toOpenAIFunctionTool(allTools);
-    const executedToolCalls: ExecutedToolCall[] = [];
-    const openai = new OpenAI({ apiKey: getApiKey(), maxRetries: 3 });
+  let response = await openai.responses.create({
+    model: model,
+    instructions: instructions ?? null,
+    input: input,
+    tools: functionDeclarations,
+  });
+  const seenToolCallKeys = new Set<string>();
+  let toolRoundCount = 0;
 
-    let response = await openai.responses.create({
-          model: model,
-          instructions: instructions ?? null,
-          input: input,
-          tools: functionDeclarations,
-      });
-    let retryCount  = 0;
+  while (true) {
+    const toolOutputs: ResponseInputItem[] = [];
+    let hadNewToolCall = false;
 
-    while (true) {
-      const toolOutputs: ResponseInputItem[] = [];
+    for (const item of response.output) {
+      if (item.type !== 'function_call') continue;
 
-      for (const item of response.output) {
-        if (item.type !== 'function_call') continue;
+      const toolCallKey = `${item.name}:${JSON.stringify(item.arguments)}`;
 
-        const tool = allTools.find(t => t.name === item.name);
-        if (!tool) {
-          toolOutputs.push({
-            type: 'function_call_output',
-            call_id: item.call_id,
-            output: `Error: Unknown tool ${item.name}`,
-          });
-          continue;
-        }
-
-        try {
-          const args = JSON.parse(item.arguments);
-          const result = await tool.execute(args);
-
-          toolOutputs.push({
-            type: 'function_call_output',
-            call_id: item.call_id,
-            output: String(result),
-          });
-
-          executedToolCalls.push({
-            toolName: item.name,
-            args: args,
-          });
-        } catch (error) {
-          toolOutputs.push({
-            type: 'function_call_output',
-            call_id: item.call_id,
-            output: error instanceof Error ? error.message : String(error),
-          });
-        }
+      if (!seenToolCallKeys.has(toolCallKey)) {
+        seenToolCallKeys.add(toolCallKey);
+        hadNewToolCall = true;
       }
 
-      if (toolOutputs.length === 0 || retryCount > 10) {
-        return {
-          text: response.output_text ?? '',
-          executedToolCalls: executedToolCalls,
-        };
+      const tool = allTools.find(t => t.name === item.name);
+      if (!tool) {
+        toolOutputs.push({
+          type: 'function_call_output',
+          call_id: item.call_id,
+          output: `Error: Unknown tool ${item.name}`,
+        });
+        continue;
       }
 
-      response = await openai.responses.create({
-        model: model,
-        previous_response_id: response.id,
-        input: toolOutputs,
-        tools: functionDeclarations,
-      });
-      retryCount++;
+      try {
+        const args = JSON.parse(item.arguments);
+        const result = await tool.execute(args);
+
+        toolOutputs.push({
+          type: 'function_call_output',
+          call_id: item.call_id,
+          output: String(result),
+        });
+
+        executedToolCalls.push({
+          toolName: item.name,
+          args: args,
+        });
+      } catch (error) {
+        toolOutputs.push({
+          type: 'function_call_output',
+          call_id: item.call_id,
+          output: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
+
+    if (toolOutputs.length === 0) {
+      return {
+        text: response.output_text ?? '',
+        executedToolCalls: executedToolCalls,
+        stopReason: 'no_tool_calls',
+      };
+    }
+
+    if (!hadNewToolCall) {
+      return {
+        text: response.output_text ?? '',
+        executedToolCalls: executedToolCalls,
+        stopReason: 'repeated_tool_calls',
+      };
+    }
+
+    if (toolRoundCount >= 10) {
+      return {
+        text: response.output_text ?? '',
+        executedToolCalls: executedToolCalls,
+        stopReason: 'tool_round_limit_reached',
+      };
+    }
+
+    response = await openai.responses.create({
+      model: model,
+      previous_response_id: response.id,
+      input: toolOutputs,
+      tools: functionDeclarations,
+    });
+    toolRoundCount++;
+  }
 }
