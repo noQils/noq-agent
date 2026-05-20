@@ -16,11 +16,16 @@ export interface ExecutedToolCall {
   args: Record<string, unknown>;
 }
 
+export type StopReason =
+  | 'no_tool_calls'
+  | 'repeated_tool_calls'
+  | 'tool_round_limit_reached';
+
 export interface ChatResult {
   text: string;
   executedToolCalls?: ExecutedToolCall[];
+  stopReason?: StopReason;
 }
-
 
 export interface Provider {
     // Method to handle chat interactions with the model, including tool calls
