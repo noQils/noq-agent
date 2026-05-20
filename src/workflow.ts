@@ -1,5 +1,8 @@
+import { checkPathExists, getProjectFilePaths } from './fileUtils';
+import { findClosestFileMatch } from './pathHints';
 import { provider } from './providers';
 import { type ChatMessage, type ChatResult } from './providers/base';
+import { getDefaultSystemPrompt } from './systemPrompt';
 
 const incompleteSignals = [
     'if you want, i can',
@@ -24,17 +27,47 @@ const continueMessage =
 const verifyMessage =
     'You edited file(s) but did not verify the result. Read the edited file(s) again, confirm the requested change was applied, and then continue.';
 
+// Function to get the file path argument
 function getFilePathArg(args: Record<string, unknown>): string | null {
     const value = args.filePath;
     return typeof value === 'string' ? value : null;
 }
 
+// Extract file references from the user prompt
+function extractFileReferences(userPrompt: string): string[] {
+    const fileReferenceRegex = /\b(?:[\w.-]+[\\/])*[\w.-]+\.[a-zA-Z0-9]{1,10}\b/g;
+    return userPrompt.match(fileReferenceRegex) ?? [];
+}
+
+// Dunction to run an agent turn
 export async function runAgentTurn(userPrompt: string): Promise<string> {
     if (!provider) {
         throw new Error('Provider is not available.');
     }
 
-    const messages: ChatMessage[] = [{ role: 'user' as const, content: userPrompt }];
+    const messages: ChatMessage[] = [{ role: 'system', content: getDefaultSystemPrompt() }];
+    messages.push({ role: 'user' as const, content: userPrompt });
+    const referencedPaths = Array.from(new Set(extractFileReferences(userPrompt)));
+    const projectFiles = getProjectFilePaths();
+
+    for (const referencedPath of referencedPaths) {
+        if (checkPathExists(referencedPath)) {
+            continue;
+        }
+
+        const match = findClosestFileMatch(referencedPath, projectFiles);
+        if (!match) {
+            continue;
+        }
+
+        messages.push({
+            role: 'system',
+            content: `The referenced file "${referencedPath}" does not exist. Treat this as a reference to "${match.candidate}" for this turn unless the user explicitly asked to create a new file with that exact name.`
+        });
+
+    }
+
+
     let response: ChatResult = { text: ''};
 
     const maxFlowRounds = 3;
