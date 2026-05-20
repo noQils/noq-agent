@@ -36,7 +36,7 @@ function isBroadGlob(pattern: string, cwd?: string): boolean {
 export const globTool: InternalTool = {
     // Tool metadata
     name: "glob",
-    description: "Find files by pattern. Use narrow, specific patterns whenever possible. Prefer list_dir for general directory inspection, and avoid broad recursive patterns that scan most of the project.",
+    description: "Search for files using a glob pattern. Avoid using too broad patterns.",
     parameters: {
         type: 'object',
         properties: {
