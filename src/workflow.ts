@@ -64,9 +64,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             role: 'system',
             content: `The referenced file "${referencedPath}" does not exist. Treat this as a reference to "${match.candidate}" for this turn unless the user explicitly asked to create a new file with that exact name.`
         });
-
     }
-
 
     let response: ChatResult = { text: ''};
 
