@@ -118,12 +118,6 @@ export async function chat(
     }
 
     let initialMessages = [...messages];
-    if (!initialMessages.some(m => m.role === 'system')) {
-        initialMessages.unshift({
-            role: 'system',
-            content: getDefaultSystemPrompt(),
-        });
-    }
 
     const {instructions, input} = toOpenAIHistory(initialMessages);
     const functionDeclarations = toOpenAIFunctionTool(allTools);

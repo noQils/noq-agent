@@ -46,16 +46,9 @@ export async function chat(
       throw new Error('OLLAMA model not specified');
     }
 
-    let currentMessages = [...messages];
-    if (!currentMessages.some(m => m.role === 'system')) {
-        currentMessages.unshift({
-            role: 'system',
-            content: getDefaultSystemPrompt(),
-        });
-    }
+    let intialMessages = [...messages];
 
-
-    const ollamaMessages: Message[] = currentMessages.map(msg => ({
+    const ollamaMessages: Message[] = intialMessages.map(msg => ({
         role: msg.role === 'model' ? 'assistant' : msg.role,
         content: msg.content ?? '',
     }))

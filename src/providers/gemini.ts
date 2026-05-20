@@ -186,15 +186,9 @@ export async function chat(
     throw new Error('Gemini model not specified');
   }
 
-  let currentMessages = [...messages];
-  if (!currentMessages.some(m => m.role === 'system')) {
-      currentMessages.unshift({
-          role: 'system',
-          content: getDefaultSystemPrompt(),
-      });
-  }
+  let intialMessages = [...messages];
 
-  const { systemInstruction, contents } = toGeminiHistory(currentMessages);
+  const { systemInstruction, contents } = toGeminiHistory(intialMessages);
   const functionDeclarations = toGeminiFunctionDeclaration(allTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const gemini = new GoogleGenAI({apiKey: getApiKey()});
