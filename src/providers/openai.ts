@@ -146,11 +146,21 @@ export async function chat(
 
       const tool = allTools.find(t => t.name === item.name);
       if (!tool) {
+        const args = JSON.parse(item.arguments);
+
         toolOutputs.push({
           type: 'function_call_output',
           call_id: item.call_id,
           output: `Error: Unknown tool ${item.name}`,
         });
+
+        executedToolCalls.push({
+          toolName: item.name,
+          args,
+          succeeded: false,
+          error: `Error: Unknown tool ${item.name}`,
+        });
+
         continue;
       }
 
@@ -167,12 +177,23 @@ export async function chat(
         executedToolCalls.push({
           toolName: item.name,
           args: args,
+          succeeded: true,
         });
+
       } catch (error) {
+        const args = JSON.parse(item.arguments);
+
         toolOutputs.push({
           type: 'function_call_output',
           call_id: item.call_id,
           output: error instanceof Error ? error.message : String(error),
+        });
+
+        executedToolCalls.push({
+          toolName: item.name,
+          args,
+          succeeded: false,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }

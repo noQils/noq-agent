@@ -99,7 +99,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         for (const call of executedToolCalls) {
             const toolName = call.toolName;
 
-            if (toolName === 'edit_file') {
+            if (toolName === 'edit_file' && call.succeeded) {
                 const filePath = getFilePathArg(call.args);
                 if (!filePath) continue;
 
@@ -116,7 +116,16 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             }
         }
 
+        if (response.stopReason === 'no_tool_calls') {
+            return response.text;
+        }
+
         if (editedFilesNeedingVerification.size === 0) {
+            if (response.stopReason) {
+                stopMessage = getStopMessage(response.stopReason);
+                break;
+            }
+
             return response.text;
         }
         
@@ -125,9 +134,8 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
                 return response.text;
             }
 
-            const providerStopMessage = getStopMessage(response.stopReason);
-            if (providerStopMessage) {
-                stopMessage = providerStopMessage;
+            if (response.stopReason) {
+                stopMessage = getStopMessage(response.stopReason);
                 break;
             }
 
@@ -137,9 +145,8 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             continue;
         }
 
-        const providerStopMessage = getStopMessage(response.stopReason);
-        if (providerStopMessage) {
-            stopMessage = providerStopMessage;
+        if (response.stopReason) {
+            stopMessage = getStopMessage(response.stopReason);
             break;
         }
 

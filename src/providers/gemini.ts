@@ -129,9 +129,19 @@ function toGeminiHistory(messages: ChatMessage[]): {
 }
 
 // Helper function to execute tool calls and return the responses
-async function executeFunctionCalls(functionCalls: FunctionCall[], tools: InternalTool[], seenToolCallKeys: Set<string>): Promise<{ toolResponses: FunctionResponse[], hadNewToolCall: boolean, seenToolCallKeys: Set<string>}> {
+async function executeFunctionCalls(
+  functionCalls: FunctionCall[], 
+  tools: InternalTool[], 
+  seenToolCallKeys: Set<string>,
+): Promise<{
+  toolResponses: FunctionResponse[],
+  executedToolCalls: ExecutedToolCall[],
+  hadNewToolCall: boolean,
+  seenToolCallKeys: Set<string>,
+}> {
+  const executedToolCalls: ExecutedToolCall[] = [];
   const seenToolCallKeysCopy = new Set(seenToolCallKeys);
-  let hadNewToolCallCopy = false;
+  let hadNewToolCall = false;
 
   const toolResponses = await Promise.all (
     functionCalls.map(async (functionCall) => {
@@ -141,7 +151,7 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
 
       if (!seenToolCallKeysCopy.has(toolCallKey)) {
         seenToolCallKeysCopy.add(toolCallKey);
-        hadNewToolCallCopy = true;
+        hadNewToolCall = true;
       }
 
       if (!tool) {
@@ -152,6 +162,14 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
             error: `Unknown tool: ${functionCall.name}`,
           },
         };
+
+        executedToolCalls.push({
+          toolName: functionCall.name ?? '',
+          args: functionCall.args ?? {},
+          succeeded: false,
+          error: `Unknown tool: ${functionCall.name}`,
+        });
+
         return response;
       }
 
@@ -165,6 +183,12 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
           },
         };
 
+        executedToolCalls.push({
+          toolName: functionCall.name ?? '',
+          args: functionCall.args ?? {},
+          succeeded: true,
+        });
+
         return response;
 
       } catch (error) {
@@ -177,6 +201,13 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
           },
         };
 
+        executedToolCalls.push({
+          toolName: functionCall.name ?? '',
+          args: functionCall.args ?? {},
+          succeeded: false,
+          error: message,
+        });
+
         return response;
       }
     }),
@@ -184,7 +215,8 @@ async function executeFunctionCalls(functionCalls: FunctionCall[], tools: Intern
 
   return { 
     toolResponses: toolResponses,
-    hadNewToolCall: hadNewToolCallCopy,
+    executedToolCalls: executedToolCalls,
+    hadNewToolCall: hadNewToolCall,
     seenToolCallKeys: seenToolCallKeysCopy,
   };
 }
@@ -253,6 +285,7 @@ export async function chat(
 
     const {
       toolResponses,
+      executedToolCalls: roundExecutedToolCalls,
       hadNewToolCall,
       seenToolCallKeys: updatedSeenToolCallKeys,
     } = functionCallResult;
@@ -265,10 +298,7 @@ export async function chat(
         ({ functionResponse: response })),
     });
 
-    executedToolCalls.push(...functionCalls.map(call => ({
-      toolName: call.name ?? '',
-      args: call.args ?? {},
-    })));
+    executedToolCalls.push(...roundExecutedToolCalls);
 
     if (!hadNewToolCall) {
       return {
