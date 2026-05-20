@@ -48,13 +48,43 @@ function levenshteinDistance(a: string, b: string): number {
     return prevRow[n];
 }
 
-// Calculate the similarity score between two file names
-function scoreSimilarity(a: string, b: string): number {
+// Calculate the similarity score between two strings
+function scoreStringSimilarity(a: string, b: string): number {
     if (a.length === 0 || b.length === 0) return 0;
     const distance = levenshteinDistance(a, b);
     return 1 - distance / Math.max(a.length, b.length);
 }
 
+// Calculate the similarity score for file extensions
+function scoreExtensionSimilarity(a: string, b: string): number {
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    if (a.startsWith(b) || b.startsWith(a)) return 0.8;
+
+    const distance = levenshteinDistance(a, b);
+    if (distance === 1) return 0.6;
+    if (distance === 2) return 0.3;
+
+    return 0;
+}
+
+function getExtension(filePath: string): string {
+    const normalizedPath = normalizePathForMatching(filePath);
+    const baseName = getBaseName(normalizedPath);
+    const lastDotIndex = baseName.lastIndexOf('.');
+
+    return lastDotIndex === -1 ? '' : baseName.slice(lastDotIndex + 1);
+}
+
+function getFileStem(filePath: string): string {
+    const normalizedPath = normalizePathForMatching(filePath);
+    const baseName = getBaseName(normalizedPath);
+    const lastDotIndex = baseName.lastIndexOf('.');
+
+    return lastDotIndex === -1 ? baseName : baseName.slice(0, lastDotIndex);
+}
+
+// Normalize the path for matching
 function normalizePathForMatching(filePath: string): string {
   return filePath
     .trim()
@@ -74,31 +104,26 @@ export function findClosestFileMatch(
 ): FileMatchHint | null {
     const closestMatches: FileMatchHint[] = [];
     const requestedHasDirectory = hasDirectoryPart(requestedPath);
-    const normalizedRequestedPath = normalizePathForMatching(requestedPath);
-    const requestedBaseName = getBaseName(normalizedRequestedPath);
+    const requestedNormalized = normalizePathForMatching(requestedPath);
+    const requestedStem = getFileStem(requestedNormalized);
+    const requestedExtension = getExtension(requestedNormalized);
 
     for (const existingPath of existingPaths) {
-        const normalizedExistingPath = normalizePathForMatching(existingPath);
-        const existingBaseName = getBaseName(normalizedExistingPath);
+        const existingNormalized = normalizePathForMatching(existingPath);
+        const existingStem = getFileStem(existingNormalized);
+        const existingExtension = getExtension(existingNormalized);
 
-        if (normalizedRequestedPath === normalizedExistingPath) {
+        if (requestedNormalized === existingNormalized) {
             return { requested: requestedPath, candidate: existingPath, score: 1 };
         }
 
-        const basenameScore = scoreSimilarity(
-            requestedBaseName, 
-            existingBaseName,
-        );
-
-        const fullPathScore = scoreSimilarity(
-            normalizedRequestedPath, 
-            normalizedExistingPath
-        );
+        const stemScore = scoreStringSimilarity(requestedStem, existingStem);
+        const extensionScore = scoreExtensionSimilarity(requestedExtension, existingExtension);
+        const fullPathScore = scoreStringSimilarity(requestedNormalized, existingNormalized);
 
         const score = requestedHasDirectory
-            ? fullPathScore * 0.7 + basenameScore * 0.3
-            : basenameScore * 0.8 + fullPathScore * 0.2;
-
+            ? stemScore * 0.4 + extensionScore * 0.15 + fullPathScore * 0.45
+            : stemScore * 0.65 + extensionScore * 0.2 + fullPathScore * 0.15;
 
         closestMatches.push({ requested: requestedPath, candidate: existingPath, score });
     }
