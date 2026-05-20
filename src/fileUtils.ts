@@ -36,3 +36,32 @@ export function getBaseName(filePath: string): string {
   const resolvedPath = path.resolve(process.cwd(), filePath);
   return path.basename(resolvedPath);
 }
+
+export function getProjectFilePaths(dirPath = '.'): string[] {
+  const resolvedPath = path.resolve(process.cwd(), dirPath);
+  const ignoredDirectories = new Set(['node_modules', '.git', 'dist', 'build']);
+  const filePaths: string[] = [];
+
+  function walk(currentPath: string) {
+    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(currentPath, entry.name);
+
+      if (entry.isDirectory()) {
+        if (ignoredDirectories.has(entry.name)) {
+          continue;
+        }
+
+        walk(fullPath);
+        continue;
+      }
+
+      const relativePath = path.relative(process.cwd(), fullPath).replace(/\\/g, '/');
+      filePaths.push(relativePath);
+    }
+  }
+
+  walk(resolvedPath);
+  return filePaths;
+}
