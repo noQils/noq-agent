@@ -1,8 +1,9 @@
 import { checkPathExists, getProjectFilePaths } from './fileUtils';
-import { findClosestFileMatch } from './pathHints';
+import { findClosestFileMatch } from './pathMatcher';
 import { provider } from './providers';
 import { type ChatMessage, type ChatResult } from './providers/base';
 import { getDefaultSystemPrompt } from './systemPrompt';
+import { buildReferencedPathGroups } from './pathReferenceHints';
 
 const incompleteSignals = [
     'if you want, i can',
@@ -33,13 +34,7 @@ function getFilePathArg(args: Record<string, unknown>): string | null {
     return typeof value === 'string' ? value : null;
 }
 
-// Extract file references from the user prompt
-function extractFileReferences(userPrompt: string): string[] {
-    const fileReferenceRegex = /\b(?:[\w.-]+[\\/])*[\w.-]+\.[a-zA-Z0-9]{1,10}\b/g;
-    return userPrompt.match(fileReferenceRegex) ?? [];
-}
-
-// Dunction to run an agent turn
+// Function to run an agent turn
 export async function runAgentTurn(userPrompt: string): Promise<string> {
     if (!provider) {
         throw new Error('Provider is not available.');
@@ -47,23 +42,28 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
 
     const messages: ChatMessage[] = [{ role: 'system', content: getDefaultSystemPrompt() }];
     messages.push({ role: 'user' as const, content: userPrompt });
-    const referencedPaths = Array.from(new Set(extractFileReferences(userPrompt)));
+
     const projectFiles = getProjectFilePaths();
+    const referencedPathGroups = buildReferencedPathGroups(userPrompt);
 
-    for (const referencedPath of referencedPaths) {
-        if (checkPathExists(referencedPath)) {
-            continue;
+    for (const group of referencedPathGroups) {
+        for (const candidatePath of group.candidatePaths) {
+            if (checkPathExists(candidatePath)) {
+                break;
+            }
+
+            const match = findClosestFileMatch(candidatePath, projectFiles);
+            if (!match) {
+                continue;
+            }
+
+
+            messages.push({
+                role: 'system',
+                content: `The referenced file "${candidatePath}" does not exist. A close existing file match was found: "${match.candidate}". Use the existing file only if it appears to be the intended target; otherwise follow the user's request literally.`,
+            });
+            break;
         }
-
-        const match = findClosestFileMatch(referencedPath, projectFiles);
-        if (!match) {
-            continue;
-        }
-
-        messages.push({
-            role: 'system',
-            content: `The referenced file "${referencedPath}" does not exist. Treat this as a reference to "${match.candidate}" for this turn unless the user explicitly asked to create a new file with that exact name.`
-        });
     }
 
     let response: ChatResult = { text: ''};
