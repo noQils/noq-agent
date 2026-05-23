@@ -43,4 +43,3 @@ export interface InternalTool {
   parameters: ToolParameters;
   execute: (args: any) => Promise<string> | string;
 }
-
