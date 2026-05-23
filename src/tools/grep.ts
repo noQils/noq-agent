@@ -10,6 +10,13 @@ type GrepResult = {
     text: string;
 };
 
+const ignoredPatterns = [
+    "node_modules/**",
+    ".git/**",
+    "dist/**",
+    "build/**",
+];
+
 // Define the grep tool, which searches for a pattern in a directory
 export const grepTool: InternalTool = {
     // Tool metadata
@@ -54,7 +61,7 @@ export async function grep(
         cwd: root,
         dot: true,
         onlyFiles: true,
-        ignore: ["node_modules/**", ".git/**", "dist/**", "build/**"],
+        ignore: ignoredPatterns,
     });
 
     const results: GrepResult[] = [];
