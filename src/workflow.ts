@@ -1,10 +1,10 @@
 import { checkPathExists, getProjectFilePaths } from './fileUtils';
 import { findClosestFileMatch } from './pathMatcher';
 import { provider } from './providers';
-import { 
-    type ChatMessage, 
-    type ChatResult, 
-    type ExecutedToolCall 
+import {
+  type ChatMessage,
+  type ChatResult,
+  type ExecutedToolCall,
 } from './providers/base';
 import { getDefaultSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';

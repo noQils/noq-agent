@@ -6,8 +6,8 @@ export interface FileMatchHint {
 
 // Calculate the Levenshtein distance between two strings
 function levenshteinDistance(a: string, b: string): number {
-    const m = a.length;
-    const n = b.length;
+  const m = a.length;
+  const n = b.length;
 
     // Initialize two arrays to represent the matrix rows
     let prevRow = new Array(n + 1).fill(0);
@@ -107,11 +107,11 @@ function findUniqueBasenameMatch(
         getBaseNameFromNormalizedPath(normalizePathForMatching(existingPath)) === requestedNormalized
     );
 
-    if (matches.length !== 1) {
-        return null;
-    }
+  if (matches.length !== 1) {
+    return null;
+  }
 
-    return { requested: requestedPath, candidate: matches[0] as string, score: 1 };
+  return { requested: requestedPath, candidate: matches[0] as string, score: 1 };
 }
 
 // Find the closest file match
@@ -119,17 +119,17 @@ export function findClosestFileMatch(
   requestedPath: string,
   existingPaths: string[],
 ): FileMatchHint | null {
-    const requestedHasDirectory = hasDirectoryPart(requestedPath);
-    const requestedNormalized = normalizePathForMatching(requestedPath);
-    if (!requestedHasDirectory) {
-        const basenameMatch = findUniqueBasenameMatch(requestedPath, requestedNormalized, existingPaths);
-        if (basenameMatch) {
-            return basenameMatch;
-        }
+  const requestedHasDirectory = hasDirectoryPart(requestedPath);
+  const requestedNormalized = normalizePathForMatching(requestedPath);
+  if (!requestedHasDirectory) {
+    const basenameMatch = findUniqueBasenameMatch(requestedPath, requestedNormalized, existingPaths);
+    if (basenameMatch) {
+      return basenameMatch;
     }
+  }
 
-    const requestedStem = getFileStemFromNormalizedPath(requestedNormalized);
-    const requestedExtension = getExtensionFromNormalizedPath(requestedNormalized);
+  const requestedStem = getFileStemFromNormalizedPath(requestedNormalized);
+  const requestedExtension = getExtensionFromNormalizedPath(requestedNormalized);
     let bestMatch: FileMatchHint | null = null;
     let secondBestMatch: FileMatchHint | null = null;
 

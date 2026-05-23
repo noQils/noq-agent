@@ -1,10 +1,10 @@
-import { globTool } from "./glob";
-import { grepTool } from "./grep";
-import { readFileTool } from "./readFile";
-import { editFileTool } from "./editFile";
-import { writeFileTool } from "./writeFile";
-import { listDirTool } from "./listDir";
-import { runCommandTool } from "./runCommand";
+import { globTool } from './glob';
+import { grepTool } from './grep';
+import { readFileTool } from './readFile';
+import { editFileTool } from './editFile';
+import { writeFileTool } from './writeFile';
+import { listDirTool } from './listDir';
+import { runCommandTool } from './runCommand';
 
 export const allTools: InternalTool[] = [
   readFileTool, 

@@ -15,7 +15,7 @@ const rootDisallowedPatterns = new Set([
     'src/**/*',
     './**',
     './**/*',
-])
+]);
 
 function normalizePattern(pattern: string): string {
     return pattern.trim().replaceAll('\\', '/').replace(/^\.\//, '');
