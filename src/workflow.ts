@@ -23,8 +23,22 @@ type TurnState = {
 type WorkflowState = {
     mutatedFilesNeedingVerification: Set<string>;
     verificationCommandsNeedingRerun: Set<string>;
+    commandsRunSinceLastMutation: Set<string>;
     flowRoundCount: number;
 };
+
+function getRunCommandArg(args: Record<string, unknown>): string | null {
+    const value = args.command;
+    return typeof value === 'string' ? value : null;
+}
+
+function didCommandReachExecution(call: ExecutedToolCall, command: string): boolean {
+    if (call.succeeded) {
+        return true;
+    }
+
+    return typeof call.error === 'string' && call.error.startsWith(`Command ${command} failed:`);
+}
 
 function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState): { updatedWorkflowState: WorkflowState, turnState: TurnState } {
     const workflowState = currentState;
@@ -42,6 +56,10 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
 
             if (call.succeeded) {
                 workflowState.mutatedFilesNeedingVerification.add(filePath);
+                for (const command of workflowState.commandsRunSinceLastMutation) {
+                    workflowState.verificationCommandsNeedingRerun.add(command);
+                }
+                workflowState.commandsRunSinceLastMutation.clear();
                 turnState.mutatedFiles.add(filePath);
                 turnState.failedMutationCounts.delete(filePath);
             } else {
@@ -61,13 +79,14 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
             continue;
         }
 
-        if (toolName === 'run_command' && call.succeeded) {
-            const command = call.args.command;
-            if (typeof command !== 'string') continue;
+        if (toolName === 'run_command') {
+            const command = getRunCommandArg(call.args);
+            if (!command || !didCommandReachExecution(call, command)) continue;
 
             if (workflowState.mutatedFilesNeedingVerification.size > 0) {
                 workflowState.verificationCommandsNeedingRerun.add(command);
             } else {
+                workflowState.commandsRunSinceLastMutation.add(command);
                 workflowState.verificationCommandsNeedingRerun.delete(command);
             }
         }
@@ -131,7 +150,7 @@ function buildSummaryOnlyMessage(): string {
 
 function buildRerunVerificationCommandMessage(commands: string[]): string {
     return (
-        'You ran verification command(s) before reading back the changed file(s). ' +
+        'You ran verification command(s) before the latest file changes were read back. ' +
         `Run the verification command(s) again now that file verification is complete: ${commands.join(', ')}.`
     );
 }
@@ -193,6 +212,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     let workflowState: WorkflowState = {
         mutatedFilesNeedingVerification: new Set(),
         verificationCommandsNeedingRerun: new Set(),
+        commandsRunSinceLastMutation: new Set(),
         flowRoundCount: 0,
     }
     
