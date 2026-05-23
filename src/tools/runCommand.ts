@@ -4,29 +4,28 @@ import { execSync } from 'node:child_process';
 
 type CommandSafety = 'trusted' | 'untrusted' | 'dangerous';
 
-// Classify a command as trusted, untrusted, or dangerous
+const TRUSTED_COMMANDS = new Set([
+    'npx tsc --noEmit',
+    'npm test',
+    'npm run build',
+]);
+
+const DANGEROUS_PATTERNS = [
+    /rm\s+-rf/i,
+    /\brmdir\b.*\/s/i,
+    /\bdel\b.*\/s/i,
+    /\bformat\b/i,
+    /\bshutdown\b/i,
+];
+
 function classifyCommand(command: string): CommandSafety {
     const normalized = command.trim();
 
-    const trustedCommands = new Set([
-        'npx tsc --noEmit',
-        'npm test',
-        'npm run build',
-    ]);
-
-    const dangerousPatterns = [
-        /rm\s+-rf/i,
-        /\brmdir\b.*\/s/i,
-        /\bdel\b.*\/s/i,
-        /\bformat\b/i,
-        /\bshutdown\b/i,
-    ];
-
-    if (trustedCommands.has(normalized)) {
+    if (TRUSTED_COMMANDS.has(normalized)) {
         return 'trusted';
     }
 
-    if (dangerousPatterns.some(pattern => pattern.test(normalized))) {
+    if (DANGEROUS_PATTERNS.some(pattern => pattern.test(normalized))) {
         return 'dangerous';
     }
 
@@ -35,20 +34,19 @@ function classifyCommand(command: string): CommandSafety {
 
 // Define the run_command tool
 export const runCommandTool: InternalTool = {
-    // Tool metadata
     name: 'run_command',
-    description: "Run a trusted command and return the output. Untrusted or dangerous commands are rejected.",
+    description: 'Run a trusted command and return the output. Untrusted or dangerous commands are rejected.',
     parameters: {
         type: 'object',
         properties: {
             command: {
                 type: 'string',
-                description: "The command to run",
+                description: 'The command to run',
                 required: true,
             },
             cwd: {
                 type: 'string',
-                description: "The working directory to run the command in",
+                description: 'The working directory to run the command in',
                 nullable: true,
             },
         },
