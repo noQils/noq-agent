@@ -1,5 +1,5 @@
 import { InternalTool } from './index';
-import { checkPathExists, scanDirectory, checkIsDirectory, getBaseName } from '../fileUtils';
+import { checkPathExists, checkIsDirectory, listDirectoryEntries } from '../fileUtils';
 
 // Define the list_dir tool
 export const listDirTool: InternalTool = {
@@ -32,8 +32,8 @@ export function listDir(dirPath: string) {
         throw new Error(`${dirPath} is not a directory`);
     }
 
-    const listedItems = scanDirectory(dirPath);
-    const items = listedItems.map((file) => checkIsDirectory(file) ? `${getBaseName(file)}/` : getBaseName(file));
+    const items = listDirectoryEntries(dirPath)
+        .map((entry) => entry.isDirectory ? `${entry.name}/` : entry.name);
 
     return items.join('\n');
 }
