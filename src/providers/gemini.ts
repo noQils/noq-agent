@@ -15,6 +15,11 @@ import {
   type ExecutedToolCall,
 } from './base';
 import { allTools, getToolByName, type InternalTool } from '../tools/index';
+import {
+  canonicalizeArgsValue,
+  areSameStallSensitiveCalls,
+  type ToolCallFingerprint,
+} from './toolFingerprint';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
@@ -138,6 +143,13 @@ function toGeminiHistory(messages: ChatMessage[]): {
   return { contents };
 }
 
+function collectCurrentRoundFunctionCalls(functionCalls: FunctionCall[]): ToolCallFingerprint[] {
+  return functionCalls.map(call => ({
+    toolName: call.name ?? '',
+    argsKey: canonicalizeArgsValue(call.args ?? {}),
+  }));
+}
+
 // Helper function to execute tool calls and return the responses
 async function executeFunctionCalls(
   functionCalls: FunctionCall[],
@@ -146,71 +158,68 @@ async function executeFunctionCalls(
   executedToolCalls: ExecutedToolCall[],
 }> {
   const executedToolCalls: ExecutedToolCall[] = [];
+  const toolResponses: FunctionResponse[] = [];
 
-  const toolResponses = await Promise.all (
-    functionCalls.map(async (functionCall) => {
-      const toolName = functionCall.name ?? '';
-      const args = functionCall.args ?? {};
-      const tool = getToolByName(toolName);
+  for (const functionCall of functionCalls) {
+    const toolName = functionCall.name ?? '';
+    const args = functionCall.args ?? {};
+    const tool = getToolByName(toolName);
 
-      if (!tool) {
-        const response: FunctionResponse = {
-          id: functionCall.id ?? '',
-          name: toolName,
-          response: {
-            error: `Unknown tool: ${functionCall.name}`,
-          },
-        };
-
-        executedToolCalls.push({
-          toolName,
-          args,
-          succeeded: false,
+    if (!tool) {
+      const response: FunctionResponse = {
+        id: functionCall.id ?? '',
+        name: toolName,
+        response: {
           error: `Unknown tool: ${functionCall.name}`,
-        });
+        },
+      };
 
-        return response;
-      }
+      toolResponses.push(response);
+      executedToolCalls.push({
+        toolName,
+        args,
+        succeeded: false,
+        error: `Unknown tool: ${functionCall.name}`,
+      });
 
-      try {
-        const result = await tool.execute(args);
-        const response: FunctionResponse = {
-          id: functionCall.id ?? '',
-          name: toolName,
-          response: {
-            output: String(result),
-          },
-        };
+      continue;
+    }
 
-        executedToolCalls.push({
-          toolName,
-          args,
-          succeeded: true,
-        });
+    try {
+      const result = await tool.execute(args);
+      const response: FunctionResponse = {
+        id: functionCall.id ?? '',
+        name: toolName,
+        response: {
+          output: String(result),
+        },
+      };
 
-        return response;
+      toolResponses.push(response);
+      executedToolCalls.push({
+        toolName,
+        args,
+        succeeded: true,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const response: FunctionResponse = {
+        id: functionCall.id ?? '',
+        name: toolName,
+        response: {
+          error: `Error executing tool ${functionCall.name}: ${message}`,
+        },
+      };
 
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const response: FunctionResponse = {
-          id: functionCall.id ?? '',
-          name: toolName,
-          response: {
-            error: `Error executing tool ${functionCall.name}: ${message}`,
-          },
-        };
-
-        executedToolCalls.push({
-          toolName,
-          args,
-          succeeded: false,
-          error: message,
-        });
-
-        return response;
-      }
-    }),
-  );
+      toolResponses.push(response);
+      executedToolCalls.push({
+        toolName,
+        args,
+        succeeded: false,
+        error: message,
+      });
+    }
+  }
 
   return { 
     toolResponses: toolResponses,
@@ -234,6 +243,7 @@ export async function chat(
   const gemini = getGeminiClient();
 
   let toolRoundCount = 0;
+  let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
     const response = await gemini.models.generateContent({
@@ -251,6 +261,17 @@ export async function chat(
     });
 
     const functionCalls = response.functionCalls ?? [];
+    const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
+
+    if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      return {
+        text: response.text ?? '',
+        executedToolCalls,
+        stopReason: 'repeated_tool_calls',
+      };
+    }
+
+    previousRoundCalls = currentRoundCalls;
 
     if (functionCalls.length === 0) {
       return {
