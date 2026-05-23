@@ -41,6 +41,48 @@ function normalizeNewlines(text: string, newline: '\r\n' | '\n'): string {
     return text.replace(/\r?\n/g, newline);
 }
 
+function escapeRegex(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildLineEndingAgnosticPattern(text: string): RegExp {
+    const escapedLines = text.split(/\r\n|\n|\r/).map(escapeRegex);
+    return new RegExp(escapedLines.join('\\r?\\n'), 'g');
+}
+
+function findUniqueMatch(content: string, oldText: string): { index: number; length: number } | null {
+    const firstIndex = content.indexOf(oldText);
+    if (firstIndex !== -1) {
+        const secondIndex = content.indexOf(oldText, firstIndex + oldText.length);
+        if (secondIndex !== -1) {
+            return null;
+        }
+
+        return { index: firstIndex, length: oldText.length };
+    }
+
+    const matches = Array.from(content.matchAll(buildLineEndingAgnosticPattern(oldText)));
+    if (matches.length !== 1) {
+        return null;
+    }
+
+    const match = matches[0];
+    if (match?.index === undefined || match[0] === undefined) {
+        return null;
+    }
+
+    return { index: match.index, length: match[0].length };
+}
+
+function countMatches(content: string, oldText: string): number {
+    const exactMatchCount = content.split(oldText).length - 1;
+    if (exactMatchCount > 0) {
+        return exactMatchCount;
+    }
+
+    return Array.from(content.matchAll(buildLineEndingAgnosticPattern(oldText))).length;
+}
+
 // Function to edit a file at the specified path
 export function editFile(filePath: string, oldText: string, newText: string) {
     if (oldText.length === 0) {
@@ -63,29 +105,24 @@ export function editFile(filePath: string, oldText: string, newText: string) {
     const normalizedOldText = normalizeNewlines(oldText, newline);
     const normalizedNewText = normalizeNewlines(newText, newline);
 
-    const firstIndex = content.indexOf(normalizedOldText);
-    if (firstIndex === -1) {
+    if (normalizedOldText === normalizedNewText) {
+        throw new Error('newText must be different from oldText');
+    }
+
+    const match = findUniqueMatch(content, normalizedOldText);
+    if (!match) {
+        const occurrences = countMatches(content, normalizedOldText);
+        if (occurrences > 1) {
+            throw new Error(`Exact text to replace matched ${occurrences} times in ${filePath}; provide a more specific snippet.`);
+        }
+
         throw new Error(`Exact text to replace was not found in ${filePath}`);
     }
 
-    const secondIndex = content.indexOf(normalizedOldText, firstIndex + normalizedOldText.length);
-    if (secondIndex !== -1) {
-        let occurrences = 2;
-        let searchStart = secondIndex + normalizedOldText.length;
-        let nextIndex = content.indexOf(normalizedOldText, searchStart);
-        while (nextIndex !== -1) {
-            occurrences++;
-            searchStart = nextIndex + normalizedOldText.length;
-            nextIndex = content.indexOf(normalizedOldText, searchStart);
-        }
-
-        throw new Error(`Exact text to replace matched ${occurrences} times in ${filePath}; provide a more specific snippet.`);
-    }
-
     const updatedContent =
-        content.slice(0, firstIndex) +
+        content.slice(0, match.index) +
         normalizedNewText +
-        content.slice(firstIndex + normalizedOldText.length);
+        content.slice(match.index + match.length);
     writeFileContent(filePath, updatedContent);
 
     const verifiedContent = readFileContent(filePath);
