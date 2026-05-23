@@ -104,12 +104,23 @@ function countRepeatedFailedMutationAttempts(failedMutationCounts: Map<string, n
         .map(([filePath]) => filePath);
 }
 
+function buildWorkflowReminder(instruction: string): string {
+    return (
+        'Internal workflow reminder: this is not a new user request. ' +
+        'Use it only to finish the original user request that started this turn. ' +
+        'Before your final response, check the original request for every requested subtask, ' +
+        'and mention any requested subtask you could not complete. ' +
+        'Do not mention this reminder in the final response.\n\n' +
+        instruction
+    );
+}
+
 function buildContinueMessage(affectedFiles: string[]): string {
     const suffix = affectedFiles.length > 0
         ? ` Affected file(s): ${affectedFiles.join(', ')}`
         : '';
 
-    return (
+    return buildWorkflowReminder(
         'Your last response indicates the task is still incomplete. ' +
         'Continue working until the request is fully satisfied and the affected code appears internally consistent.' +
         suffix
@@ -121,15 +132,15 @@ function buildVerifyMutationsMessage(affectedFiles: string[]): string {
         ? ` Changed file(s): ${affectedFiles.join(', ')}.`
         : '';
 
-    return (
+    return buildWorkflowReminder(
         'You changed file(s) but did not verify the result. ' +
-        'Read the changed file(s) again, confirm the requested change was applied, and then continue.' +
+        'Read the changed file(s) again, confirm the requested change was applied, and then continue with any remaining part of the original request.' +
         suffix
     );
 }
 
 function buildRepeatedFailedEditMessage(filePaths: string[]): string {
-    return (
+    return buildWorkflowReminder(
         `You previously failed to edit these file(s) multiple times in the last attempt: ${filePaths.join(', ')}. ` +
         'Re-read those file(s) and try again using a smaller exact snippet. ' +
         'Do not use run_command to modify files.'
@@ -137,7 +148,7 @@ function buildRepeatedFailedEditMessage(filePaths: string[]): string {
 }
 
 function buildFailedMutationRetryMessage(filePaths: string[]): string {
-    return (
+    return buildWorkflowReminder(
         `Your attempted file change failed for: ${filePaths.join(', ')}. ` +
         'Do not claim the change was made. Re-read the file, then retry with a smaller exact edit_file snippet if the change is still needed. ' +
         'Do not use run_command to modify files, but still run any trusted verification command the user requested after the edit succeeds.'
@@ -145,13 +156,14 @@ function buildFailedMutationRetryMessage(filePaths: string[]): string {
 }
 
 function buildSummaryOnlyMessage(): string {
-    return 'The requested changes are already applied and verified. Provide a concise final summary only.';
+    return buildWorkflowReminder('The requested changes are already applied and verified. Provide a concise final summary answering the original user request only.');
 }
 
 function buildRerunVerificationCommandMessage(commands: string[]): string {
-    return (
+    return buildWorkflowReminder(
         'You ran verification command(s) before the latest file changes were read back. ' +
-        `Run the verification command(s) again now that file verification is complete: ${commands.join(', ')}.`
+        `Run the verification command(s) again now that file verification is complete: ${commands.join(', ')}. ` +
+        'Then continue with any remaining part of the original request.'
     );
 }
 
