@@ -1,5 +1,5 @@
 import { InternalTool } from './index';
-import { checkPathExists, readFileContent, writeFileContent } from '../fileUtils';
+import { readFileContent, writeFileContent } from '../fileUtils';
 
 // Define the edit_file tool
 export const editFileTool: InternalTool = {
@@ -43,29 +43,49 @@ function normalizeNewlines(text: string, newline: '\r\n' | '\n'): string {
 
 // Function to edit a file at the specified path
 export function editFile(filePath: string, oldText: string, newText: string) {
-    if (!checkPathExists(filePath)) {
-        throw new Error(`File not found: ${filePath}`);
-    }
     if (oldText.length === 0) {
         throw new Error('oldText must not be empty');
     }
 
-    const content = readFileContent(filePath);
+    let content: string;
+    try {
+        content = readFileContent(filePath);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw new Error(`File not found: ${filePath}`);
+        }
+
+        throw error;
+    }
+
     const newline = detectNewline(content);
 
     const normalizedOldText = normalizeNewlines(oldText, newline);
     const normalizedNewText = normalizeNewlines(newText, newline);
 
-    const occurrences = content.split(normalizedOldText).length - 1;
-    if (occurrences === 0) {
+    const firstIndex = content.indexOf(normalizedOldText);
+    if (firstIndex === -1) {
         throw new Error(`Exact text to replace was not found in ${filePath}`);
     }
 
-    if (occurrences > 1) {
+    const secondIndex = content.indexOf(normalizedOldText, firstIndex + normalizedOldText.length);
+    if (secondIndex !== -1) {
+        let occurrences = 2;
+        let searchStart = secondIndex + normalizedOldText.length;
+        let nextIndex = content.indexOf(normalizedOldText, searchStart);
+        while (nextIndex !== -1) {
+            occurrences++;
+            searchStart = nextIndex + normalizedOldText.length;
+            nextIndex = content.indexOf(normalizedOldText, searchStart);
+        }
+
         throw new Error(`Exact text to replace matched ${occurrences} times in ${filePath}; provide a more specific snippet.`);
     }
 
-    const updatedContent = content.replace(normalizedOldText, normalizedNewText);
+    const updatedContent =
+        content.slice(0, firstIndex) +
+        normalizedNewText +
+        content.slice(firstIndex + normalizedOldText.length);
     writeFileContent(filePath, updatedContent);
 
     const verifiedContent = readFileContent(filePath);
