@@ -22,6 +22,7 @@ type TurnState = {
 
 type WorkflowState = {
     mutatedFilesNeedingVerification: Set<string>;
+    verificationCommandsNeedingRerun: Set<string>;
     flowRoundCount: number;
 };
 
@@ -56,6 +57,18 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
             
             if (workflowState.mutatedFilesNeedingVerification.has(filePath)) {
                 workflowState.mutatedFilesNeedingVerification.delete(filePath);
+            }
+            continue;
+        }
+
+        if (toolName === 'run_command' && call.succeeded) {
+            const command = call.args.command;
+            if (typeof command !== 'string') continue;
+
+            if (workflowState.mutatedFilesNeedingVerification.size > 0) {
+                workflowState.verificationCommandsNeedingRerun.add(command);
+            } else {
+                workflowState.verificationCommandsNeedingRerun.delete(command);
             }
         }
     }
@@ -104,8 +117,31 @@ function buildRepeatedFailedEditMessage(filePaths: string[]): string {
     );
 }
 
+function buildFailedMutationRetryMessage(filePaths: string[]): string {
+    return (
+        `Your attempted file change failed for: ${filePaths.join(', ')}. ` +
+        'Do not claim the change was made. Re-read the file, then retry with a smaller exact edit_file snippet if the change is still needed. ' +
+        'Do not use run_command to modify files, but still run any trusted verification command the user requested after the edit succeeds.'
+    );
+}
+
 function buildSummaryOnlyMessage(): string {
     return 'The requested changes are already applied and verified. Provide a concise final summary only.';
+}
+
+function buildRerunVerificationCommandMessage(commands: string[]): string {
+    return (
+        'You ran verification command(s) before reading back the changed file(s). ' +
+        `Run the verification command(s) again now that file verification is complete: ${commands.join(', ')}.`
+    );
+}
+
+function buildExistingPathMessage(filePath: string): string {
+    return `The referenced path "${filePath}" exists. Use this exact path directly when it is relevant instead of searching for it again.`;
+}
+
+function buildClosestPathMessage(requestedPath: string, candidatePath: string): string {
+    return `The referenced file "${requestedPath}" does not exist. A close existing file match was found: "${candidatePath}". If the request sounds like editing or adding content inside an existing file, treat "${candidatePath}" as the intended target and read it directly. Do not keep searching for "${requestedPath}" unless you need to decide whether the user clearly asked for a new file with that exact path.`;
 }
 
 // Function to run an agent turn
@@ -119,11 +155,19 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
 
     const referencedPathGroups = buildReferencedPathGroups(userPrompt);
     let projectFiles: string[] | undefined;
+    const hintedPaths = new Set<string>();
 
     for (const group of referencedPathGroups) {
         console.log(`Referenced path group: ${group.candidatePaths}`);
         for (const candidatePath of group.candidatePaths) {
             if (checkPathExists(candidatePath)) {
+                if (!hintedPaths.has(candidatePath)) {
+                    messages.push({
+                        role: 'system',
+                        content: buildExistingPathMessage(candidatePath),
+                    });
+                    hintedPaths.add(candidatePath);
+                }
                 break;
             }
 
@@ -135,7 +179,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
 
             messages.push({
                 role: 'system',
-                content: `The referenced file "${candidatePath}" does not exist. A close existing file match was found: "${match.candidate}". Use the existing file only if it appears to be the intended target; otherwise follow the user's request literally.`,
+                content: buildClosestPathMessage(candidatePath, match.candidate),
             });
             console.log(messages.at(-1)?.content);
             break;
@@ -148,6 +192,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     let stopMessage: string | undefined;
     let workflowState: WorkflowState = {
         mutatedFilesNeedingVerification: new Set(),
+        verificationCommandsNeedingRerun: new Set(),
         flowRoundCount: 0,
     }
     
@@ -167,6 +212,15 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             messages.push({
                 role: 'user' as const,
                 content: buildRepeatedFailedEditMessage(repeatedFailedEditFiles),
+            });
+            continue;
+        }
+
+        const failedMutationFiles = Array.from(turnState.failedMutationCounts.keys());
+        if (failedMutationFiles.length > 0 && turnState.mutatedFiles.size === 0) {
+            messages.push({
+                role: 'user' as const,
+                content: buildFailedMutationRetryMessage(failedMutationFiles),
             });
             continue;
         }
@@ -206,6 +260,15 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             messages.push({ 
                 role: 'user' as const, 
                 content: buildVerifyMutationsMessage(unverifiedMutatedFiles),
+            });
+            continue;
+        }
+
+        const verificationCommandsNeedingRerun = Array.from(workflowState.verificationCommandsNeedingRerun);
+        if (verificationCommandsNeedingRerun.length > 0) {
+            messages.push({
+                role: 'user' as const,
+                content: buildRerunVerificationCommandMessage(verificationCommandsNeedingRerun),
             });
             continue;
         }
