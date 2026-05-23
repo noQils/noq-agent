@@ -2,13 +2,23 @@ import OpenAI from 'openai';
 import { 
   type ResponseInputItem,
   type Tool,
+  type Response,
 } from 'openai/resources/responses/responses';
 import { 
   type ChatMessage, 
   type ChatResult, 
   type ExecutedToolCall 
 } from './base';
-import { allTools, type InternalTool } from '../tools';
+import { 
+  allTools, 
+  getToolByName,
+  type InternalTool
+} from '../tools';
+import {
+  canonicalizeArgs,
+  areSameStallSensitiveCalls,
+  type ToolCallFingerprint,
+} from './toolFingerprint';
 
 // Helper function to retrieve the API key from environment variables
 function getApiKey(): string {
@@ -54,6 +64,14 @@ function toOpenAISchema(schema: InternalTool['parameters']) {
     required: Object.keys(schema.properties),
     additionalProperties: schema.additionalProperties ?? false,
   };
+}
+
+const openAIFunctionTools = toOpenAIFunctionTool(allTools);
+let openAIClient: OpenAI | undefined;
+
+function getOpenAIClient(): OpenAI {
+  openAIClient ??= new OpenAI({ apiKey: getApiKey(), maxRetries: 3 });
+  return openAIClient;
 }
 
 function toOpenAIHistory(messages: ChatMessage[]):{
@@ -106,20 +124,40 @@ function toOpenAIHistory(messages: ChatMessage[]):{
   }
 }
 
+type OpenAIFunctionCall = Extract<Response['output'][number], { type: 'function_call' }>;
+
+function getFunctionCalls(response: Response): OpenAIFunctionCall[] {
+  return response.output.filter((item): item is OpenAIFunctionCall => item.type === 'function_call');
+}
+
+function safeCanonicalizeArgs(argumentsJson: string): string {
+  try {
+    return canonicalizeArgs(argumentsJson);
+  } catch {
+    return argumentsJson;
+  }
+}
+
+function collectCurrentRoundFunctionCalls(functionCalls: OpenAIFunctionCall[]): ToolCallFingerprint[] {
+  return functionCalls
+    .map(item => ({
+      toolName: item.name,
+      argsKey: safeCanonicalizeArgs(item.arguments),
+  }));
+}
+
 // Main chat function
 export async function chat(
   messages: ChatMessage[],
   config?: { model?: string }
 ): Promise<ChatResult> {
   const model = config?.model ?? process.env.OPENAI_MODEL;
-  if (!model) {
-    throw new Error('OpenAI model not specified');
-  }
+  if (!model) throw new Error('OpenAI model not specified');
 
   const {instructions, input} = toOpenAIHistory(messages);
-  const functionDeclarations = toOpenAIFunctionTool(allTools);
+  const functionDeclarations = openAIFunctionTools;
   const executedToolCalls: ExecutedToolCall[] = [];
-  const openai = new OpenAI({ apiKey: getApiKey(), maxRetries: 3 });
+  const openai = getOpenAIClient();
 
   let response = await openai.responses.create({
     model: model,
@@ -127,45 +165,74 @@ export async function chat(
     input: input,
     tools: functionDeclarations,
   });
-  const seenToolCallKeys = new Set<string>();
+  
   let toolRoundCount = 0;
+  let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
     const toolOutputs: ResponseInputItem[] = [];
-    let hadNewToolCall = false;
+    const functionCalls = getFunctionCalls(response);
+    const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
 
-    for (const item of response.output) {
-      if (item.type !== 'function_call') continue;
+    if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      return {
+        text: response.output_text?.trim(),
+        executedToolCalls,
+        stopReason: 'repeated_tool_calls',
+      };
+    }
 
-      const toolCallKey = `${item.name}:${JSON.stringify(item.arguments)}`;
+    previousRoundCalls = currentRoundCalls;
 
-      if (!seenToolCallKeys.has(toolCallKey)) {
-        seenToolCallKeys.add(toolCallKey);
-        hadNewToolCall = true;
+    if (functionCalls.length > 0) {
+      console.log(`Round ${toolRoundCount + 1} tool calls:`, functionCalls.map(item => item.name));
+    }
+
+    for (const item of functionCalls) {
+      console.log('Tool call:', item.name, 'with arguments:', item.arguments);
+
+      let args: Record<string, unknown>;
+
+      try {
+          args = JSON.parse(item.arguments);
+      } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+
+          toolOutputs.push({
+              type: 'function_call_output',
+              call_id: item.call_id,
+              output: `Invalid tool arguments: ${message}`,
+          });
+
+          executedToolCalls.push({
+              toolName: item.name,
+              args: {},
+              succeeded: false,
+              error: `Invalid tool arguments: ${message}`,
+          });
+
+          continue;
       }
-
-      const tool = allTools.find(t => t.name === item.name);
+      
+      const tool = getToolByName(item.name);
       if (!tool) {
-        const args = JSON.parse(item.arguments);
+          toolOutputs.push({
+              type: 'function_call_output',
+              call_id: item.call_id,
+              output: `Error: Unknown tool ${item.name}`,
+          });
 
-        toolOutputs.push({
-          type: 'function_call_output',
-          call_id: item.call_id,
-          output: `Error: Unknown tool ${item.name}`,
-        });
+          executedToolCalls.push({
+              toolName: item.name,
+              args,
+              succeeded: false,
+              error: `Error: Unknown tool ${item.name}`,
+          });
 
-        executedToolCalls.push({
-          toolName: item.name,
-          args,
-          succeeded: false,
-          error: `Error: Unknown tool ${item.name}`,
-        });
-
-        continue;
+          continue;
       }
 
       try {
-        const args = JSON.parse(item.arguments);
         const result = await tool.execute(args);
 
         toolOutputs.push({
@@ -179,55 +246,51 @@ export async function chat(
           args: args,
           succeeded: true,
         });
-
       } catch (error) {
-        const args = JSON.parse(item.arguments);
+        const message = error instanceof Error ? error.message : String(error);
+        console.log('Error:', message);
 
         toolOutputs.push({
-          type: 'function_call_output',
-          call_id: item.call_id,
-          output: error instanceof Error ? error.message : String(error),
+            type: 'function_call_output',
+            call_id: item.call_id,
+            output: message,
         });
 
         executedToolCalls.push({
-          toolName: item.name,
-          args,
-          succeeded: false,
-          error: error instanceof Error ? error.message : String(error),
+            toolName: item.name,
+            args,
+            succeeded: false,
+            error: message,
         });
       }
     }
 
     if (toolOutputs.length === 0) {
+      console.log('No tool calls');
       return {
-        text: response.output_text ?? '',
+        text: response.output_text?.trim(),
         executedToolCalls: executedToolCalls,
         stopReason: 'no_tool_calls',
       };
     }
 
-    if (!hadNewToolCall) {
-      return {
-        text: response.output_text ?? '',
-        executedToolCalls: executedToolCalls,
-        stopReason: 'repeated_tool_calls',
-      };
-    }
-
     if (toolRoundCount >= 10) {
       return {
-        text: response.output_text ?? '',
+        text: response.output_text?.trim(),
         executedToolCalls: executedToolCalls,
         stopReason: 'tool_round_limit_reached',
       };
     }
 
     response = await openai.responses.create({
-      model: model,
+      model,
       previous_response_id: response.id,
       input: toolOutputs,
       tools: functionDeclarations,
     });
+
     toolRoundCount++;
+
+    console.log('\n');
   }
 }
