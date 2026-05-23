@@ -1,44 +1,64 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+export interface DirectoryEntry {
+  name: string;
+  isDirectory: boolean;
+}
+
+export function resolveProjectPath(filePath: string): string {
+  return path.resolve(process.cwd(), filePath);
+}
+
 export function checkPathExists(filePath: string): boolean {
-  const resolvedPath = path.resolve(process.cwd(), filePath);
+  const resolvedPath = resolveProjectPath(filePath);
   return fs.existsSync(resolvedPath);
 }
 
 export function readFileContent(filePath: string): string {
-  const resolvedPath = path.resolve(process.cwd(), filePath);
+  const resolvedPath = resolveProjectPath(filePath);
   return fs.readFileSync(resolvedPath, 'utf-8');
 }
 
 export function writeFileContent(filePath: string, content: string) {
-  const resolvedPath = path.resolve(process.cwd(), filePath);
+  const resolvedPath = resolveProjectPath(filePath);
   fs.writeFileSync(resolvedPath, content, 'utf-8');
 }
 
 export function ensureParentDirectory(filePath: string) {
-  const resolvedPath = path.resolve(process.cwd(), filePath);
+  const resolvedPath = resolveProjectPath(filePath);
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
 }
 
+function readDirectoryEntries(resolvedPath: string): DirectoryEntry[] {
+  return fs.readdirSync(resolvedPath, { withFileTypes: true }).map((entry) => ({
+    name: entry.name,
+    isDirectory: entry.isDirectory(),
+  }));
+}
+
 export function scanDirectory(dirPath: string): string[] {
-  const resolvedPath = path.resolve(process.cwd(), dirPath);
-  const files = fs.readdirSync(resolvedPath);
-  return files.map((file) => path.join(resolvedPath, file));
+  const resolvedPath = resolveProjectPath(dirPath);
+  return readDirectoryEntries(resolvedPath).map((entry) => path.join(resolvedPath, entry.name));
+}
+
+export function listDirectoryEntries(dirPath: string): DirectoryEntry[] {
+  const resolvedPath = resolveProjectPath(dirPath);
+  return readDirectoryEntries(resolvedPath);
 }
 
 export function checkIsDirectory(filePath: string): boolean {
-  const resolvedPath = path.resolve(process.cwd(), filePath);
+  const resolvedPath = resolveProjectPath(filePath);
   return fs.statSync(resolvedPath).isDirectory();
 }
 
 export function getBaseName(filePath: string): string {
-  const resolvedPath = path.resolve(process.cwd(), filePath);
+  const resolvedPath = resolveProjectPath(filePath);
   return path.basename(resolvedPath);
 }
 
 export function getProjectFilePaths(dirPath = '.'): string[] {
-  const resolvedPath = path.resolve(process.cwd(), dirPath);
+  const resolvedPath = resolveProjectPath(dirPath);
   const ignoredDirectories = new Set(['node_modules', '.git', 'dist', 'build']);
   const filePaths: string[] = [];
 
