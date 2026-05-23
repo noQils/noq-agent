@@ -16,6 +16,12 @@ export const allTools: InternalTool[] = [
   runCommandTool,
 ];
 
+const toolsByName = new Map(allTools.map((tool) => [tool.name, tool]));
+
+export function getToolByName(name: string): InternalTool | undefined {
+  return toolsByName.get(name);
+}
+
 type PrimitiveType = 'string' | 'number' | 'integer' | 'boolean';
 
 export interface ToolParameter {
