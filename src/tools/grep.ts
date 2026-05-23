@@ -45,8 +45,13 @@ export async function grep(
     include = "**/*",
     maxResults = 100,
 ): Promise<GrepResult[]> {
+    if (query.length === 0 || maxResults <= 0) {
+        return [];
+    }
+
+    const root = cwd ?? process.cwd();
     const entries = await fg(include, {
-        cwd: cwd ?? process.cwd(),
+        cwd: root,
         dot: true,
         onlyFiles: true,
         ignore: ["node_modules/**", ".git/**", "dist/**", "build/**"],
@@ -55,12 +60,16 @@ export async function grep(
     const results: GrepResult[] = [];
 
     for (const entry of entries) {
-        const fullPath = path.join(cwd ?? process.cwd(), entry);
+        const fullPath = path.join(root, entry);
         let content: string; 
         
         try {
             content = await readFile(fullPath, "utf-8");
         } catch {
+            continue;
+        }
+
+        if (!content.includes(query)) {
             continue;
         }
 
@@ -76,7 +85,7 @@ export async function grep(
                 });
 
                 if (results.length >= maxResults) {
-                    break;
+                    return results;
                 }
             }
         }
