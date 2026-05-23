@@ -59,7 +59,15 @@ export function getBaseName(filePath: string): string {
 
 export function getProjectFilePaths(dirPath = '.'): string[] {
   const resolvedPath = resolveProjectPath(dirPath);
-  const ignoredDirectories = new Set(['node_modules', '.git', 'dist', 'build']);
+  const ignoredDirectories = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'build',
+    '.opencode',
+    '.tmp-debug',
+    '.tmp-prompt-tests',
+  ]);
   const filePaths: string[] = [];
 
   function walk(currentPath: string) {
