@@ -14,7 +14,7 @@ import {
   type ChatResult,
   type ExecutedToolCall,
 } from './base';
-import { allTools, type InternalTool } from '../tools/index';
+import { allTools, getToolByName, type InternalTool } from '../tools/index';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
@@ -61,13 +61,21 @@ function toGeminiSchema(schema: InternalTool['parameters']): Schema {
   };
 }
 
+const geminiFunctionDeclarations = toGeminiFunctionDeclaration(allTools);
+let geminiClient: GoogleGenAI | undefined;
+
+function getGeminiClient(): GoogleGenAI {
+  geminiClient ??= new GoogleGenAI({ apiKey: getApiKey() });
+  return geminiClient;
+}
+
 // Convert internal chat messages to the format expected by the Gemini API
 function toGeminiHistory(messages: ChatMessage[]): {
   systemInstruction?: Content;
   contents: Content[];
 } {
   const systemMessages: ChatMessage[] = [];
-  let systemInstruction: Content = {};
+  let systemInstruction: Content | undefined;
   const contents: Content[] = [];
 
   if (messages.length === 0) {
@@ -122,50 +130,42 @@ function toGeminiHistory(messages: ChatMessage[]): {
       parts: [{ text: systemMessagesContent }],
     };
   }
-  return { 
-    systemInstruction, 
-    contents 
-  };
+
+  if (systemInstruction) {
+    return { systemInstruction, contents };
+  }
+
+  return { contents };
 }
 
 // Helper function to execute tool calls and return the responses
 async function executeFunctionCalls(
-  functionCalls: FunctionCall[], 
-  tools: InternalTool[], 
-  seenToolCallKeys: Set<string>,
+  functionCalls: FunctionCall[],
 ): Promise<{
   toolResponses: FunctionResponse[],
   executedToolCalls: ExecutedToolCall[],
-  hadNewToolCall: boolean,
-  seenToolCallKeys: Set<string>,
 }> {
   const executedToolCalls: ExecutedToolCall[] = [];
-  const seenToolCallKeysCopy = new Set(seenToolCallKeys);
-  let hadNewToolCall = false;
 
   const toolResponses = await Promise.all (
     functionCalls.map(async (functionCall) => {
-      const tool = tools.find(t => t.name === functionCall.name);
-
-      const toolCallKey = `${functionCall.name}:${JSON.stringify(functionCall.args)}`;
-
-      if (!seenToolCallKeysCopy.has(toolCallKey)) {
-        seenToolCallKeysCopy.add(toolCallKey);
-        hadNewToolCall = true;
-      }
+      const toolName = functionCall.name ?? '';
+      const args = functionCall.args ?? {};
+      const tool = getToolByName(toolName);
+      console.log('Calling:', functionCall.name, 'with arguments:', functionCall.args);
 
       if (!tool) {
         const response: FunctionResponse = {
           id: functionCall.id ?? '',
-          name: functionCall.name ?? '',
+          name: toolName,
           response: {
             error: `Unknown tool: ${functionCall.name}`,
           },
         };
 
         executedToolCalls.push({
-          toolName: functionCall.name ?? '',
-          args: functionCall.args ?? {},
+          toolName,
+          args,
           succeeded: false,
           error: `Unknown tool: ${functionCall.name}`,
         });
@@ -174,18 +174,18 @@ async function executeFunctionCalls(
       }
 
       try {
-        const result = await tool.execute(functionCall.args);
+        const result = await tool.execute(args);
         const response: FunctionResponse = {
           id: functionCall.id ?? '',
-          name: functionCall.name ?? '',
+          name: toolName,
           response: {
             output: String(result),
           },
         };
 
         executedToolCalls.push({
-          toolName: functionCall.name ?? '',
-          args: functionCall.args ?? {},
+          toolName,
+          args,
           succeeded: true,
         });
 
@@ -195,15 +195,15 @@ async function executeFunctionCalls(
         const message = error instanceof Error ? error.message : String(error);
         const response: FunctionResponse = {
           id: functionCall.id ?? '',
-          name: functionCall.name ?? '',
+          name: toolName,
           response: {
             error: `Error executing tool ${functionCall.name}: ${message}`,
           },
         };
 
         executedToolCalls.push({
-          toolName: functionCall.name ?? '',
-          args: functionCall.args ?? {},
+          toolName,
+          args,
           succeeded: false,
           error: message,
         });
@@ -216,8 +216,6 @@ async function executeFunctionCalls(
   return { 
     toolResponses: toolResponses,
     executedToolCalls: executedToolCalls,
-    hadNewToolCall: hadNewToolCall,
-    seenToolCallKeys: seenToolCallKeysCopy,
   };
 }
 
@@ -232,11 +230,10 @@ export async function chat(
   }
 
   const { systemInstruction, contents } = toGeminiHistory(messages);
-  const functionDeclarations = toGeminiFunctionDeclaration(allTools);
+  const functionDeclarations = geminiFunctionDeclarations;
   const executedToolCalls: ExecutedToolCall[] = [];
-  const gemini = new GoogleGenAI({apiKey: getApiKey()});
+  const gemini = getGeminiClient();
 
-  let seenToolCallKeys = new Set<string>();
   let toolRoundCount = 0;
 
   while (true) {
@@ -244,7 +241,7 @@ export async function chat(
       model: model,
       contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
       config: {
-        systemInstruction: systemInstruction ?? '',
+        ...(systemInstruction ? { systemInstruction } : {}),
         tools: [{functionDeclarations}],
         toolConfig: {
           functionCallingConfig: {
@@ -255,6 +252,7 @@ export async function chat(
     });
 
     const functionCalls = response.functionCalls ?? [];
+    console.log(`Round ${toolRoundCount + 1} tool calls:`, functionCalls.map(call => call.name));
 
     if (functionCalls.length === 0) {
       return {
@@ -279,18 +277,12 @@ export async function chat(
 
     const functionCallResult = await executeFunctionCalls(
       functionCalls,
-      allTools,
-      seenToolCallKeys,
     );
 
     const {
       toolResponses,
       executedToolCalls: roundExecutedToolCalls,
-      hadNewToolCall,
-      seenToolCallKeys: updatedSeenToolCallKeys,
     } = functionCallResult;
-
-    seenToolCallKeys = updatedSeenToolCallKeys;
 
     contents.push({
       role: 'user',
@@ -300,14 +292,7 @@ export async function chat(
 
     executedToolCalls.push(...roundExecutedToolCalls);
 
-    if (!hadNewToolCall) {
-      return {
-        text: response.text ?? '',
-        executedToolCalls,
-        stopReason: 'repeated_tool_calls',
-      };
-    }
-
     toolRoundCount++;
+    console.log('\n');
   }
 }
