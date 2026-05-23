@@ -1,5 +1,3 @@
-
-
 export type ToolCallFingerprint = {
     toolName: string;
     argsKey: string;
