@@ -1,5 +1,3 @@
-import { getBaseName } from "./fileUtils";
-
 export interface FileMatchHint {
   requested: string;
   candidate: string;
@@ -68,17 +66,20 @@ function scoreExtensionSimilarity(a: string, b: string): number {
     return 0;
 }
 
-function getExtension(filePath: string): string {
-    const normalizedPath = normalizePathForMatching(filePath);
-    const baseName = getBaseName(normalizedPath);
+function getBaseNameFromNormalizedPath(filePath: string): string {
+    const lastSlashIndex = filePath.lastIndexOf('/');
+    return lastSlashIndex === -1 ? filePath : filePath.slice(lastSlashIndex + 1);
+}
+
+function getExtensionFromNormalizedPath(filePath: string): string {
+    const baseName = getBaseNameFromNormalizedPath(filePath);
     const lastDotIndex = baseName.lastIndexOf('.');
 
     return lastDotIndex === -1 ? '' : baseName.slice(lastDotIndex + 1);
 }
 
-function getFileStem(filePath: string): string {
-    const normalizedPath = normalizePathForMatching(filePath);
-    const baseName = getBaseName(normalizedPath);
+function getFileStemFromNormalizedPath(filePath: string): string {
+    const baseName = getBaseNameFromNormalizedPath(filePath);
     const lastDotIndex = baseName.lastIndexOf('.');
 
     return lastDotIndex === -1 ? baseName : baseName.slice(0, lastDotIndex);
@@ -102,16 +103,17 @@ export function findClosestFileMatch(
   requestedPath: string,
   existingPaths: string[],
 ): FileMatchHint | null {
-    const closestMatches: FileMatchHint[] = [];
     const requestedHasDirectory = hasDirectoryPart(requestedPath);
     const requestedNormalized = normalizePathForMatching(requestedPath);
-    const requestedStem = getFileStem(requestedNormalized);
-    const requestedExtension = getExtension(requestedNormalized);
+    const requestedStem = getFileStemFromNormalizedPath(requestedNormalized);
+    const requestedExtension = getExtensionFromNormalizedPath(requestedNormalized);
+    let bestMatch: FileMatchHint | null = null;
+    let secondBestMatch: FileMatchHint | null = null;
 
     for (const existingPath of existingPaths) {
         const existingNormalized = normalizePathForMatching(existingPath);
-        const existingStem = getFileStem(existingNormalized);
-        const existingExtension = getExtension(existingNormalized);
+        const existingStem = getFileStemFromNormalizedPath(existingNormalized);
+        const existingExtension = getExtensionFromNormalizedPath(existingNormalized);
 
         if (requestedNormalized === existingNormalized) {
             return { requested: requestedPath, candidate: existingPath, score: 1 };
@@ -125,12 +127,14 @@ export function findClosestFileMatch(
             ? stemScore * 0.4 + extensionScore * 0.15 + fullPathScore * 0.45
             : stemScore * 0.65 + extensionScore * 0.2 + fullPathScore * 0.15;
 
-        closestMatches.push({ requested: requestedPath, candidate: existingPath, score });
+        const match = { requested: requestedPath, candidate: existingPath, score };
+        if (!bestMatch || score > bestMatch.score) {
+            secondBestMatch = bestMatch;
+            bestMatch = match;
+        } else if (!secondBestMatch || score > secondBestMatch.score) {
+            secondBestMatch = match;
+        }
     }
-
-    closestMatches.sort((a, b) => b.score - a.score);
-    const bestMatch = closestMatches[0] ?? null;
-    const secondBestMatch = closestMatches[1] ?? null;
 
     if (bestMatch) {
         if (secondBestMatch && bestMatch.score - secondBestMatch.score < 0.1) {
