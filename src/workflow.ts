@@ -9,132 +9,53 @@ import {
 import { getDefaultSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 
-
-const incompleteSignals = [
-    'if you want, i can',
-    'i can also',
-    'still includes',
-    'still contains',
-    'remaining',
-    'not yet',
-    'undefined',
-    'broken reference',
-    'broken references',
-    'inconsistent',
-    'i left',
-    'leftover',
-    'follow-up',
-    'needs cleanup',
-    'need to remove',
-    'need to fix',
-];
-const continueMessage = 
-    'Your last response indicates the requested change is still incomplete. Continue editing and verifying the affected file(s) until the request is fully satisfied and the affected code appears internally consistent.';
-const verifyEditMessage =
-    'You edited file(s) but did not verify the result. Read the edited file(s) again, confirm the requested change was applied, and then continue.';
-const verifyCreateMessage =
-    'You created file(s) but did not verify the result. Read the created file(s) again, confirm the requested change was applied, and then continue.';
-
 // Function to get the file path argument
 function getFilePathArg(args: Record<string, unknown>): string | null {
     const value = args.filePath;
     return typeof value === 'string' ? value : null;
 }
 
-// function getStopMessage(stopReason: ChatResult['stopReason']): string | undefined {
-//     if (stopReason === 'repeated_tool_calls') {
-//         return 'Stopped because the provider began repeating the same tool calls without making new progress.';
-//     }
-
-//     if (stopReason === 'tool_round_limit_reached') {
-//         return 'Stopped because the provider reached the maximum number of tool-call rounds before the task fully converged.';
-//     }
-
-//     return undefined;
-// }
-
 type TurnState = {
-    editedFiles: Set<string>;
-    createdFiles: Set<string>;
-    failedEditCounts: Map<string, number>;
-    failedCreateFiles: Set<string>;
+    mutatedFiles: Set<string>;
+    failedMutationCounts: Map<string, number>;
 };
 
 type WorkflowState = {
-    editedFiles: Set<string>;
-    createdFiles: Set<string>;
-    editedFilesNeedingVerification: Set<string>;
-    createdFilesNeedingVerification: Set<string>;
-    successfulCommands: string[];
+    mutatedFilesNeedingVerification: Set<string>;
     flowRoundCount: number;
 };
 
 function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState): { updatedWorkflowState: WorkflowState, turnState: TurnState } {
     const workflowState = currentState;
     const turnState: TurnState = {
-        editedFiles: new Set(),
-        createdFiles: new Set(),
-        failedEditCounts: new Map(),
-        failedCreateFiles: new Set() 
+        mutatedFiles: new Set(),
+        failedMutationCounts: new Map(),
     };
 
     for (const call of calls) {
         const toolName = call.toolName;
 
-        switch(toolName) {
-            case 'edit_file': {
-                const filePath = getFilePathArg(call.args);
-                if (!filePath) continue;
+        if (toolName === 'edit_file' || toolName === 'write_file') {
+            const filePath = getFilePathArg(call.args);
+            if (!filePath) continue;
 
-                if (call.succeeded) {
-                    workflowState.editedFilesNeedingVerification.add(filePath);
-                    workflowState.editedFiles.add(filePath);
-
-                    turnState.editedFiles.add(filePath);
-                    turnState.failedEditCounts.delete(filePath);
-                } else {
-                    const failedEditCount = turnState.failedEditCounts.get(filePath) ?? 0;
-                    turnState.failedEditCounts.set(filePath, failedEditCount + 1);
-                }
-                break;
+            if (call.succeeded) {
+                workflowState.mutatedFilesNeedingVerification.add(filePath);
+                turnState.mutatedFiles.add(filePath);
+                turnState.failedMutationCounts.delete(filePath);
+            } else {
+                const failedEditCount = turnState.failedMutationCounts.get(filePath) ?? 0;
+                turnState.failedMutationCounts.set(filePath, failedEditCount + 1);
             }
+            continue;
+        }
 
-            case 'write_file': {
-                const filePath = getFilePathArg(call.args);
-                if (!filePath) continue;
-
-                if (call.succeeded) {
-                    workflowState.createdFilesNeedingVerification.add(filePath);
-                    workflowState.createdFiles.add(filePath);
-                    turnState.createdFiles.add(filePath);
-                } else {
-                    turnState.failedCreateFiles.add(filePath);
-                }
-                break;
-            }
-
-            case 'read_file': {
-                const filePath = getFilePathArg(call.args);
-                if (!filePath) continue;
-                
-                if (workflowState.editedFilesNeedingVerification.has(filePath)) {
-                    workflowState.editedFilesNeedingVerification.delete(filePath);
-                } 
-
-                if (workflowState.createdFilesNeedingVerification.has(filePath)) {
-                    workflowState.createdFilesNeedingVerification.delete(filePath);
-                }
-                break;
-            }
-
-            case 'run_command': {
-                const command = call.args.command;
-                if (!command) continue;
-                
-                if (call.succeeded) {
-                    workflowState.successfulCommands.push(JSON.stringify(command));
-                }
-                break;
+        if (toolName === 'read_file')  {
+            const filePath = getFilePathArg(call.args);
+            if (!filePath) continue;
+            
+            if (workflowState.mutatedFilesNeedingVerification.has(filePath)) {
+                workflowState.mutatedFilesNeedingVerification.delete(filePath);
             }
         }
     }
@@ -145,25 +66,46 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
     };
 }
 
-function countFailedEditAttempts(failedEditCounts: Map<string, number>): string[] {
-    return Array.from(failedEditCounts.entries())
+function countRepeatedFailedMutationAttempts(failedMutationCounts: Map<string, number>): string[] {
+    return Array.from(failedMutationCounts.entries())
         .filter(([, count]) => count >= 2)
         .map(([filePath]) => filePath);
 }
 
-function buildVerificationMessage(
-    allEditedFilesVerified: boolean,
-    allCreatedFilesVerified: boolean,
-    workflowState: WorkflowState,
-): string {
-    const verifyEditContent = allEditedFilesVerified
-        ? ''
-        : verifyEditMessage + ` Edited file(s): ${Array.from(workflowState.editedFilesNeedingVerification).join(', ')}.`;
-    const verifyCreateContent = allCreatedFilesVerified
-        ? ''
-        : verifyCreateMessage + ` Created file(s): ${Array.from(workflowState.createdFilesNeedingVerification).join(', ')}.`;
+function buildContinueMessage(affectedFiles: string[]): string {
+    const suffix = affectedFiles.length > 0
+        ? ` Affected file(s): ${affectedFiles.join(', ')}`
+        : '';
 
-    return [verifyEditContent, verifyCreateContent].filter(Boolean).join('\n ');
+    return (
+        'Your last response indicates the task is still incomplete. ' +
+        'Continue working until the request is fully satisfied and the affected code appears internally consistent.' +
+        suffix
+    );
+}
+
+function buildVerifyMutationsMessage(affectedFiles: string[]): string {
+    const suffix = affectedFiles.length > 0
+        ? ` Changed file(s): ${affectedFiles.join(', ')}.`
+        : '';
+
+    return (
+        'You changed file(s) but did not verify the result. ' +
+        'Read the changed file(s) again, confirm the requested change was applied, and then continue.' +
+        suffix
+    );
+}
+
+function buildRepeatedFailedEditMessage(filePaths: string[]): string {
+    return (
+        `You previously failed to edit these file(s) multiple times in the last attempt: ${filePaths.join(', ')}. ` +
+        'Re-read those file(s) and try again using a smaller exact snippet. ' +
+        'Do not use run_command to modify files.'
+    );
+}
+
+function buildSummaryOnlyMessage(): string {
+    return 'The requested changes are already applied and verified. Provide a concise final summary only.';
 }
 
 // Function to run an agent turn
@@ -175,8 +117,8 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     const messages: ChatMessage[] = [{ role: 'system', content: getDefaultSystemPrompt() }];
     messages.push({ role: 'user' as const, content: userPrompt });
 
-    const projectFiles = getProjectFilePaths();
     const referencedPathGroups = buildReferencedPathGroups(userPrompt);
+    let projectFiles: string[] | undefined;
 
     for (const group of referencedPathGroups) {
         console.log(`Referenced path group: ${group.candidatePaths}`);
@@ -185,6 +127,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
                 break;
             }
 
+            projectFiles ??= getProjectFilePaths();
             const match = findClosestFileMatch(candidatePath, projectFiles);
             if (!match) {
                 continue;
@@ -204,11 +147,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     let response: ChatResult = { text: ''};
     let stopMessage: string | undefined;
     let workflowState: WorkflowState = {
-        editedFiles: new Set(),
-        createdFiles: new Set(),
-        editedFilesNeedingVerification: new Set(),
-        createdFilesNeedingVerification: new Set(),
-        successfulCommands: [],
+        mutatedFilesNeedingVerification: new Set(),
         flowRoundCount: 0,
     }
     
@@ -223,31 +162,23 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         const { updatedWorkflowState, turnState } = collectTurnState(executedToolCalls, workflowState);
         workflowState = updatedWorkflowState;
 
-        const repeatedFailedEditFiles = countFailedEditAttempts(turnState.failedEditCounts);
+        const repeatedFailedEditFiles = countRepeatedFailedMutationAttempts(turnState.failedMutationCounts);
         if (repeatedFailedEditFiles.length > 0) {
             messages.push({
                 role: 'user' as const,
-                content:
-                    `You previously failed to edit these file(s) multiple times in the last attempt: ${repeatedFailedEditFiles.join(', ')}. ` +
-                    `Re-read those file(s) and try again using a smaller exact snippet. ` +
-                    `Do not use run_command to modify files.`,
+                content: buildRepeatedFailedEditMessage(repeatedFailedEditFiles),
             });
             continue;
         }
 
-        const allEditedFilesVerified = workflowState.editedFilesNeedingVerification.size === 0;
-        const allCreatedFilesVerified = workflowState.createdFilesNeedingVerification.size === 0;
-        const allMutationsVerified = allEditedFilesVerified && allCreatedFilesVerified;
-        const responseText = response.text?.toLowerCase() ?? '';
-        const hasIncompleteSignal = incompleteSignals.some(signal => responseText.includes(signal));
-        const affectedFiles = Array.from(
-            new Set([
-                ...workflowState.editedFilesNeedingVerification,
-                ...workflowState.createdFilesNeedingVerification,
-                ...turnState.editedFiles,
-                ...turnState.createdFiles,
-            ])
-        );
+        console.log('\nMutated files needing verification:', Array.from(workflowState.mutatedFilesNeedingVerification));
+
+        const allMutationsVerified = workflowState.mutatedFilesNeedingVerification.size === 0;
+        const unverifiedMutatedFiles = Array.from(workflowState.mutatedFilesNeedingVerification);
+        const affectedFiles = Array.from([
+            ...workflowState.mutatedFilesNeedingVerification, 
+            ...turnState.mutatedFiles
+        ]);
 
         if (response.stopReason === 'tool_round_limit_reached') {
             if (allMutationsVerified) {
@@ -257,7 +188,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
 
                 messages.push({ 
                     role: 'user' as const, 
-                    content: `The requested changes are already applied and verified. Provide a concise final summary only.`
+                    content: buildSummaryOnlyMessage(),
                 });
 
                 workflowState.flowRoundCount = maxFlowRounds - 1;
@@ -266,7 +197,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
 
             messages.push({ 
                 role: 'user' as const, 
-                content: buildVerificationMessage(allEditedFilesVerified, allCreatedFilesVerified, workflowState),
+                content: buildVerifyMutationsMessage(unverifiedMutatedFiles),
             });
             continue;
         }
@@ -274,21 +205,14 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         if (!allMutationsVerified) {
             messages.push({ 
                 role: 'user' as const, 
-                content: buildVerificationMessage(allEditedFilesVerified, allCreatedFilesVerified, workflowState),
+                content: buildVerifyMutationsMessage(unverifiedMutatedFiles),
             });
             continue;
         }
 
-        if (allMutationsVerified && response.text?.trim() && !hasIncompleteSignal) {
+        if (allMutationsVerified && response.text?.trim()) {
+            console.log('Workflow complete.');
             return response.text;
-        }
-
-        if (hasIncompleteSignal) {
-            messages.push({ 
-                role: 'user' as const, 
-                content: continueMessage + ` Affected file(s): ${affectedFiles.join(', ')}`
-            });
-            continue;
         }
 
         if (executedToolCalls.length === 0 || response.stopReason === 'no_tool_calls') {
@@ -297,7 +221,7 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
 
         messages.push({ 
             role: 'user' as const, 
-            content: continueMessage + ` Affected file(s): ${affectedFiles.join(', ')}`
+            content: buildContinueMessage(affectedFiles),
         });
     }
 
