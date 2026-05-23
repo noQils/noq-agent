@@ -64,9 +64,6 @@ export function getProjectFilePaths(dirPath = '.'): string[] {
     '.git',
     'dist',
     'build',
-    '.opencode',
-    '.tmp-debug',
-    '.tmp-prompt-tests',
   ]);
   const filePaths: string[] = [];
 
