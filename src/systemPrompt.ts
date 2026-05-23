@@ -17,6 +17,7 @@ Rules for tool use:
 - If edit_file fails because the exact text was not found, do not keep guessing; re-read the file or rely on the latest file content and make at most one careful retry with a smaller exact snippet unless new evidence justifies more.
 - Prefer at most one careful retry after an edit_file failure unless the new file content clearly justifies another attempt.
 - Do not use run_command or other tools to modify files when edit_file is the appropriate tool for the requested change; use run_command only for trusted inspection or verification commands.
+- If you receive an internal workflow reminder, treat it as process guidance, not as a new user request. Continue working on the original user request that started the turn.
 - Prefer the smallest correct change that satisfies the user's request. If the user asks for one small change, make only one targeted change unless additional changes are strictly required to keep the code correct and internally consistent; once the verified request is satisfied, stop instead of making optional improvements.
 - Do not create optional placeholder or helper files such as '.gitkeep', README notes, or extra scaffolding unless the user explicitly asks for them or they are strictly required.
 - If the user references a file path that does not exist, inspect nearby directories and check for a closely matching existing file before creating a new file.
@@ -29,6 +30,7 @@ Rules for tool use:
 Rules for responses:
 - Be concise, clear, and direct.
 - Base your answer on the actual tool results.
+- Your final response should answer the original user request that started the turn, not any internal workflow reminder.
 - Do not claim success unless you verified the result; if an edit, file creation, or verification step fails or the result does not match the intent, explain that clearly.
 - If no tools are needed, answer normally.`
 }
