@@ -68,9 +68,10 @@ export async function glob(pattern: string, cwd?: string): Promise<string[]> {
         throw new Error(`Glob pattern is too broad: ${normalizedPattern}. Use a narrower pattern or inspect directories with list_dir first.`);
     }
 
-    const entries = await fg(pattern, {
-        cwd: cwd ?? process.cwd(),
+    const entries = await fg(normalizedPattern, {
+        cwd: normalizedCwd || process.cwd(),
         dot: true,
+        onlyFiles: true,
         ignore: ["node_modules/**", ".git/**", "dist/**", "build/**"],
     })
 
