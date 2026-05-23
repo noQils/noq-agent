@@ -6,6 +6,7 @@ type CommandSafety = 'trusted' | 'untrusted' | 'dangerous';
 
 const TRUSTED_COMMANDS = new Set([
     'npx tsc --noEmit',
+    'npx tsc --noEmit --pretty false',
     'npm test',
     'npm run build',
 ]);
@@ -19,7 +20,7 @@ const DANGEROUS_PATTERNS = [
 ];
 
 function classifyCommand(command: string): CommandSafety {
-    const normalized = command.trim();
+    const normalized = command.trim().replace(/\s+/g, ' ');
 
     if (TRUSTED_COMMANDS.has(normalized)) {
         return 'trusted';
@@ -30,6 +31,41 @@ function classifyCommand(command: string): CommandSafety {
     }
 
     return 'untrusted';
+}
+
+function stringifyCommandOutput(value: unknown): string {
+    if (!value) {
+        return '';
+    }
+
+    return Buffer.isBuffer(value) ? value.toString('utf-8') : String(value);
+}
+
+function truncateOutput(output: string): string {
+    const maxLength = 6000;
+    return output.length > maxLength
+        ? `${output.slice(0, maxLength)}\n... output truncated ...`
+        : output;
+}
+
+function getCommandFailureDetails(error: unknown): string {
+    const commandError = error as {
+        message?: unknown;
+        stdout?: unknown;
+        stderr?: unknown;
+        status?: unknown;
+        signal?: unknown;
+    };
+
+    const details = [
+        typeof commandError.status === 'number' ? `exit status: ${commandError.status}` : '',
+        commandError.signal ? `signal: ${String(commandError.signal)}` : '',
+        stringifyCommandOutput(commandError.stdout).trim(),
+        stringifyCommandOutput(commandError.stderr).trim(),
+        typeof commandError.message === 'string' ? commandError.message : '',
+    ].filter(Boolean);
+
+    return truncateOutput(Array.from(new Set(details)).join('\n'));
 }
 
 // Define the run_command tool
@@ -76,7 +112,6 @@ export function runCommand(command: string, cwd?: string) {
         const result = execSync(command, { cwd: cwd ?? process.cwd(), encoding: 'utf-8' });
         return result;
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`Command ${command} failed: ${message}`);
+        throw new Error(`Command ${command} failed:\n${getCommandFailureDetails(error)}`);
     }
 }
