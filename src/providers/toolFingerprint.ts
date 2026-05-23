@@ -23,7 +23,11 @@ function sortObjectKeysDeep(value: unknown): unknown {
 
 export function canonicalizeArgs(argumentsJson: string): string {
     const parsed = JSON.parse(argumentsJson);
-    return JSON.stringify(sortObjectKeysDeep(parsed));
+    return canonicalizeArgsValue(parsed);
+}
+
+export function canonicalizeArgsValue(value: unknown): string {
+    return JSON.stringify(sortObjectKeysDeep(value));
 }
 
 const stallSensitiveTools = new Set(['edit_file', 'write_file', 'run_command']);
