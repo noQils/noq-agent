@@ -152,7 +152,6 @@ async function executeFunctionCalls(
       const toolName = functionCall.name ?? '';
       const args = functionCall.args ?? {};
       const tool = getToolByName(toolName);
-      console.log('Calling:', functionCall.name, 'with arguments:', functionCall.args);
 
       if (!tool) {
         const response: FunctionResponse = {
@@ -252,7 +251,6 @@ export async function chat(
     });
 
     const functionCalls = response.functionCalls ?? [];
-    console.log(`Round ${toolRoundCount + 1} tool calls:`, functionCalls.map(call => call.name));
 
     if (functionCalls.length === 0) {
       return {
@@ -293,6 +291,5 @@ export async function chat(
     executedToolCalls.push(...roundExecutedToolCalls);
 
     toolRoundCount++;
-    console.log('\n');
   }
 }

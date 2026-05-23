@@ -184,13 +184,7 @@ export async function chat(
 
     previousRoundCalls = currentRoundCalls;
 
-    if (functionCalls.length > 0) {
-      console.log(`Round ${toolRoundCount + 1} tool calls:`, functionCalls.map(item => item.name));
-    }
-
     for (const item of functionCalls) {
-      console.log('Tool call:', item.name, 'with arguments:', item.arguments);
-
       let args: Record<string, unknown>;
 
       try {
@@ -248,7 +242,6 @@ export async function chat(
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.log('Error:', message);
 
         toolOutputs.push({
             type: 'function_call_output',
@@ -266,7 +259,6 @@ export async function chat(
     }
 
     if (toolOutputs.length === 0) {
-      console.log('No tool calls');
       return {
         text: response.output_text?.trim(),
         executedToolCalls: executedToolCalls,
@@ -290,7 +282,5 @@ export async function chat(
     });
 
     toolRoundCount++;
-
-    console.log('\n');
   }
 }

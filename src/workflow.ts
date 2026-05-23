@@ -189,7 +189,6 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     const hintedPaths = new Set<string>();
 
     for (const group of referencedPathGroups) {
-        console.log(`Referenced path group: ${group.candidatePaths}`);
         for (const candidatePath of group.candidatePaths) {
             if (checkPathExists(candidatePath)) {
                 if (!hintedPaths.has(candidatePath)) {
@@ -212,11 +211,9 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
                 role: 'system',
                 content: buildClosestPathMessage(candidatePath, match.candidate),
             });
-            console.log(messages.at(-1)?.content);
             break;
         }
     }
-    console.log('\n\nAgent response:')
 
     const maxFlowRounds = 3;
     let response: ChatResult = { text: ''};
@@ -230,7 +227,6 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
     
     while (workflowState.flowRoundCount < maxFlowRounds) {
         workflowState.flowRoundCount++;
-        console.log('\nFlow round: ', workflowState.flowRoundCount);
 
         response = await provider.chat(messages);
         messages.push({ role: 'model' as const, content: response.text });
@@ -256,8 +252,6 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
             });
             continue;
         }
-
-        console.log('\nMutated files needing verification:', Array.from(workflowState.mutatedFilesNeedingVerification));
 
         const allMutationsVerified = workflowState.mutatedFilesNeedingVerification.size === 0;
         const unverifiedMutatedFiles = Array.from(workflowState.mutatedFilesNeedingVerification);
@@ -306,7 +300,6 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         }
 
         if (allMutationsVerified && response.text?.trim()) {
-            console.log('Workflow complete.');
             return response.text;
         }
 

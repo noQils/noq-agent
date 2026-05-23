@@ -65,10 +65,8 @@ export async function chat(
     ollamaMessages.push(response.message);
 
     const toolCalls = response.message.tool_calls ?? [];
-    console.log(`Round ${toolRoundCount + 1} tool calls:`, toolCalls.map(call => call.function.name));
 
     if (toolCalls.length === 0) {
-      console.log("No tool calls found.");
       return {
         text: response.message.content,
         executedToolCalls: executedToolCalls,
@@ -102,8 +100,6 @@ export async function chat(
           
           continue;
       }
-
-      console.log('Calling:', call.function.name, 'with arguments:', call.function.arguments);
 
       try {
         const result = await tool.execute(call.function.arguments);
