@@ -6,7 +6,7 @@ import {
   type ChatResult,
   type ExecutedToolCall,
 } from './base';
-import { allTools, type InternalTool } from '../tools';
+import { allTools, getToolByName, type InternalTool } from '../tools';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {
@@ -34,6 +34,8 @@ function toOllamaTool(internalTools: InternalTool[]) {
   }));
 }
 
+const ollamaTools = toOllamaTool(allTools);
+
 // Main chat function to interact with the Ollama model, handling messages and tool calls
 export async function chat(
   messages: ChatMessage[],
@@ -49,10 +51,8 @@ export async function chat(
       content: msg.content ?? '',
   }));
 
-  const ollamaTools = toOllamaTool(allTools);
   const executedToolCalls: ExecutedToolCall[] = [];
 
-  const seenToolCallKeys = new Set<string>();
   let toolRoundCount = 0;
 
   while (true) {
@@ -65,7 +65,10 @@ export async function chat(
     ollamaMessages.push(response.message);
 
     const toolCalls = response.message.tool_calls ?? [];
+    console.log(`Round ${toolRoundCount + 1} tool calls:`, toolCalls.map(call => call.function.name));
+
     if (toolCalls.length === 0) {
+      console.log("No tool calls found.");
       return {
         text: response.message.content,
         executedToolCalls: executedToolCalls,
@@ -81,17 +84,8 @@ export async function chat(
       };
     }
 
-    let hadNewToolCall = false;
-
     for (const call of toolCalls) {
-      const toolCallKey = `${call.function.name}:${JSON.stringify(call.function.arguments)}`;
-      
-      if (!seenToolCallKeys.has(toolCallKey)) {
-        seenToolCallKeys.add(toolCallKey);
-        hadNewToolCall = true;
-      }
-      
-      const tool = allTools.find(t => t.name === call.function.name);
+      const tool = getToolByName(call.function.name);
       if (!tool) {
           ollamaMessages.push({
               role: 'tool',
@@ -108,6 +102,8 @@ export async function chat(
           
           continue;
       }
+
+      console.log('Calling:', call.function.name, 'with arguments:', call.function.arguments);
 
       try {
         const result = await tool.execute(call.function.arguments);
@@ -140,14 +136,6 @@ export async function chat(
           error: error instanceof Error ? error.message : String(error),
         });
       }
-    }
-
-    if (!hadNewToolCall) {
-      return {
-        text: response.message.content,
-        executedToolCalls: executedToolCalls,
-        stopReason: 'repeated_tool_calls',
-      };
     }
 
     toolRoundCount++;
