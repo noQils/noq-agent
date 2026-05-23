@@ -7,6 +7,11 @@ import {
   type ExecutedToolCall,
 } from './base';
 import { allTools, getToolByName, type InternalTool } from '../tools';
+import {
+  canonicalizeArgsValue,
+  areSameStallSensitiveCalls,
+  type ToolCallFingerprint,
+} from './toolFingerprint';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {
@@ -36,6 +41,15 @@ function toOllamaTool(internalTools: InternalTool[]) {
 
 const ollamaTools = toOllamaTool(allTools);
 
+type OllamaToolCall = NonNullable<Message['tool_calls']>[number];
+
+function collectCurrentRoundToolCalls(toolCalls: OllamaToolCall[]): ToolCallFingerprint[] {
+  return toolCalls.map(call => ({
+    toolName: call.function.name,
+    argsKey: canonicalizeArgsValue(call.function.arguments),
+  }));
+}
+
 // Main chat function to interact with the Ollama model, handling messages and tool calls
 export async function chat(
   messages: ChatMessage[],
@@ -54,6 +68,7 @@ export async function chat(
   const executedToolCalls: ExecutedToolCall[] = [];
 
   let toolRoundCount = 0;
+  let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
     const response = await ollama.chat({
@@ -65,6 +80,17 @@ export async function chat(
     ollamaMessages.push(response.message);
 
     const toolCalls = response.message.tool_calls ?? [];
+    const currentRoundCalls = collectCurrentRoundToolCalls(toolCalls);
+
+    if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      return {
+        text: response.message.content,
+        executedToolCalls,
+        stopReason: 'repeated_tool_calls',
+      };
+    }
+
+    previousRoundCalls = currentRoundCalls;
 
     if (toolCalls.length === 0) {
       return {
