@@ -98,6 +98,22 @@ function hasDirectoryPart(filePath: string): boolean {
   return filePath.includes('/') || filePath.includes('\\');
 }
 
+function findUniqueBasenameMatch(
+    requestedPath: string,
+    requestedNormalized: string,
+    existingPaths: string[],
+): FileMatchHint | null {
+    const matches = existingPaths.filter((existingPath) =>
+        getBaseNameFromNormalizedPath(normalizePathForMatching(existingPath)) === requestedNormalized
+    );
+
+    if (matches.length !== 1) {
+        return null;
+    }
+
+    return { requested: requestedPath, candidate: matches[0] as string, score: 1 };
+}
+
 // Find the closest file match
 export function findClosestFileMatch(
   requestedPath: string,
@@ -105,6 +121,13 @@ export function findClosestFileMatch(
 ): FileMatchHint | null {
     const requestedHasDirectory = hasDirectoryPart(requestedPath);
     const requestedNormalized = normalizePathForMatching(requestedPath);
+    if (!requestedHasDirectory) {
+        const basenameMatch = findUniqueBasenameMatch(requestedPath, requestedNormalized, existingPaths);
+        if (basenameMatch) {
+            return basenameMatch;
+        }
+    }
+
     const requestedStem = getFileStemFromNormalizedPath(requestedNormalized);
     const requestedExtension = getExtensionFromNormalizedPath(requestedNormalized);
     let bestMatch: FileMatchHint | null = null;
