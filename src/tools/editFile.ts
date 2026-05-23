@@ -33,6 +33,14 @@ export const editFileTool: InternalTool = {
     },
 };
 
+function detectNewline(content: string): '\r\n' | '\n' {
+    return content.includes('\r\n') ? '\r\n' : '\n';
+}
+
+function normalizeNewlines(text: string, newline: '\r\n' | '\n'): string {
+    return text.replace(/\r?\n/g, newline);
+}
+
 // Function to edit a file at the specified path
 export function editFile(filePath: string, oldText: string, newText: string) {
     if (!checkPathExists(filePath)) {
@@ -43,7 +51,12 @@ export function editFile(filePath: string, oldText: string, newText: string) {
     }
 
     const content = readFileContent(filePath);
-    const occurrences = content.split(oldText).length - 1;
+    const newline = detectNewline(content);
+
+    const normalizedOldText = normalizeNewlines(oldText, newline);
+    const normalizedNewText = normalizeNewlines(newText, newline);
+
+    const occurrences = content.split(normalizedOldText).length - 1;
     if (occurrences === 0) {
         throw new Error(`Exact text to replace was not found in ${filePath}`);
     }
@@ -52,7 +65,7 @@ export function editFile(filePath: string, oldText: string, newText: string) {
         throw new Error(`Exact text to replace matched ${occurrences} times in ${filePath}; provide a more specific snippet.`);
     }
 
-    const updatedContent = content.replace(oldText, newText);
+    const updatedContent = content.replace(normalizedOldText, normalizedNewText);
     writeFileContent(filePath, updatedContent);
 
     const verifiedContent = readFileContent(filePath);
