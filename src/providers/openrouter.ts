@@ -28,25 +28,23 @@ import {
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
 import { executeToolCall } from '../runtime/executeToolCall';
+import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
 
 function getApiKey(): string {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENROUTER_API_KEY is not defined in the environment variables.');
-  }
-
-  return apiKey;
+  return getRequiredRuntimeEnvVar('OPENROUTER_API_KEY');
 }
 
 function getDefaultHeaders(): Record<string, string> | undefined {
   const defaultHeaders: Record<string, string> = {};
+  const httpReferer = getRuntimeEnvVar('OPENROUTER_HTTP_REFERER');
+  const appTitle = getRuntimeEnvVar('OPENROUTER_APP_TITLE');
 
-  if (process.env.OPENROUTER_HTTP_REFERER) {
-    defaultHeaders['HTTP-Referer'] = process.env.OPENROUTER_HTTP_REFERER;
+  if (httpReferer) {
+    defaultHeaders['HTTP-Referer'] = httpReferer;
   }
 
-  if (process.env.OPENROUTER_APP_TITLE) {
-    defaultHeaders['X-OpenRouter-Title'] = process.env.OPENROUTER_APP_TITLE;
+  if (appTitle) {
+    defaultHeaders['X-OpenRouter-Title'] = appTitle;
   }
 
   return Object.keys(defaultHeaders).length > 0 ? defaultHeaders : undefined;
@@ -188,7 +186,7 @@ export async function chat(
   messages: ChatMessage[],
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = options?.model ?? process.env.OPENROUTER_MODEL;
+  const model = options?.model ?? getRuntimeEnvVar('OPENROUTER_MODEL');
   if (!model) {
     throw new Error('OpenRouter model not specified');
   }

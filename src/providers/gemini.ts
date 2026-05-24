@@ -25,14 +25,11 @@ import {
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
 import { executeToolCall } from '../runtime/executeToolCall';
+import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not defined in the environment variables.');
-  }
-  return apiKey;
+  return getRequiredRuntimeEnvVar('GEMINI_API_KEY');
 }
 
 // Convert internal tool definitions to the format expected by the Gemini API
@@ -227,7 +224,7 @@ export async function chat(
   messages: ChatMessage[],
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = options?.model ?? process.env.GEMINI_MODEL;
+  const model = options?.model ?? getRuntimeEnvVar('GEMINI_MODEL');
   if (!model) {
     throw new Error('Gemini model not specified');
   }
