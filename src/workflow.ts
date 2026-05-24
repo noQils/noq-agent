@@ -202,6 +202,14 @@ function buildSummaryOnlyMessage(): string {
     return buildWorkflowReminder('The requested changes are already applied and verified. Provide a concise final summary answering the original user request only.');
 }
 
+function buildAnswerNowMessage(): string {
+    return buildWorkflowReminder(
+        'You already gathered the relevant tool results for the original user request. ' +
+        'Do not call more tools unless a truly missing fact blocks the answer. ' +
+        'Provide the concise final answer now based on the current evidence.'
+    );
+}
+
 function buildRerunVerificationCommandMessage(commands: string[]): string {
     return buildWorkflowReminder(
         'You ran verification command(s) before the latest file changes were read back. ' +
@@ -240,10 +248,12 @@ function buildPlanModeRewriteMessage(): string {
 function shouldPromptForTodoTracking(
     executedToolCalls: ExecutedToolCall[],
     workflowState: WorkflowState,
+    stopReason?: ChatResult['stopReason'],
 ): boolean {
     return !workflowState.todoReminderIssued
         && !hasTodoItems()
         && executedToolCalls.length >= 2
+        && stopReason !== 'no_tool_calls'
         && workflowState.flowRoundCount >= 1;
 }
 
@@ -422,15 +432,6 @@ export async function runAgentTurn(
             continue;
         }
 
-        if (shouldPromptForTodoTracking(executedToolCalls, workflowState)) {
-            workflowState.todoReminderIssued = true;
-            messages.push({
-                role: 'user' as const,
-                content: buildTodoTrackingReminderMessage(),
-            });
-            continue;
-        }
-
         if (allMutationsVerified && response.text?.trim()) {
             if (shouldRewritePlanModeResponse(mode, response.text, workflowState.planResponseRewriteIssued)) {
                 workflowState.planResponseRewriteIssued = true;
@@ -442,6 +443,23 @@ export async function runAgentTurn(
             }
 
             return response.text;
+        }
+
+        if (allMutationsVerified && response.stopReason === 'no_tool_calls' && executedToolCalls.length > 0) {
+            messages.push({
+                role: 'user' as const,
+                content: buildAnswerNowMessage(),
+            });
+            continue;
+        }
+
+        if (shouldPromptForTodoTracking(executedToolCalls, workflowState, response.stopReason)) {
+            workflowState.todoReminderIssued = true;
+            messages.push({
+                role: 'user' as const,
+                content: buildTodoTrackingReminderMessage(),
+            });
+            continue;
         }
 
         if (executedToolCalls.length === 0 || response.stopReason === 'no_tool_calls') {
