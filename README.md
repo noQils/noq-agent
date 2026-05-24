@@ -20,6 +20,7 @@ The current agent can:
 - create new files
 - apply structured multi-file patches
 - run shell commands under a permission policy
+- ask for command approvals once or persist them across a named session
 - track multi-step work with in-memory todos
 - provide TypeScript/JavaScript diagnostics
 - jump to TypeScript/JavaScript symbol definitions
@@ -79,6 +80,13 @@ The provider layer is responsible for:
 - returning a normalized `ChatResult`
 
 OpenRouter is implemented through its OpenAI-compatible API surface, but requests are still sent to OpenRouter and billed against OpenRouter credits.
+
+Provider selection works like this:
+
+1. `AI_PROVIDER` if explicitly set
+2. `defaultProvider` from `noq-agent.json` if present
+3. auto-select exactly one fully configured provider
+4. otherwise fail with a clear setup error instead of silently defaulting to Ollama
 
 ## Modes
 
@@ -167,6 +175,14 @@ Default behavior:
 
 Permissions are enforced before tool execution, not just described in the prompt.
 For `bash`, you can keep a simple `"ask"` rule or switch to command patterns like `"npm run build": "allow"` and `"rm *": "deny"`.
+When a command asks for approval, the CLI supports:
+
+- allow once
+- allow always for the current run
+- allow always for the current named session when `--session` is active
+- deny
+
+For rule-based `bash` permissions, the last matching rule wins.
 
 ## Sessions, Diffs, and Undo
 
@@ -207,6 +223,12 @@ Help output:
 
 ```bash
 noq --help
+```
+
+Version output:
+
+```bash
+noq --version
 ```
 
 ## Example Prompts
@@ -258,6 +280,7 @@ You can provide them in any of these places:
 - shell environment variables
 - `~/.noq-agent/.env` for user-wide defaults
 - `.noq-agent/.env` inside a workspace for project-specific overrides
+- `noq-agent.env` in the workspace root as an alternative local env file
 - the repo-local `.env` when you are running `noq-agent` from inside this repo during development
 
 Example values depend on which provider you want to use:
@@ -283,7 +306,7 @@ If `AI_PROVIDER` is not set, `noq-agent` will:
 
 1. use `defaultProvider` from `noq-agent.json` if present
 2. otherwise auto-select a provider only when exactly one backend is fully configured
-3. otherwise ask you to choose explicitly by setting `AI_PROVIDER`
+3. otherwise fail clearly and ask you to choose explicitly by setting `AI_PROVIDER`
 
 3. Optionally create `noq-agent.json` in the workspace root to set a default mode, default provider, and permission policy.
 
