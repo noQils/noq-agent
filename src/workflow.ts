@@ -13,6 +13,10 @@ import { resetPermissionDecisionCache } from './runtime/executeToolCall';
 import { getToolsForMode } from './tools';
 import { formatTodoItems, hasTodoItems, resetTodoState } from './todoState';
 
+export interface RunAgentTurnOptions {
+    historyMessages?: ChatMessage[];
+}
+
 // Function to get the file path argument
 function getFilePathArg(args: Record<string, unknown>): string | null {
     const value = args.filePath;
@@ -259,7 +263,11 @@ function buildTodoStateMessage(): string {
 }
 
 // Function to run an agent turn
-export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise<string> {
+export async function runAgentTurn(
+    userPrompt: string,
+    mode: AgentMode,
+    options?: RunAgentTurnOptions,
+): Promise<string> {
     if (!provider) {
         throw new Error('Provider is not available.');
     }
@@ -268,6 +276,9 @@ export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise
     resetTodoState();
 
     const messages: ChatMessage[] = [{ role: 'system', content: getSystemPrompt(mode) }];
+    if (options?.historyMessages?.length) {
+        messages.push(...options.historyMessages);
+    }
     messages.push({ role: 'user' as const, content: userPrompt });
     const availableTools = getToolsForMode(mode);
 
