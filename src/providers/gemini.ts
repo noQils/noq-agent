@@ -12,10 +12,11 @@ import {
 
 import { 
   type ChatMessage, 
+  type ChatOptions,
   type ChatResult,
   type ExecutedToolCall,
 } from './types';
-import { allTools, type InternalTool } from '../tools/index';
+import { allTools, getToolsForMode, type InternalTool } from '../tools/index';
 import {
   canonicalizeArgsValue,
   areSameStallSensitiveCalls,
@@ -70,7 +71,6 @@ function toGeminiSchema(schema: InternalTool['parameters']): Schema {
   };
 }
 
-const geminiFunctionDeclarations = toGeminiFunctionDeclaration(allTools);
 let geminiClient: GoogleGenAI | undefined;
 
 function getGeminiClient(): GoogleGenAI {
@@ -157,6 +157,7 @@ function collectCurrentRoundFunctionCalls(functionCalls: FunctionCall[]): ToolCa
 // Helper function to execute tool calls and return the responses
 async function executeFunctionCalls(
   functionCalls: FunctionCall[],
+  mode?: ChatOptions['mode'],
 ): Promise<{
   toolResponses: FunctionResponse[],
   executedToolCalls: ExecutedToolCall[],
@@ -190,7 +191,11 @@ async function executeFunctionCalls(
     const args = normalizedArgs.args;
 
     console.log(`Executing tool ${functionCall.name}`, 'with args', args);
-    const executionResult = await executeToolCall(toolName, args);
+    const executionResult = await executeToolCall(
+      toolName,
+      args,
+      mode ? { mode } : undefined,
+    );
     const response: FunctionResponse = executionResult.executedToolCall.succeeded
       ? {
           id: functionCall.id ?? '',
@@ -220,15 +225,16 @@ async function executeFunctionCalls(
 // Initialize the Gemini API client with the provided API key and function calling configuration
 export async function chat(
   messages: ChatMessage[],
-  config?: { model?: string }
+  options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = config?.model ?? process.env.GEMINI_MODEL;
+  const model = options?.model ?? process.env.GEMINI_MODEL;
   if (!model) {
     throw new Error('Gemini model not specified');
   }
 
   const { systemInstruction, contents } = toGeminiHistory(messages);
-  const functionDeclarations = geminiFunctionDeclarations;
+  const selectedTools = options?.tools ?? (options?.mode ? getToolsForMode(options.mode) : allTools);
+  const functionDeclarations = toGeminiFunctionDeclaration(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const gemini = getGeminiClient();
 
@@ -287,6 +293,7 @@ export async function chat(
 
     const functionCallResult = await executeFunctionCalls(
       functionCalls,
+      options?.mode,
     );
 
     const {

@@ -4,10 +4,11 @@ import ollama, {
 
 import { 
   type ChatMessage, 
+  type ChatOptions,
   type ChatResult,
   type ExecutedToolCall,
 } from './types';
-import { allTools, type InternalTool } from '../tools';
+import { allTools, getToolsForMode, type InternalTool } from '../tools';
 import {
   canonicalizeArgsValue,
   areSameStallSensitiveCalls,
@@ -43,8 +44,6 @@ function toOllamaTool(internalTools: InternalTool[]) {
   }));
 }
 
-const ollamaTools = toOllamaTool(allTools);
-
 type OllamaToolCall = NonNullable<Message['tool_calls']>[number];
 
 function collectCurrentRoundToolCalls(toolCalls: OllamaToolCall[]): ToolCallFingerprint[] {
@@ -57,9 +56,9 @@ function collectCurrentRoundToolCalls(toolCalls: OllamaToolCall[]): ToolCallFing
 // Main chat function to interact with the Ollama model, handling messages and tool calls
 export async function chat(
   messages: ChatMessage[],
-  config?: { model?: string }
+  options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = config?.model ?? process.env.OLLAMA_DEFAULT_MODEL;
+  const model = options?.model ?? process.env.OLLAMA_DEFAULT_MODEL;
   if (!model) {
     throw new Error('OLLAMA model not specified');
   }
@@ -68,6 +67,8 @@ export async function chat(
       role: msg.role === 'model' ? 'assistant' : msg.role,
       content: msg.content ?? '',
   }));
+  const selectedTools = options?.tools ?? (options?.mode ? getToolsForMode(options.mode) : allTools);
+  const ollamaTools = toOllamaTool(selectedTools);
 
   const executedToolCalls: ExecutedToolCall[] = [];
 
@@ -134,6 +135,7 @@ export async function chat(
       const executionResult = await executeToolCall(
         call.function.name,
         normalizedArgs.args,
+        options?.mode ? { mode: options.mode } : undefined,
       );
 
       ollamaMessages.push({

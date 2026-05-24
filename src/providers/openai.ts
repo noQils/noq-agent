@@ -7,11 +7,13 @@ import {
 
 import { 
   type ChatMessage, 
+  type ChatOptions,
   type ChatResult, 
   type ExecutedToolCall 
 } from './types';
 import { 
   allTools, 
+  getToolsForMode,
   type InternalTool
 } from '../tools';
 import {
@@ -68,8 +70,6 @@ function toOpenAISchema(schema: InternalTool['parameters']) {
     additionalProperties: schema.additionalProperties ?? false,
   };
 }
-
-const openAIFunctionTools = toOpenAIFunctionTool(allTools);
 let openAIClient: OpenAI | undefined;
 
 function getOpenAIClient(): OpenAI {
@@ -152,13 +152,14 @@ function collectCurrentRoundFunctionCalls(functionCalls: OpenAIFunctionCall[]): 
 // Main chat function
 export async function chat(
   messages: ChatMessage[],
-  config?: { model?: string }
+  options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = config?.model ?? process.env.OPENAI_MODEL;
+  const model = options?.model ?? process.env.OPENAI_MODEL;
   if (!model) throw new Error('OpenAI model not specified');
 
   const {instructions, input} = toOpenAIHistory(messages);
-  const functionDeclarations = openAIFunctionTools;
+  const selectedTools = options?.tools ?? (options?.mode ? getToolsForMode(options.mode) : allTools);
+  const functionDeclarations = toOpenAIFunctionTool(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const openai = getOpenAIClient();
 
@@ -211,7 +212,11 @@ export async function chat(
       
       console.log('Tool call', item.name, 'with args:', args);
 
-      const executionResult = await executeToolCall(item.name, args);
+      const executionResult = await executeToolCall(
+        item.name,
+        args,
+        options?.mode ? { mode: options.mode } : undefined,
+      );
 
       toolOutputs.push({
         type: 'function_call_output',
