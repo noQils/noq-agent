@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import 'dotenv/config';
 import { isAgentMode, type AgentMode } from './agentMode';
 import { getConfig } from './config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isAgentMode, type AgentMode } from './agentMode';
+import { providerNames, type ProviderName } from './providers/types';
 import {
   isRuleBasedCommandPermission,
   type CommandPermissionConfig,
@@ -23,11 +24,13 @@ export interface PermissionConfig {
 
 export interface AgentConfig {
   defaultMode: AgentMode;
+  defaultProvider?: ProviderName;
   permission: PermissionConfig;
 }
 
 type ConfigFile = {
   defaultMode?: unknown;
+  defaultProvider?: unknown;
   permission?: Partial<{
     [Scope in Exclude<PermissionScope, 'bash'>]: PermissionOutcome;
   } & {
@@ -80,6 +83,10 @@ function isPermissionOutcome(value: unknown): value is PermissionOutcome {
   return typeof value === 'string' && permissionOutcomes.includes(value as PermissionOutcome);
 }
 
+function isProviderName(value: unknown): value is ProviderName {
+  return typeof value === 'string' && providerNames.includes(value as ProviderName);
+}
+
 function isCommandPermissionRules(value: unknown): value is CommandPermissionRules {
   if (!isPlainObject(value)) {
     return false;
@@ -103,6 +110,7 @@ function cloneCommandPermissionConfig(value: CommandPermissionConfig): CommandPe
 function cloneDefaultConfig(): AgentConfig {
   return {
     defaultMode: defaultConfig.defaultMode,
+    ...(defaultConfig.defaultProvider ? { defaultProvider: defaultConfig.defaultProvider } : {}),
     permission: {
       ...defaultConfig.permission,
       bash: cloneCommandPermissionConfig(defaultConfig.permission.bash),
@@ -124,6 +132,16 @@ function validateAndMergeConfig(rawConfig: unknown, configPath: string): AgentCo
     }
 
     mergedConfig.defaultMode = configFile.defaultMode;
+  }
+
+  if (configFile.defaultProvider !== undefined) {
+    if (!isProviderName(configFile.defaultProvider)) {
+      throw new Error(
+        `"defaultProvider" in ${configPath} must be one of: ${providerNames.join(', ')}.`,
+      );
+    }
+
+    mergedConfig.defaultProvider = configFile.defaultProvider;
   }
 
   if (configFile.permission === undefined) {

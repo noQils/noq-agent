@@ -2,6 +2,9 @@ import { type AgentMode } from '../agentMode';
 import { type InternalTool } from '../tools';
 import { type PermissionScope } from '../permissions/types';
 
+export const providerNames = ['ollama', 'gemini', 'openai', 'openrouter'] as const;
+export type ProviderName = typeof providerNames[number];
+
 export interface ToolCall {
   id?: string;
   name: string;

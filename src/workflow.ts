@@ -1,7 +1,7 @@
 import { checkPathExists, getProjectFilePaths } from './fileUtils';
 import { findClosestFileMatch } from './pathMatcher';
 import { type AgentMode } from './agentMode';
-import { provider } from './providers';
+import { getProvider } from './providers';
 import {
   type ChatMessage,
   type ChatResult,
@@ -278,9 +278,7 @@ export async function runAgentTurn(
     mode: AgentMode,
     options?: RunAgentTurnOptions,
 ): Promise<string> {
-    if (!provider) {
-        throw new Error('Provider is not available.');
-    }
+    const provider = getProvider();
 
     resetPermissionDecisionCache();
     resetTodoState();
