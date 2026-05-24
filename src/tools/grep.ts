@@ -245,7 +245,7 @@ async function grepWithoutRipgrep(
             continue;
         }
 
-        const lines = content.replace(/\r\n/g, '\n').split('\n');
+        const lines = content.replaceAll('\r\n', '\n').split('\n');
         for (let index = 0; index < lines.length; index++) {
             const line = lines[index];
             if (line === undefined || !matchesLine(line)) {
