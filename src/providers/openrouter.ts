@@ -239,8 +239,6 @@ export async function chat(
       };
     }
 
-    console.log(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
-
     for (const toolCall of toolCalls) {
       const normalizedArgs = parseAndNormalizeToolArgsJson(toolCall.function.arguments);
 
@@ -260,8 +258,6 @@ export async function chat(
       }
 
       const args = normalizedArgs.args;
-      console.log('Tool call', toolCall.function.name, 'with args:', args);
-
       const executionResult = await executeToolCall(
         toolCall.function.name,
         args,
@@ -275,8 +271,6 @@ export async function chat(
       } satisfies ChatCompletionToolMessageParam);
       executedToolCalls.push(executionResult.executedToolCall);
     }
-
     toolRoundCount++;
-    console.log('\n');
   }
 }

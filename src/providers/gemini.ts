@@ -187,7 +187,6 @@ async function executeFunctionCalls(
 
     const args = normalizedArgs.args;
 
-    console.log(`Executing tool ${functionCall.name}`, 'with args', args);
     const executionResult = await executeToolCall(
       toolName,
       args,
@@ -252,8 +251,6 @@ export async function chat(
         }
       },
     });
-    console.log('Round', toolRoundCount, 'tool calls', response.functionCalls);
-
     const functionCalls = response.functionCalls ?? [];
     const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
 
@@ -305,8 +302,6 @@ export async function chat(
     });
 
     executedToolCalls.push(...roundExecutedToolCalls);
-
     toolRoundCount++;
-    console.log('\n');
   }
 }

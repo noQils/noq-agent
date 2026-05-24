@@ -335,7 +335,6 @@ export async function runAgentTurn(
     
     while (workflowState.flowRoundCount < maxFlowRounds) {
         workflowState.flowRoundCount++;
-        console.log(`Flow round ${workflowState.flowRoundCount}`)
 
         const messagesForProvider = hasTodoItems()
             ? [
