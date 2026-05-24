@@ -7,31 +7,37 @@ Instead of relying on a full agent framework, this project implements the main l
 - provider adapters for multiple model backends
 - a shared internal tool system
 - a workflow/orchestration layer
-- lightweight safety and verification rules for edits and commands
+- a config-driven permission model
+- lightweight session persistence, diffing, and undo
 
-## What It Does
+## What It Can Do
 
-The agent can currently:
+The current agent can:
 
-- inspect a codebase
-- list directory contents
-- search files with guarded glob patterns
-- search file contents
-- read files
-- edit existing files by replacing an exact text snippet
+- inspect a codebase with directory listing, glob search, grep, and file reads
+- read full files or specific line ranges
+- edit existing files with exact replacements
 - create new files
+- apply structured multi-file patches
 - run a small trusted set of verification commands
+- track multi-step work with in-memory todos
+- provide TypeScript/JavaScript diagnostics
+- jump to TypeScript/JavaScript symbol definitions
+- persist session history across CLI invocations
+- show the latest agent-generated diff for a session
+- undo the last agent-generated snapshot for a session
 
-It is designed as a terminal-first local coding assistant that can answer code questions, navigate a repository, make small code changes, and run basic verification commands inside a project.
+It is designed as a terminal-first local coding assistant that can answer code questions, navigate a repository, make code changes, verify them, and keep a small amount of structured state between runs.
 
 ## Why I Built It
 
 I built this project to better understand:
 
-- how model providers differ in tool-calling behavior
+- how provider APIs differ in tool-calling behavior
 - how an agent loop is separated from a provider adapter
 - how tool contracts affect model reliability
-- how workflow rules such as "edit, verify, continue if incomplete" improve agent behavior
+- how runtime rules such as verification, permissions, and bounded loops improve agent behavior
+- how persistent sessions and undo can be layered into a local coding agent
 
 The goal was not just to use an AI SDK, but to learn the architecture behind agentic coding systems by implementing the layers myself.
 
@@ -40,17 +46,30 @@ The goal was not just to use an AI SDK, but to learn the architecture behind age
 The project is split into a few simple layers:
 
 - `src/providers/`
-  provider-specific adapters for OpenAI, Gemini, and Ollama
+  provider-specific adapters for OpenAI, OpenRouter, Gemini, and Ollama
 - `src/tools/`
   internal tool definitions and tool implementations
 - `src/workflow.ts`
   orchestration logic that manages one agent turn and enforces workflow rules
+- `src/runtime/executeToolCall.ts`
+  shared tool execution gate for permissions and mode enforcement
+- `src/config.ts`
+  config loading and validation
+- `src/sessionStore.ts`
+  persistent session history, snapshot diffs, and undo support
+- `src/sessionChangeTracker.ts`
+  tracking for agent-made file mutations, including command-driven workspace changes
 - `src/systemPrompt.ts`
   shared default system prompt used by providers
-- `src/fileUtils.ts`
-  shared low-level file operations used by tools
 
-### Provider Layer
+## Providers
+
+Current providers:
+
+- OpenAI Responses API
+- OpenRouter Chat Completions
+- Google Gemini
+- Ollama
 
 The provider layer is responsible for:
 
@@ -59,79 +78,167 @@ The provider layer is responsible for:
 - running provider-level tool loops
 - returning a normalized `ChatResult`
 
-Current providers:
+OpenRouter is implemented through its OpenAI-compatible API surface, but requests are still sent to OpenRouter and billed against OpenRouter credits.
 
-- OpenAI Responses API
-- Google Gemini
-- Ollama
+## Modes
 
-### Tool Layer
+The agent supports two runtime modes:
+
+- `build`
+  full coding mode; can use mutation tools and command execution subject to permissions
+- `plan`
+  read-only planning mode; can inspect the codebase and produce a grounded implementation plan without changing files
+
+You can choose the mode with:
+
+```bash
+noq --mode plan "your prompt"
+noq --mode build "your prompt"
+noq --plan "your prompt"
+```
+
+The default mode is configurable in `noq-agent.json`.
+
+## Current Tools
 
 Current tools:
 
-- `list_dir`
+- `todo_read`
+- `todo_write`
+- `read_file`
 - `glob`
 - `grep`
-- `read_file`
+- `get_diagnostics`
+- `go_to_definition`
+- `apply_patch`
 - `edit_file`
 - `write_file`
+- `list_dir`
 - `run_command`
-
-These tools share a common internal schema and are exposed to all providers through the same tool registry.
 
 Notable tool behavior:
 
+- `read_file` supports optional line ranges
+- `grep` prefers `ripgrep` and falls back to a Node-based search when `rg` is unavailable
+- `get_diagnostics` and `go_to_definition` currently provide semantic support for TypeScript/JavaScript files
 - `edit_file` performs exact text replacement using `oldText` and `newText`
 - `edit_file` rejects missing or ambiguous matches and verifies the final file after writing
-- `glob` rejects overly broad recursive patterns to reduce accidental repo-wide scans
-- `run_command` only allows trusted commands and rejects untrusted or dangerous ones
+- `apply_patch` supports structured multi-file add/update/delete patch operations
+- `run_command` only allows a trusted command set and rejects untrusted or dangerous commands
+- todo tools are intended for multi-step work and are available to all providers through the shared registry
 
-### Workflow Layer
+## Workflow Layer
 
 `runAgentTurn()` in `src/workflow.ts` acts as the orchestrator for one user request.
 
 It currently enforces behaviors such as:
 
-- if a file is edited, it should be verified with `read_file`
-- if the model's response suggests the task is still incomplete, continue another round
-- stop after a bounded number of workflow rounds to avoid infinite churn
+- changes should be read back before being considered verified
+- verification commands should be rerun after later mutations
+- repeated blocked or failed actions should not be retried blindly
+- final answers should be based on actual tool results
+- bounded workflow rounds should prevent infinite churn
+- plan-mode answers should stay concise and grounded
 
-This layer was added after observing that "tool calling works" is not enough by itself; the runtime also needs lightweight control over completion and verification.
+This layer exists because “tool calling works” is not enough by itself; the runtime also needs lightweight control over completion, verification, and convergence.
+
+## Permissions
+
+The agent uses a config-driven permission model loaded from `noq-agent.json`.
+
+Current permission scopes:
+
+- `todo`
+- `read`
+- `edit`
+- `list`
+- `glob`
+- `grep`
+- `bash`
+- `external_directory`
+- `doom_loop`
+
+Default behavior:
+
+- read-oriented tools are allowed
+- edit and command tools ask for permission
+- external-directory access is denied
+
+Permissions are enforced before tool execution, not just described in the prompt.
+
+## Sessions, Diffs, and Undo
+
+The agent supports persistent local sessions.
+
+With `--session`, it stores prior turns under `.noq-agent/sessions` in the current workspace and can replay compacted history into future runs.
+
+Session features:
+
+- persistent turn history
+- latest snapshot diff via `--diff`
+- undo last agent-generated snapshot via `--undo`
+- tracking of agent-made file changes from edit tools and workspace changes caused by trusted `run_command`
+
+Example:
+
+```bash
+noq --session feature-a "Create src/example.ts and verify it."
+noq --session feature-a --diff
+noq --session feature-a --undo
+```
 
 ## CLI Usage
 
-After building and linking the CLI locally, you can run the agent with:
+After building and linking the CLI locally, you can run:
 
 ```bash
-noq "Read the file src/tools/runCommand.ts. Summarize what it does."
+noq "Read src/tools/runCommand.ts and summarize it."
 ```
 
 During development, you can also run:
 
 ```bash
-npm run dev -- "Read the file src/tools/runCommand.ts. Summarize what it does."
+npm run dev -- "Read src/tools/runCommand.ts and summarize it."
+```
+
+Help output:
+
+```bash
+noq --help
 ```
 
 ## Example Prompts
 
-```bash
-noq "Use list_dir to inspect src/tools, then read the most relevant command-related file and summarize it."
-```
+Read-only planning:
 
 ```bash
-noq "Read src/tools/runCommand.ts, make one small clarity improvement with edit_file using an exact existing snippet, verify the edit with read_file, and summarize the result."
+noq --mode plan "Inspect src/workflow.ts and tell me how you would add a new tool safely."
 ```
 
-```bash
-noq "Create a new file named src/test/example.ts with write_file, verify it with read_file, and summarize the result."
-```
+Targeted edit:
 
 ```bash
-noq "Use run_command to run npx tsc --noEmit, then summarize the result."
+noq "Read src/tools/runCommand.ts, make one small clarity improvement, verify it, and summarize the result."
 ```
 
+Patch-based edit:
+
 ```bash
-noq "Use list_dir to inspect src/test, create a new file named src/test/release-check.ts with write_file containing a tiny exported constant, verify it with read_file, then read the most relevant command-related tool in src/tools, make one small clarity improvement with edit_file, verify the edit, run npx tsc --noEmit with run_command, and summarize the whole result."
+noq "Use apply_patch to update two related sections in one file, then read back the changed lines and summarize exactly what changed."
+```
+
+Semantic navigation:
+
+```bash
+noq --mode plan "Inspect src/tools/readFile.ts, use semantic navigation to find where readFileContent is defined, and check diagnostics in src/typescriptService.ts."
+```
+
+Session + undo:
+
+```bash
+noq --session feature-notes "Create tmp/session-memory.txt containing the text 'first turn', then confirm it."
+noq --session feature-notes --diff
+noq --session feature-notes --undo
 ```
 
 ## Setup
@@ -152,25 +259,51 @@ AI_PROVIDER=openai
 OPENAI_API_KEY=your_key_here
 OPENAI_MODEL=gpt-5.4-mini
 
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=openai/gpt-4.1-mini
+OPENROUTER_HTTP_REFERER=https://your-app.example
+OPENROUTER_APP_TITLE=noq-agent
+
 GEMINI_API_KEY=your_key_here
 GEMINI_MODEL=gemini-2.5-flash
 
 OLLAMA_DEFAULT_MODEL=llama3.1:8b
 ```
 
-3. Build the CLI:
+3. Optionally create `noq-agent.json` in the workspace root to set a default mode and permission policy.
+
+Example:
+
+```json
+{
+  "defaultMode": "build",
+  "permission": {
+    "todo": "allow",
+    "read": "allow",
+    "list": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "edit": "ask",
+    "bash": "ask",
+    "external_directory": "deny",
+    "doom_loop": "ask"
+  }
+}
+```
+
+4. Build the CLI:
 
 ```bash
 npm run build
 ```
 
-4. Link it locally:
+5. Link it locally:
 
 ```bash
 npm link
 ```
 
-5. Run the agent:
+6. Run the agent:
 
 ```bash
 noq "your prompt"
@@ -180,21 +313,32 @@ noq "your prompt"
 
 This project uses lightweight safeguards rather than a full sandbox.
 
-- `edit_file` requires exact existing text and verifies the file after writing
-- `glob` discourages and rejects broad recursive scans
-- `run_command` only permits a trusted set of commands such as `npx tsc --noEmit`
-- workflow rounds are bounded to reduce infinite repair loops
+- runtime-enforced permissions for reads, edits, commands, and external paths
+- `plan` mode for read-only planning
+- exact-text verification for `edit_file`
+- read-back verification after mutations
+- bounded provider and workflow loops
+- trusted-only command execution
+- session undo based on stored before-state snapshots
 
 These safeguards are intentionally simple, but they noticeably improve reliability for a local learning project.
+
+## Current Limitations
+
+- semantic diagnostics and definition lookup are currently TypeScript/JavaScript-specific
+- `run_command` is still intentionally narrow and trust-based rather than fully policy-driven
+- this is not a sandbox; it is a guarded local runtime
+- provider support is normalized, but each backend still has different tool-calling behavior and quality characteristics
 
 ## What I Learned
 
 A few practical lessons from building this:
 
-- provider APIs may share the same idea of "tool calling" while requiring very different message and loop handling
+- provider APIs may share the same idea of tool calling while requiring very different message and loop handling
 - tool design matters a lot; smaller and clearer tool contracts improve reliability
 - verification logic belongs above the provider layer
-- bounded loops are essential to prevent local repair cycles from running forever
+- permission checks are much stronger when enforced in runtime code instead of only described in prompts
+- persistent sessions and undo add a lot of usability, but only if mutation tracking is explicit
 - simple orchestration rules can noticeably improve agent behavior without needing a large framework
 
 ## Current State
@@ -202,21 +346,25 @@ A few practical lessons from building this:
 This is still an evolving learning project, but the current version already demonstrates:
 
 - multi-provider tool-calling support
+- plan/build execution modes
 - a shared internal tool schema
 - a custom orchestration layer
-- repository navigation, file creation, and exact-text file editing workflows
-- trusted command execution for verification
-- basic safeguards against incomplete or unverified edits
+- repository navigation and code search
+- exact-text editing and patch-based editing
+- trusted verification commands
+- TypeScript/JavaScript semantic tooling
+- config-driven permissions
+- persistent sessions with diff and undo support
 
 ## Next Steps
 
 Planned improvements include:
 
-- better typo-aware file selection when users reference near-miss file paths
+- more language backends beyond TypeScript/JavaScript semantics
 - safer and more configurable command execution
-- stronger convergence controls for repeated edit loops
 - more polished CLI output and ergonomics
-- continued hardening of search and verification behavior
+- stronger session tooling and history inspection
+- continued hardening of search, verification, and convergence behavior
 
 ## Repository
 
