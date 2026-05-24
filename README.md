@@ -165,7 +165,6 @@ Current permission scopes:
 - `grep`
 - `bash`
 - `external_directory`
-- `doom_loop`
 
 Default behavior:
 
@@ -330,8 +329,7 @@ Example:
       "git status*": "allow",
       "rm *": "deny"
     },
-    "external_directory": "deny",
-    "doom_loop": "ask"
+    "external_directory": "deny"
   }
 }
 ```

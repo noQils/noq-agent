@@ -19,7 +19,6 @@ export interface PermissionConfig {
   grep: PermissionOutcome;
   bash: CommandPermissionConfig;
   external_directory: PermissionOutcome;
-  doom_loop: PermissionOutcome;
 }
 
 export interface AgentConfig {
@@ -49,7 +48,6 @@ const permissionScopes: Set<PermissionScope> = new Set([
   'grep',
   'bash',
   'external_directory',
-  'doom_loop',
 ]);
 
 const permissionOutcomes: PermissionOutcome[] = ['allow', 'ask', 'deny'];
@@ -65,7 +63,6 @@ export const defaultConfig: AgentConfig = {
     edit: 'ask',
     bash: 'ask',
     external_directory: 'deny',
-    doom_loop: 'ask',
   },
 };
 

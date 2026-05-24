@@ -8,8 +8,7 @@ export type PermissionScope =
   | 'glob'
   | 'grep'
   | 'bash'
-  | 'external_directory'
-  | 'doom_loop';
+  | 'external_directory';
 
 export interface PermissionRequest {
   scope: PermissionScope;
