@@ -1,38 +1,12 @@
-import { execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
+import { isHardBlockedCommand, normalizeCommand } from '../commandPolicy';
 import { checkIsDirectory } from '../fileUtils';
 import { InternalTool } from './index';
 
-type CommandSafety = 'trusted' | 'untrusted' | 'dangerous';
-
-const TRUSTED_COMMANDS = new Set([
-  'npx tsc --noEmit',
-  'npx tsc --noEmit --pretty false',
-  'npm test',
-  'npm run build',
-]);
-
-const DANGEROUS_PATTERNS = [
-  /rm\s+-rf/i,
-  /\brmdir\b.*\/s/i,
-  /\bdel\b.*\/s/i,
-  /\bformat\b/i,
-  /\bshutdown\b/i,
-];
-
-function classifyCommand(command: string): CommandSafety {
-  const normalized = command.trim().replace(/\s+/g, ' ');
-
-  if (TRUSTED_COMMANDS.has(normalized)) {
-    return 'trusted';
-  }
-
-  if (DANGEROUS_PATTERNS.some((pattern) => pattern.test(normalized))) {
-    return 'dangerous';
-  }
-
-  return 'untrusted';
-}
+const maxOutputLength = 6000;
+const maxCapturedOutputLength = 20000;
+const commandTimeoutMs = 120_000;
 
 function stringifyCommandOutput(value: unknown): string {
   if (!value) {
@@ -43,39 +17,45 @@ function stringifyCommandOutput(value: unknown): string {
 }
 
 function truncateOutput(output: string): string {
-  const maxLength = 6000;
-  return output.length > maxLength
-    ? `${output.slice(0, maxLength)}\n... output truncated ...`
+  return output.length > maxOutputLength
+    ? `${output.slice(0, maxOutputLength)}\n... output truncated ...`
     : output;
 }
 
-function getCommandFailureDetails(error: unknown): string {
-  const commandError = error as {
-    message?: unknown;
-    stdout?: unknown;
-    stderr?: unknown;
-    status?: unknown;
-    signal?: unknown;
-  };
-
-  const details = [
-    typeof commandError.status === 'number' ? `exit status: ${commandError.status}` : '',
-    commandError.signal ? `signal: ${String(commandError.signal)}` : '',
-    stringifyCommandOutput(commandError.stdout).trim(),
-    stringifyCommandOutput(commandError.stderr).trim(),
-    typeof commandError.message === 'string' ? commandError.message : '',
+function buildCommandFailureDetails(details: {
+  code?: number | null;
+  message?: string;
+  signal?: NodeJS.Signals | null;
+  stderr?: string;
+  stdout?: string;
+}): string {
+  const parts = [
+    typeof details.code === 'number' ? `exit status: ${details.code}` : '',
+    details.signal ? `signal: ${String(details.signal)}` : '',
+    details.stdout?.trim() ?? '',
+    details.stderr?.trim() ?? '',
+    details.message?.trim() ?? '',
   ].filter(Boolean);
 
-  return truncateOutput(Array.from(new Set(details)).join('\n'));
+  return truncateOutput(Array.from(new Set(parts)).join('\n'));
+}
+
+function appendOutputChunk(currentOutput: string, chunk: string): string {
+  if (!chunk || currentOutput.length >= maxCapturedOutputLength) {
+    return currentOutput;
+  }
+
+  const remainingLength = maxCapturedOutputLength - currentOutput.length;
+  return currentOutput + chunk.slice(0, remainingLength);
 }
 
 export const runCommandTool: InternalTool = {
   name: 'run_command',
-  description: 'Run a trusted command and return the output. Untrusted or dangerous commands are rejected.',
+  description: 'Run a shell command and return the output. Commands are controlled by the permission policy, and catastrophic commands are always blocked.',
   allowedModes: ['build'],
   permission: {
     scope: 'bash',
-    getTarget: (args) => typeof args.command === 'string' ? args.command : '',
+    getTarget: (args) => typeof args.command === 'string' ? normalizeCommand(args.command) : '',
   },
   parameters: {
     type: 'object',
@@ -96,24 +76,102 @@ export const runCommandTool: InternalTool = {
   execute: (args: { command: string; cwd?: string }) => runCommand(args.command, args.cwd),
 };
 
-export function runCommand(command: string, cwd?: string) {
-  const safety = classifyCommand(command);
-
-  if (safety === 'untrusted') {
-    throw new Error(`Command is not trusted: ${command}`);
+export async function runCommand(command: string, cwd?: string): Promise<string> {
+  const trimmedCommand = command.trim();
+  const normalizedCommand = normalizeCommand(command);
+  if (!trimmedCommand) {
+    throw new Error('Command cannot be empty.');
   }
 
-  if (safety === 'dangerous') {
-    throw new Error(`Dangerous command is not allowed: ${command}`);
+  if (isHardBlockedCommand(normalizedCommand)) {
+    throw new Error(`Dangerous command is not allowed: ${trimmedCommand}`);
   }
 
   if (cwd && !checkIsDirectory(cwd)) {
     throw new Error(`${cwd} is not a directory`);
   }
 
-  try {
-    return execSync(command, { cwd: cwd ?? process.cwd(), encoding: 'utf-8' });
-  } catch (error) {
-    throw new Error(`Command ${command} failed:\n${getCommandFailureDetails(error)}`);
-  }
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(trimmedCommand, [], {
+      cwd: cwd ?? process.cwd(),
+      env: process.env,
+      shell: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timedOut = false;
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, commandTimeoutMs);
+
+    function finish(callback: () => void): void {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    }
+
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdout = appendOutputChunk(stdout, stringifyCommandOutput(chunk));
+    });
+
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      stderr = appendOutputChunk(stderr, stringifyCommandOutput(chunk));
+    });
+
+    child.on('error', (error) => {
+      finish(() => {
+        reject(new Error(
+          `Command ${trimmedCommand} failed:\n${buildCommandFailureDetails({
+            message: error.message,
+            stderr,
+            stdout,
+          })}`,
+        ));
+      });
+    });
+
+    child.on('close', (code, signal) => {
+      finish(() => {
+        if (timedOut) {
+          reject(new Error(
+            `Command ${trimmedCommand} failed:\n${buildCommandFailureDetails({
+              message: `Timed out after ${commandTimeoutMs}ms.`,
+              code,
+              signal,
+              stderr,
+              stdout,
+            })}`,
+          ));
+          return;
+        }
+
+        if (code !== 0) {
+          reject(new Error(
+            `Command ${trimmedCommand} failed:\n${buildCommandFailureDetails({
+              code,
+              signal,
+              stderr,
+              stdout,
+            })}`,
+          ));
+          return;
+        }
+
+        const combinedOutput = [stdout.trimEnd(), stderr.trimEnd()]
+          .filter(Boolean)
+          .join('\n');
+        resolve(truncateOutput(combinedOutput));
+      });
+    });
+  });
 }
