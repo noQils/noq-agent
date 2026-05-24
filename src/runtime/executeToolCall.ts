@@ -1,3 +1,4 @@
+import { type AgentMode } from '../agentMode';
 import { evaluatePermission } from '../permissions/evaluate';
 import { promptForPermission } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
@@ -8,6 +9,10 @@ import { type ExecutedToolCall } from '../providers/types';
 export interface ToolExecutionResult {
   output: string;
   executedToolCall: ExecutedToolCall;
+}
+
+export interface ToolExecutionOptions {
+  mode?: AgentMode;
 }
 
 const permissionDecisionCache = new Map<string, boolean>();
@@ -45,6 +50,7 @@ export function resetPermissionDecisionCache(): void {
 export async function executeToolCall(
   toolName: string,
   args: Record<string, unknown>,
+  options?: ToolExecutionOptions,
 ): Promise<ToolExecutionResult> {
   const tool = getToolByName(toolName);
 
@@ -58,6 +64,26 @@ export async function executeToolCall(
         succeeded: false,
         error,
         failureKind: 'unknown_tool',
+      },
+    };
+  }
+
+  const mode = options?.mode;
+  if (mode && !tool.allowedModes.includes(mode)) {
+    const target = tool.permission.getTarget(args);
+    const error =
+      `Tool "${toolName}" is not available in ${mode} mode. ` +
+      'Do not retry this action in this turn unless the mode changes.';
+    return {
+      output: error,
+      executedToolCall: {
+        toolName,
+        args,
+        succeeded: false,
+        error,
+        failureKind: 'mode_denied',
+        target,
+        blockedByMode: mode,
       },
     };
   }

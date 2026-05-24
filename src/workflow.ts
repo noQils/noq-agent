@@ -1,14 +1,16 @@
 import { checkPathExists, getProjectFilePaths } from './fileUtils';
 import { findClosestFileMatch } from './pathMatcher';
+import { type AgentMode } from './agentMode';
 import { provider } from './providers';
 import {
   type ChatMessage,
   type ChatResult,
   type ExecutedToolCall,
 } from './providers/types';
-import { getDefaultSystemPrompt } from './systemPrompt';
+import { getSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
+import { getToolsForMode } from './tools';
 
 // Function to get the file path argument
 function getFilePathArg(args: Record<string, unknown>): string | null {
@@ -19,7 +21,7 @@ function getFilePathArg(args: Record<string, unknown>): string | null {
 type TurnState = {
     mutatedFiles: Set<string>;
     failedMutationCounts: Map<string, number>;
-    blockedPermissionCalls: ExecutedToolCall[];
+    blockedActionCalls: ExecutedToolCall[];
 };
 
 type WorkflowState = {
@@ -47,14 +49,14 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
     const turnState: TurnState = {
         mutatedFiles: new Set(),
         failedMutationCounts: new Map(),
-        blockedPermissionCalls: [],
+        blockedActionCalls: [],
     };
 
     for (const call of calls) {
         const toolName = call.toolName;
 
-        if (call.failureKind === 'permission_denied') {
-            turnState.blockedPermissionCalls.push(call);
+        if (call.failureKind === 'permission_denied' || call.failureKind === 'mode_denied') {
+            turnState.blockedActionCalls.push(call);
         }
 
         if (toolName === 'edit_file' || toolName === 'write_file') {
@@ -69,7 +71,7 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
                 workflowState.commandsRunSinceLastMutation.clear();
                 turnState.mutatedFiles.add(filePath);
                 turnState.failedMutationCounts.delete(filePath);
-            } else if (call.failureKind !== 'permission_denied') {
+            } else if (call.failureKind !== 'permission_denied' && call.failureKind !== 'mode_denied') {
                 const failedEditCount = turnState.failedMutationCounts.get(filePath) ?? 0;
                 turnState.failedMutationCounts.set(filePath, failedEditCount + 1);
             }
@@ -162,10 +164,16 @@ function buildFailedMutationRetryMessage(filePaths: string[]): string {
     );
 }
 
-function buildPermissionDeniedMessage(calls: ExecutedToolCall[]): string {
+function buildBlockedActionMessage(calls: ExecutedToolCall[]): string {
     const blockedActions = Array.from(
         new Set(
             calls.map((call) => {
+                if (call.failureKind === 'mode_denied') {
+                    const target = call.target ? `target=${call.target}` : 'target=(none)';
+                    const mode = call.blockedByMode ?? 'current';
+                    return `${call.toolName} (unavailable in ${mode} mode, ${target})`;
+                }
+
                 const scope = call.permissionScope ? `scope=${call.permissionScope}` : 'scope=unknown';
                 const target = call.target ? `target=${call.target}` : 'target=(none)';
                 const deniedBy = call.permissionDeniedBy === 'policy'
@@ -177,9 +185,9 @@ function buildPermissionDeniedMessage(calls: ExecutedToolCall[]): string {
     );
 
     return buildWorkflowReminder(
-        `Permission was denied for these action(s): ${blockedActions.join('; ')}. ` +
+        `The following action(s) were blocked: ${blockedActions.join('; ')}. ` +
         'Do not retry the same blocked tool call in this turn. ' +
-        'If the original request cannot be completed without that permission, explain that clearly and summarize what remains blocked.'
+        'If the original request cannot be completed without those actions, explain that clearly and summarize what remains blocked.'
     );
 }
 
@@ -204,15 +212,16 @@ function buildClosestPathMessage(requestedPath: string, candidatePath: string): 
 }
 
 // Function to run an agent turn
-export async function runAgentTurn(userPrompt: string): Promise<string> {
+export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise<string> {
     if (!provider) {
         throw new Error('Provider is not available.');
     }
 
     resetPermissionDecisionCache();
 
-    const messages: ChatMessage[] = [{ role: 'system', content: getDefaultSystemPrompt() }];
+    const messages: ChatMessage[] = [{ role: 'system', content: getSystemPrompt(mode) }];
     messages.push({ role: 'user' as const, content: userPrompt });
+    const availableTools = getToolsForMode(mode);
 
     const referencedPathGroups = buildReferencedPathGroups(userPrompt);
     let projectFiles: string[] | undefined;
@@ -259,21 +268,24 @@ export async function runAgentTurn(userPrompt: string): Promise<string> {
         workflowState.flowRoundCount++;
         console.log(`Flow round ${workflowState.flowRoundCount}`)
 
-        response = await provider.chat(messages);
+        response = await provider.chat(messages, {
+            mode,
+            tools: availableTools,
+        });
         messages.push({ role: 'model' as const, content: response.text });
 
         const executedToolCalls = response.executedToolCalls ?? [];
         const { updatedWorkflowState, turnState } = collectTurnState(executedToolCalls, workflowState);
         workflowState = updatedWorkflowState;
 
-        if (turnState.blockedPermissionCalls.length > 0) {
+        if (turnState.blockedActionCalls.length > 0) {
             if (response.text?.trim()) {
                 return response.text;
             }
 
             messages.push({
                 role: 'user' as const,
-                content: buildPermissionDeniedMessage(turnState.blockedPermissionCalls),
+                content: buildBlockedActionMessage(turnState.blockedActionCalls),
             });
             continue;
         }

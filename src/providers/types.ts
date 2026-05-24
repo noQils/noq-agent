@@ -1,3 +1,5 @@
+import { type AgentMode } from '../agentMode';
+import { type InternalTool } from '../tools';
 import { type PermissionScope } from '../permissions/types';
 
 export interface ToolCall {
@@ -16,6 +18,7 @@ export interface ChatMessage {
 export type ToolFailureKind =
   | 'unknown_tool'
   | 'invalid_tool_arguments'
+  | 'mode_denied'
   | 'permission_denied'
   | 'tool_error';
 
@@ -27,6 +30,7 @@ export interface ExecutedToolCall {
   failureKind?: ToolFailureKind;
   permissionScope?: PermissionScope;
   target?: string;
+  blockedByMode?: AgentMode;
   permissionDeniedBy?: 'policy' | 'user';
 }
 
@@ -41,7 +45,13 @@ export interface ChatResult {
   stopReason?: StopReason;
 }
 
+export interface ChatOptions {
+  model?: string;
+  mode?: AgentMode;
+  tools?: InternalTool[];
+}
+
 export interface Provider {
     // Method to handle chat interactions with the model, including tool calls
-    chat(messages: ChatMessage[]): Promise<ChatResult>;
+    chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult>;
 }
