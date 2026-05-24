@@ -1,3 +1,5 @@
+import { type PermissionScope } from '../permissions/types';
+
 export interface ToolCall {
   id?: string;
   name: string;
@@ -11,11 +13,21 @@ export interface ChatMessage {
   toolCallId?: string;
 }
 
+export type ToolFailureKind =
+  | 'unknown_tool'
+  | 'invalid_tool_arguments'
+  | 'permission_denied'
+  | 'tool_error';
+
 export interface ExecutedToolCall {
   toolName: string;
   args: Record<string, unknown>;
   succeeded: boolean;
   error?: string;
+  failureKind?: ToolFailureKind;
+  permissionScope?: PermissionScope;
+  target?: string;
+  permissionDeniedBy?: 'policy' | 'user';
 }
 
 export type StopReason =

@@ -31,7 +31,7 @@ function countPathSegments(filePath: string): number {
     return filePath.split('/').filter(Boolean).length;
 }
 
-// Check if a glob pattern is too broad
+// Check whether a glob pattern is too broad
 function isBroadGlob(pattern: string, cwd?: string): boolean {
     // Treat root-like recursive patterns as broad
     const isRootLike = !cwd || cwd === '.';
@@ -62,6 +62,10 @@ export const globTool: InternalTool = {
     // Tool metadata
     name: "glob",
     description: "Search for files using a glob pattern. Avoid using too broad patterns.",
+    permission: {
+        scope: 'glob',
+        getTarget: (args) => typeof args.pattern === 'string' ? args.pattern : '',
+    },
     parameters: {
         type: 'object',
         properties: {

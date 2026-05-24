@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import 'dotenv/config';
+import { getConfig } from './config';
 import { runAgentTurn } from './workflow';
 
 function printHelp() {
@@ -23,6 +24,8 @@ function printVersion() {
 // Main function to generate content
 async function main() {
   const args = process.argv.slice(2);
+
+  getConfig();
 
   if (args.includes('--help') || args.includes('-h')) {
     printHelp();

@@ -6,6 +6,10 @@ export const listDirTool: InternalTool = {
     // Tool metadata
     name: 'list_dir',
     description: "List the files in a directory",
+    permission: {
+        scope: 'list',
+        getTarget: (args) => typeof args.dirPath === 'string' ? args.dirPath : '',
+    },
     parameters: {
         type: 'object',
         properties: {

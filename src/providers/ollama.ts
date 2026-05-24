@@ -1,17 +1,21 @@
 import ollama, {
   type Message,
 } from 'ollama';
+
 import { 
   type ChatMessage, 
   type ChatResult,
   type ExecutedToolCall,
 } from './base';
-import { allTools, getToolByName, type InternalTool } from '../tools';
+import { allTools, type InternalTool } from '../tools';
 import {
   canonicalizeArgsValue,
   areSameStallSensitiveCalls,
   type ToolCallFingerprint,
 } from './toolFingerprint';
+import { buildInvalidToolArgsFailure } from './toolFailures';
+import { normalizeToolArgs } from './toolArgs';
+import { executeToolCall } from '../runtime/executeToolCall';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {
@@ -109,55 +113,38 @@ export async function chat(
     }
 
     for (const call of toolCalls) {
-      const tool = getToolByName(call.function.name);
-      if (!tool) {
-          ollamaMessages.push({
-              role: 'tool',
-              content: `Error: Unknown tool ${call.function.name}`,
-              tool_name: call.function.name,
-          });
+      const normalizedArgs = normalizeToolArgs(call.function.arguments);
 
-          executedToolCalls.push({
-            toolName: call.function.name,
-            args: call.function.arguments,
-            succeeded: false,
-            error: `Error: Unknown tool ${call.function.name}`,
-          });
-          
-          continue;
-      }
-
-      try {
-        const result = await tool.execute(call.function.arguments);
+      if (!normalizedArgs.ok) {
+        const invalidArgsFailure = buildInvalidToolArgsFailure(
+          call.function.name,
+          normalizedArgs.error,
+        );
 
         ollamaMessages.push({
-            role: 'tool',
-            content: String(result),
-            tool_name: call.function.name,
+          role: 'tool',
+          content: `Error: ${invalidArgsFailure.output}`,
+          tool_name: call.function.name,
         });
 
-        executedToolCalls.push({
-            toolName: tool.name,
-            args: call.function.arguments,
-            succeeded: true,
-        });
-        
-        } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-
-        ollamaMessages.push({
-            role: 'tool',
-            content: `Error: ${message}`,
-            tool_name: call.function.name,
-        });
-
-        executedToolCalls.push({
-          toolName: tool.name,
-          args: call.function.arguments,
-          succeeded: false,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        executedToolCalls.push(invalidArgsFailure.executedToolCall);
+        continue;
       }
+
+      const executionResult = await executeToolCall(
+        call.function.name,
+        normalizedArgs.args,
+      );
+
+      ollamaMessages.push({
+        role: 'tool',
+        content: executionResult.executedToolCall.succeeded
+          ? executionResult.output
+          : `Error: ${executionResult.output}`,
+        tool_name: call.function.name,
+      });
+
+      executedToolCalls.push(executionResult.executedToolCall);
     }
 
     toolRoundCount++;

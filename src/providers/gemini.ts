@@ -9,17 +9,21 @@ import {
   Type, 
   Schema,
 } from '@google/genai';
+
 import { 
   type ChatMessage, 
   type ChatResult,
   type ExecutedToolCall,
 } from './base';
-import { allTools, getToolByName, type InternalTool } from '../tools/index';
+import { allTools, type InternalTool } from '../tools/index';
 import {
   canonicalizeArgsValue,
   areSameStallSensitiveCalls,
   type ToolCallFingerprint,
 } from './toolFingerprint';
+import { buildInvalidToolArgsFailure } from './toolFailures';
+import { normalizeToolArgs } from './toolArgs';
+import { executeToolCall } from '../runtime/executeToolCall';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
@@ -162,63 +166,49 @@ async function executeFunctionCalls(
 
   for (const functionCall of functionCalls) {
     const toolName = functionCall.name ?? '';
-    const args = functionCall.args ?? {};
-    const tool = getToolByName(toolName);
+    const normalizedArgs = normalizeToolArgs(functionCall.args);
 
-    if (!tool) {
+    if (!normalizedArgs.ok) {
+      const invalidArgsFailure = buildInvalidToolArgsFailure(
+        toolName,
+        normalizedArgs.error,
+      );
+
       const response: FunctionResponse = {
         id: functionCall.id ?? '',
         name: toolName,
         response: {
-          error: `Unknown tool: ${functionCall.name}`,
+          error: invalidArgsFailure.output,
         },
       };
 
       toolResponses.push(response);
-      executedToolCalls.push({
-        toolName,
-        args,
-        succeeded: false,
-        error: `Unknown tool: ${functionCall.name}`,
-      });
-
+      executedToolCalls.push(invalidArgsFailure.executedToolCall);
       continue;
     }
 
-    try {
-      const result = await tool.execute(args);
-      const response: FunctionResponse = {
-        id: functionCall.id ?? '',
-        name: toolName,
-        response: {
-          output: String(result),
-        },
-      };
+    const args = normalizedArgs.args;
 
-      toolResponses.push(response);
-      executedToolCalls.push({
-        toolName,
-        args,
-        succeeded: true,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const response: FunctionResponse = {
-        id: functionCall.id ?? '',
-        name: toolName,
-        response: {
-          error: `Error executing tool ${functionCall.name}: ${message}`,
-        },
-      };
+    console.log(`Executing tool ${functionCall.name}`, 'with args', args);
+    const executionResult = await executeToolCall(toolName, args);
+    const response: FunctionResponse = executionResult.executedToolCall.succeeded
+      ? {
+          id: functionCall.id ?? '',
+          name: toolName,
+          response: {
+            output: executionResult.output,
+          },
+        }
+      : {
+          id: functionCall.id ?? '',
+          name: toolName,
+          response: {
+            error: executionResult.output,
+          },
+        };
 
-      toolResponses.push(response);
-      executedToolCalls.push({
-        toolName,
-        args,
-        succeeded: false,
-        error: message,
-      });
-    }
+    toolResponses.push(response);
+    executedToolCalls.push(executionResult.executedToolCall);
   }
 
   return { 
@@ -259,6 +249,7 @@ export async function chat(
         }
       },
     });
+    console.log('Round', toolRoundCount, 'tool calls', response.functionCalls);
 
     const functionCalls = response.functionCalls ?? [];
     const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
@@ -312,5 +303,6 @@ export async function chat(
     executedToolCalls.push(...roundExecutedToolCalls);
 
     toolRoundCount++;
+    console.log('\n');
   }
 }

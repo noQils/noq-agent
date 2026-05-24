@@ -6,6 +6,10 @@ export const readFileTool: InternalTool = {
   // Tool metadata
   name: "read_file",
   description: "Read the content of a file",
+  permission: {
+    scope: 'read',
+    getTarget: (args) => typeof args.filePath === 'string' ? args.filePath : '',
+  },
   parameters: {
     type: 'object',
     properties: {

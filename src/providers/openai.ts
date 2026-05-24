@@ -4,6 +4,7 @@ import {
   type Tool,
   type Response,
 } from 'openai/resources/responses/responses';
+
 import { 
   type ChatMessage, 
   type ChatResult, 
@@ -11,7 +12,6 @@ import {
 } from './base';
 import { 
   allTools, 
-  getToolByName,
   type InternalTool
 } from '../tools';
 import {
@@ -19,6 +19,9 @@ import {
   areSameStallSensitiveCalls,
   type ToolCallFingerprint,
 } from './toolFingerprint';
+import { buildInvalidToolArgsFailure } from './toolFailures';
+import { parseAndNormalizeToolArgsJson } from './toolArgs';
+import { executeToolCall } from '../runtime/executeToolCall';
 
 // Helper function to retrieve the API key from environment variables
 function getApiKey(): string {
@@ -183,79 +186,40 @@ export async function chat(
     }
 
     previousRoundCalls = currentRoundCalls;
+    console.log(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
 
     for (const item of functionCalls) {
-      let args: Record<string, unknown>;
-
-      try {
-          args = JSON.parse(item.arguments);
-      } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-
-          toolOutputs.push({
-              type: 'function_call_output',
-              call_id: item.call_id,
-              output: `Invalid tool arguments: ${message}`,
-          });
-
-          executedToolCalls.push({
-              toolName: item.name,
-              args: {},
-              succeeded: false,
-              error: `Invalid tool arguments: ${message}`,
-          });
-
-          continue;
-      }
-      
-      const tool = getToolByName(item.name);
-      if (!tool) {
-          toolOutputs.push({
-              type: 'function_call_output',
-              call_id: item.call_id,
-              output: `Error: Unknown tool ${item.name}`,
-          });
-
-          executedToolCalls.push({
-              toolName: item.name,
-              args,
-              succeeded: false,
-              error: `Error: Unknown tool ${item.name}`,
-          });
-
-          continue;
-      }
-
-      try {
-        const result = await tool.execute(args);
+      const normalizedArgs = parseAndNormalizeToolArgsJson(item.arguments);
+      if (!normalizedArgs.ok) {
+        const invalidArgsFailure = buildInvalidToolArgsFailure(
+          item.name,
+          normalizedArgs.error,
+        );
 
         toolOutputs.push({
           type: 'function_call_output',
           call_id: item.call_id,
-          output: String(result),
+          output: invalidArgsFailure.output,
         });
 
-        executedToolCalls.push({
-          toolName: item.name,
-          args: args,
-          succeeded: true,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        executedToolCalls.push(invalidArgsFailure.executedToolCall);
 
-        toolOutputs.push({
-            type: 'function_call_output',
-            call_id: item.call_id,
-            output: message,
-        });
-
-        executedToolCalls.push({
-            toolName: item.name,
-            args,
-            succeeded: false,
-            error: message,
-        });
+        continue;
       }
+
+      const args = normalizedArgs.args;
+      
+      console.log('Tool call', item.name, 'with args:', args);
+
+      const executionResult = await executeToolCall(item.name, args);
+
+      toolOutputs.push({
+        type: 'function_call_output',
+        call_id: item.call_id,
+        output: executionResult.output,
+      });
+
+      executedToolCalls.push(executionResult.executedToolCall);
     }
 
     if (toolOutputs.length === 0) {
@@ -282,5 +246,6 @@ export async function chat(
     });
 
     toolRoundCount++;
+    console.log('\n');
   }
 }

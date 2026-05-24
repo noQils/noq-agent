@@ -5,6 +5,8 @@ import { editFileTool } from './editFile';
 import { writeFileTool } from './writeFile';
 import { listDirTool } from './listDir';
 import { runCommandTool } from './runCommand';
+import { PermissionScope } from '../permissions/types';
+
 
 export const allTools: InternalTool[] = [
   readFileTool, 
@@ -41,5 +43,9 @@ export interface InternalTool {
   name: string;
   description: string;
   parameters: ToolParameters;
+    permission: {
+    scope: PermissionScope;
+    getTarget: (args: Record<string, unknown>) => string;
+  };
   execute: (args: any) => Promise<string> | string;
 }
