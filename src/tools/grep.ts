@@ -1,3 +1,5 @@
+import fg from 'fast-glob';
+import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
@@ -28,6 +30,13 @@ const ignoredGlobs = [
     '!.git/**',
     '!dist/**',
     '!build/**',
+];
+
+const ignoredPatterns = [
+    'node_modules/**',
+    '.git/**',
+    'dist/**',
+    'build/**',
 ];
 
 const defaultMaxResults = 100;
@@ -193,6 +202,71 @@ function parseRipgrepOutput(stdout: string, root: string, maxResults: number): G
     return results;
 }
 
+function buildFallbackMatcher(query: string, regex: boolean, caseSensitive: boolean): (line: string) => boolean {
+    if (regex) {
+        const flags = caseSensitive ? '' : 'i';
+        const pattern = new RegExp(query, flags);
+        return (line: string) => pattern.test(line);
+    }
+
+    const normalizedQuery = caseSensitive ? query : query.toLowerCase();
+    return (line: string) => {
+        const candidate = caseSensitive ? line : line.toLowerCase();
+        return candidate.includes(normalizedQuery);
+    };
+}
+
+async function grepWithoutRipgrep(
+    query: string,
+    root: string,
+    fileGlob: string | undefined,
+    maxResults: number,
+    regex: boolean,
+    caseSensitive: boolean,
+): Promise<GrepResult[]> {
+    const includePattern = fileGlob?.trim() || '**/*';
+    const entries = await fg(includePattern, {
+        cwd: root,
+        dot: true,
+        onlyFiles: true,
+        ignore: ignoredPatterns,
+    });
+
+    const matchesLine = buildFallbackMatcher(query, regex, caseSensitive);
+    const results: GrepResult[] = [];
+
+    for (const entry of entries) {
+        const fullPath = path.join(root, entry);
+        let content: string;
+
+        try {
+            content = await readFile(fullPath, 'utf-8');
+        } catch {
+            continue;
+        }
+
+        const lines = content.replace(/\r\n/g, '\n').split('\n');
+        for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
+            if (line === undefined || !matchesLine(line)) {
+                continue;
+            }
+
+            results.push({
+                file: normalizeResultPath(root, entry),
+                line: index + 1,
+                text: line,
+            });
+
+            if (results.length >= maxResults) {
+                return results;
+            }
+        }
+    }
+
+    return results;
+}
+
 export async function grep(
     query: string,
     cwd?: string,
@@ -230,7 +304,14 @@ export async function grep(
     });
 
     if (result.error) {
-        throw new Error(`Failed to execute ripgrep: ${result.error.message}`);
+        return grepWithoutRipgrep(
+            query,
+            root,
+            fileGlob,
+            resolvedMaxResults,
+            regex,
+            caseSensitive,
+        );
     }
 
     if (result.status === 1) {
