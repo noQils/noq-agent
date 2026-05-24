@@ -8,6 +8,8 @@ import { runCommandTool } from './runCommand';
 import { todoReadTool } from './todoRead';
 import { todoWriteTool } from './todoWrite';
 import { applyPatchTool } from './applyPatch';
+import { getDiagnosticsTool } from './getDiagnostics';
+import { goToDefinitionTool } from './goToDefinition';
 import { PermissionScope } from '../permissions/types';
 import { type AgentMode } from '../agentMode';
 
@@ -18,6 +20,8 @@ export const allTools: InternalTool[] = [
   readFileTool, 
   globTool,
   grepTool,
+  getDiagnosticsTool,
+  goToDefinitionTool,
   applyPatchTool,
   editFileTool,
   writeFileTool,
