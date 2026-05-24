@@ -3,6 +3,11 @@ import { evaluatePermission } from '../permissions/evaluate';
 import { promptForPermission } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
 import { canonicalizeArgsValue } from '../providers/shared/toolFingerprint';
+import {
+  beginWorkspaceMutationTracking,
+  recordMutationTargets,
+  recordWorkspaceMutationChanges,
+} from '../sessionChangeTracker';
 import { getToolByName } from '../tools';
 import { type ExecutedToolCall } from '../providers/types';
 
@@ -48,6 +53,30 @@ function buildPermissionRequest(
 
 export function resetPermissionDecisionCache(): void {
   permissionDecisionCache.clear();
+}
+
+function getMutationTargets(
+  toolName: string,
+  args: Record<string, unknown>,
+): string[] {
+  const tool = getToolByName(toolName);
+  if (!tool || tool.permission.scope !== 'edit') {
+    return [];
+  }
+
+  const targets = tool.permission.getPathTargets?.(args) ?? [];
+  if (targets.length > 0) {
+    return Array.from(new Set(targets.filter((target) => typeof target === 'string' && target.trim())));
+  }
+
+  const target = tool.permission.getTarget(args);
+  return typeof target === 'string' && target.trim() ? [target] : [];
+}
+
+function shouldTrackWorkspaceChanges(
+  toolName: string,
+): boolean {
+  return toolName === 'run_command';
 }
 
 export async function executeToolCall(
@@ -153,8 +182,14 @@ export async function executeToolCall(
     }
   }
 
+  const workspaceMutationSnapshot = shouldTrackWorkspaceChanges(toolName)
+    ? beginWorkspaceMutationTracking()
+    : null;
+
   try {
+    recordMutationTargets(getMutationTargets(toolName, args));
     const result = await tool.execute(args);
+    recordWorkspaceMutationChanges(workspaceMutationSnapshot);
     return {
       output: String(result),
       executedToolCall: {
@@ -164,6 +199,7 @@ export async function executeToolCall(
       },
     };
   } catch (error) {
+    recordWorkspaceMutationChanges(workspaceMutationSnapshot);
     const message = error instanceof Error ? error.message : String(error);
     return {
       output: message,
