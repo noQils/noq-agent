@@ -6,6 +6,7 @@ export const editFileTool: InternalTool = {
     // Tool metadata
     name: "edit_file",
     description: "Replace an exact text snippet in a file. Prefer the smallest unique snippet necessary for the intended change.",
+    allowedModes: ['build'],
     permission: {
         scope: 'edit',
         getTarget: (args) => typeof args.filePath === 'string' ? args.filePath : '',

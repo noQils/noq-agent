@@ -6,6 +6,7 @@ import { writeFileTool } from './writeFile';
 import { listDirTool } from './listDir';
 import { runCommandTool } from './runCommand';
 import { PermissionScope } from '../permissions/types';
+import { type AgentMode } from '../agentMode';
 
 
 export const allTools: InternalTool[] = [
@@ -22,6 +23,10 @@ const toolsByName = new Map(allTools.map((tool) => [tool.name, tool]));
 
 export function getToolByName(name: string): InternalTool | undefined {
   return toolsByName.get(name);
+}
+
+export function getToolsForMode(mode: AgentMode): InternalTool[] {
+  return allTools.filter((tool) => tool.allowedModes.includes(mode));
 }
 
 type PrimitiveType = 'string' | 'number' | 'integer' | 'boolean';
@@ -43,7 +48,8 @@ export interface InternalTool {
   name: string;
   description: string;
   parameters: ToolParameters;
-    permission: {
+  allowedModes: AgentMode[];
+  permission: {
     scope: PermissionScope;
     getTarget: (args: Record<string, unknown>) => string;
   };

@@ -62,6 +62,7 @@ export const globTool: InternalTool = {
     // Tool metadata
     name: "glob",
     description: "Search for files using a glob pattern. Avoid using too broad patterns.",
+    allowedModes: ['plan', 'build'],
     permission: {
         scope: 'glob',
         getTarget: (args) => typeof args.pattern === 'string' ? args.pattern : '',

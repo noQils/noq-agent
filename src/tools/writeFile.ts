@@ -6,6 +6,7 @@ export const writeFileTool: InternalTool = {
     // Tool metadata
     name: "write_file",
     description: "Create a file with the provided content",
+    allowedModes: ['build'],
     permission: {
         scope: 'edit',
         getTarget: (args) => typeof args.filePath === 'string' ? args.filePath : '',

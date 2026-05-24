@@ -22,6 +22,7 @@ export const grepTool: InternalTool = {
     // Tool metadata
     name: "grep",
     description: "Search for a pattern in a directory",
+    allowedModes: ['plan', 'build'],
     permission: {
         scope: 'grep',
         getTarget: (args) => typeof args.query === 'string' ? args.query : '',

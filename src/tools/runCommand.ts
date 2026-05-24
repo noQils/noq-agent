@@ -72,6 +72,7 @@ function getCommandFailureDetails(error: unknown): string {
 export const runCommandTool: InternalTool = {
   name: 'run_command',
   description: 'Run a trusted command and return the output. Untrusted or dangerous commands are rejected.',
+  allowedModes: ['build'],
   permission: {
     scope: 'bash',
     getTarget: (args) => typeof args.command === 'string' ? args.command : '',
