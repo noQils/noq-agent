@@ -25,8 +25,7 @@
   "homepage": "https://github.com/noQils/noq-agent#readme",
   "devDependencies": {
     "@types/node": "^25.6.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
     "@google/genai": "^2.0.1",
@@ -35,6 +34,7 @@
     "fast-glob": "^3.3.3",
     "glob": "^13.0.6",
     "ollama": "^0.6.3",
-    "openai": "^6.37.0"
+    "openai": "^6.37.0",
+    "typescript": "^6.0.3"
   }
 }
