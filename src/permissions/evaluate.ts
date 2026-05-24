@@ -24,6 +24,14 @@ function getPathTargets(request: PermissionRequest): string[] {
     pathTargets.push(request.target);
   }
 
+  if (Array.isArray(request.pathTargets)) {
+    for (const pathTarget of request.pathTargets) {
+      if (typeof pathTarget === 'string' && pathTarget.trim()) {
+        pathTargets.push(pathTarget);
+      }
+    }
+  }
+
   const cwd = request.args.cwd;
   if (typeof cwd === 'string' && cwd.trim()) {
     pathTargets.push(cwd);

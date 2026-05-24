@@ -7,6 +7,7 @@ import { listDirTool } from './listDir';
 import { runCommandTool } from './runCommand';
 import { todoReadTool } from './todoRead';
 import { todoWriteTool } from './todoWrite';
+import { applyPatchTool } from './applyPatch';
 import { PermissionScope } from '../permissions/types';
 import { type AgentMode } from '../agentMode';
 
@@ -17,6 +18,7 @@ export const allTools: InternalTool[] = [
   readFileTool, 
   globTool,
   grepTool,
+  applyPatchTool,
   editFileTool,
   writeFileTool,
   listDirTool,
@@ -56,6 +58,7 @@ export interface InternalTool {
   permission: {
     scope: PermissionScope;
     getTarget: (args: Record<string, unknown>) => string;
+    getPathTargets?: (args: Record<string, unknown>) => string[];
   };
   execute: (args: any) => Promise<string> | string;
 }

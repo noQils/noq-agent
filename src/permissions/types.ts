@@ -16,4 +16,5 @@ export interface PermissionRequest {
   toolName: string;
   target: string;
   args: Record<string, unknown>;
+  pathTargets?: string[];
 }

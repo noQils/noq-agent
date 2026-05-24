@@ -35,11 +35,14 @@ function buildPermissionRequest(
     return null;
   }
 
+  const pathTargets = tool.permission.getPathTargets?.(args);
+
   return {
     scope: tool.permission.scope,
     toolName: tool.name,
     target: tool.permission.getTarget(args),
     args,
+    ...(pathTargets ? { pathTargets } : {}),
   };
 }
 
