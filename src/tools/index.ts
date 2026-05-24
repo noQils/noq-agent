@@ -5,11 +5,15 @@ import { editFileTool } from './editFile';
 import { writeFileTool } from './writeFile';
 import { listDirTool } from './listDir';
 import { runCommandTool } from './runCommand';
+import { todoReadTool } from './todoRead';
+import { todoWriteTool } from './todoWrite';
 import { PermissionScope } from '../permissions/types';
 import { type AgentMode } from '../agentMode';
 
 
 export const allTools: InternalTool[] = [
+  todoReadTool,
+  todoWriteTool,
   readFileTool, 
   globTool,
   grepTool,

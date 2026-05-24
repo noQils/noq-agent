@@ -1,6 +1,7 @@
 {
   "defaultMode": "build",
   "permission": {
+    "todo": "allow",
     "read": "allow",
     "list": "allow",
     "glob": "allow",

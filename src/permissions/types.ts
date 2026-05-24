@@ -1,6 +1,7 @@
 export type PermissionOutcome = 'allow' | 'ask' | 'deny';
 
 export type PermissionScope =
+  | 'todo'
   | 'read'
   | 'edit'
   | 'list'

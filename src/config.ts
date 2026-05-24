@@ -19,6 +19,7 @@ type ConfigFile = {
 const CONFIG_FILE_NAME = 'noq-agent.json';
 
 const permissionScopes: Set<PermissionScope> = new Set([
+  'todo',
   'read',
   'edit',
   'list',
@@ -34,6 +35,7 @@ const permissionOutcomes: PermissionOutcome[] = ['allow', 'ask', 'deny'];
 export const defaultConfig: AgentConfig = {
   defaultMode: 'build',
   permission: {
+    todo: 'allow',
     read: 'allow',
     list: 'allow',
     glob: 'allow',
