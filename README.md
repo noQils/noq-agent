@@ -19,7 +19,7 @@ The current agent can:
 - edit existing files with exact replacements
 - create new files
 - apply structured multi-file patches
-- run a small trusted set of verification commands
+- run shell commands under a permission policy
 - track multi-step work with in-memory todos
 - provide TypeScript/JavaScript diagnostics
 - jump to TypeScript/JavaScript symbol definitions
@@ -98,6 +98,7 @@ noq --plan "your prompt"
 ```
 
 The default mode is configurable in `noq-agent.json`.
+The default provider can also be set there when you want a workspace-level preference.
 
 ## Current Tools
 
@@ -124,7 +125,7 @@ Notable tool behavior:
 - `edit_file` performs exact text replacement using `oldText` and `newText`
 - `edit_file` rejects missing or ambiguous matches and verifies the final file after writing
 - `apply_patch` supports structured multi-file add/update/delete patch operations
-- `run_command` only allows a trusted command set and rejects untrusted or dangerous commands
+- `run_command` is permission-gated, supports rule-based bash policies, and still hard-blocks catastrophic commands
 - todo tools are intended for multi-step work and are available to all providers through the shared registry
 
 ## Workflow Layer
@@ -165,6 +166,7 @@ Default behavior:
 - external-directory access is denied
 
 Permissions are enforced before tool execution, not just described in the prompt.
+For `bash`, you can keep a simple `"ask"` rule or switch to command patterns like `"npm run build": "allow"` and `"rm *": "deny"`.
 
 ## Sessions, Diffs, and Undo
 
@@ -177,7 +179,7 @@ Session features:
 - persistent turn history
 - latest snapshot diff via `--diff`
 - undo last agent-generated snapshot via `--undo`
-- tracking of agent-made file changes from edit tools and workspace changes caused by trusted `run_command`
+- tracking of agent-made file changes from edit tools and workspace changes caused by `run_command`
 
 Example:
 
@@ -249,7 +251,14 @@ noq --session feature-notes --undo
 npm install
 ```
 
-2. Add environment variables in `.env`.
+2. Configure provider credentials.
+
+You can provide them in any of these places:
+
+- shell environment variables
+- `~/.noq-agent/.env` for user-wide defaults
+- `.noq-agent/.env` inside a workspace for project-specific overrides
+- the repo-local `.env` when you are running `noq-agent` from inside this repo during development
 
 Example values depend on which provider you want to use:
 
@@ -270,13 +279,20 @@ GEMINI_MODEL=gemini-2.5-flash
 OLLAMA_DEFAULT_MODEL=llama3.1:8b
 ```
 
-3. Optionally create `noq-agent.json` in the workspace root to set a default mode and permission policy.
+If `AI_PROVIDER` is not set, `noq-agent` will:
+
+1. use `defaultProvider` from `noq-agent.json` if present
+2. otherwise auto-select a provider only when exactly one backend is fully configured
+3. otherwise ask you to choose explicitly by setting `AI_PROVIDER`
+
+3. Optionally create `noq-agent.json` in the workspace root to set a default mode, default provider, and permission policy.
 
 Example:
 
 ```json
 {
   "defaultMode": "build",
+  "defaultProvider": "openai",
   "permission": {
     "todo": "allow",
     "read": "allow",
@@ -284,7 +300,13 @@ Example:
     "glob": "allow",
     "grep": "allow",
     "edit": "ask",
-    "bash": "ask",
+    "bash": {
+      "*": "ask",
+      "npm run build": "allow",
+      "npm test*": "allow",
+      "git status*": "allow",
+      "rm *": "deny"
+    },
     "external_directory": "deny",
     "doom_loop": "ask"
   }
@@ -314,11 +336,12 @@ noq "your prompt"
 This project uses lightweight safeguards rather than a full sandbox.
 
 - runtime-enforced permissions for reads, edits, commands, and external paths
+- rule-based bash permissions with allow-once and allow-always approvals
 - `plan` mode for read-only planning
 - exact-text verification for `edit_file`
 - read-back verification after mutations
 - bounded provider and workflow loops
-- trusted-only command execution
+- policy-driven command execution with a hard danger floor
 - session undo based on stored before-state snapshots
 
 These safeguards are intentionally simple, but they noticeably improve reliability for a local learning project.
@@ -326,7 +349,6 @@ These safeguards are intentionally simple, but they noticeably improve reliabili
 ## Current Limitations
 
 - semantic diagnostics and definition lookup are currently TypeScript/JavaScript-specific
-- `run_command` is still intentionally narrow and trust-based rather than fully policy-driven
 - this is not a sandbox; it is a guarded local runtime
 - provider support is normalized, but each backend still has different tool-calling behavior and quality characteristics
 
@@ -351,7 +373,7 @@ This is still an evolving learning project, but the current version already demo
 - a custom orchestration layer
 - repository navigation and code search
 - exact-text editing and patch-based editing
-- trusted verification commands
+- policy-driven command execution
 - TypeScript/JavaScript semantic tooling
 - config-driven permissions
 - persistent sessions with diff and undo support
