@@ -223,12 +223,15 @@ function collectDiagnosticsForFiles(
   ];
 
   for (const fileName of fileNames) {
-    diagnostics.push(...project.languageService.getSyntacticDiagnostics(fileName));
-    diagnostics.push(...project.languageService.getSemanticDiagnostics(fileName));
+    const fileDiagnostics = [
+      ...project.languageService.getSyntacticDiagnostics(fileName),
+      ...project.languageService.getSemanticDiagnostics(fileName),
+      ...(includeSuggestions
+        ? project.languageService.getSuggestionDiagnostics(fileName)
+        : []),
+    ];
 
-    if (includeSuggestions) {
-      diagnostics.push(...project.languageService.getSuggestionDiagnostics(fileName));
-    }
+    diagnostics.push(...fileDiagnostics);
   }
 
   return diagnostics;

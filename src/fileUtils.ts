@@ -82,7 +82,7 @@ export function getProjectFilePaths(dirPath = '.'): string[] {
         continue;
       }
 
-      const relativePath = path.relative(process.cwd(), fullPath).replaceAll(/\\/g, '/');
+      const relativePath = path.relative(process.cwd(), fullPath).replaceAll('\\', '/');
       filePaths.push(relativePath);
     }
   }
