@@ -1,15 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { isAgentMode, type AgentMode } from './agentMode';
 import { type PermissionOutcome, type PermissionScope } from './permissions/types';
 
 export type PermissionConfig = Record<PermissionScope, PermissionOutcome>;
 
 export interface AgentConfig {
+  defaultMode: AgentMode;
   permission: PermissionConfig;
 }
 
 type ConfigFile = {
+  defaultMode?: unknown;
   permission?: Partial<Record<PermissionScope, PermissionOutcome>>;
 };
 
@@ -29,6 +32,7 @@ const permissionScopes: Set<PermissionScope> = new Set([
 const permissionOutcomes: PermissionOutcome[] = ['allow', 'ask', 'deny'];
 
 export const defaultConfig: AgentConfig = {
+  defaultMode: 'build',
   permission: {
     read: 'allow',
     list: 'allow',
@@ -57,6 +61,7 @@ function isPermissionOutcome(value: unknown): value is PermissionOutcome {
 
 function cloneDefaultConfig(): AgentConfig {
   return {
+    defaultMode: defaultConfig.defaultMode,
     permission: { ...defaultConfig.permission },
   };
 }
@@ -68,6 +73,14 @@ function validateAndMergeConfig(rawConfig: unknown, configPath: string): AgentCo
 
   const configFile = rawConfig as ConfigFile;
   const mergedConfig = cloneDefaultConfig();
+
+  if (configFile.defaultMode !== undefined) {
+    if (typeof configFile.defaultMode !== 'string' || !isAgentMode(configFile.defaultMode)) {
+      throw new Error(`"defaultMode" in ${configPath} must be "plan" or "build".`);
+    }
+
+    mergedConfig.defaultMode = configFile.defaultMode;
+  }
 
   if (configFile.permission === undefined) {
     return mergedConfig;

@@ -1,10 +1,11 @@
 {
+  "defaultMode": "build",
   "permission": {
     "read": "allow",
     "list": "allow",
     "glob": "allow",
     "grep": "allow",
-    "edit": "allow",
+    "edit": "ask",
     "bash": "ask",
     "external_directory": "deny",
     "doom_loop": "ask"
