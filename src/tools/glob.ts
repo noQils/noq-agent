@@ -43,7 +43,7 @@ function isBroadGlob(pattern: string, cwd?: string): boolean {
         pattern.endsWith('/**') ||
         pattern.endsWith('/**/*');
 
-    const stripped = pattern.replace(/\*\*/g, '').replace(/\*/g, '').trim();
+    const stripped = pattern.replaceAll('**', '').replaceAll('*', '').trim();
     const hasMeaningfulFilter = stripped.length >= 2 || /\.[a-zA-Z0-9]+/.test(pattern);
 
     if (isCatchAll) {

@@ -52,7 +52,7 @@ const moveToMarker = '*** Move to: ';
 const endOfFileMarker = '*** End of File';
 
 function normalizePatchText(patch: string): string[] {
-    const normalizedPatch = patch.replace(/\r\n/g, '\n');
+    const normalizedPatch = patch.replaceAll('\r\n', '\n');
     const lines = normalizedPatch.split('\n');
 
     while (lines.length > 0 && lines[lines.length - 1] === '') {
@@ -178,7 +178,7 @@ function extractPatchTargets(patch: string): string[] {
 
 function splitFileContent(content: string): FileContentParts {
     const newline: '\n' | '\r\n' = content.includes('\r\n') ? '\r\n' : '\n';
-    const normalizedContent = content.replace(/\r\n/g, '\n');
+    const normalizedContent = content.replaceAll('\r\n', '\n');
     const hadTrailingNewline = normalizedContent.endsWith('\n');
     const withoutTrailingNewline = hadTrailingNewline
         ? normalizedContent.slice(0, -1)

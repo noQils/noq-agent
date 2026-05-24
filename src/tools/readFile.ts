@@ -45,7 +45,7 @@ function splitLines(content: string): string[] {
         return [];
     }
 
-    const normalizedContent = content.replace(/\r\n/g, '\n');
+    const normalizedContent = content.replaceAll('\r\n', '\n');
     const withoutTrailingNewline = normalizedContent.endsWith('\n')
         ? normalizedContent.slice(0, -1)
         : normalizedContent;
