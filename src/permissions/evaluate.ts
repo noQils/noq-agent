@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { resolveCommandPermission } from '../commandPolicy';
 import { getConfig } from '../config';
 import { type PermissionOutcome, type PermissionRequest, type PermissionScope } from './types';
 
@@ -66,7 +67,20 @@ export function evaluatePermission(request: PermissionRequest): PermissionDecisi
     return externalDirectoryDecision;
   }
 
-  const outcome = config.permission[request.scope];
+  if (request.scope === 'bash') {
+    const commandDecision = resolveCommandPermission(request.target, config.permission.bash);
+    const reason = commandDecision.matchedPattern
+      ? `Command "${request.target}" matched bash permission rule "${commandDecision.matchedPattern}" with outcome "${commandDecision.outcome}".`
+      : `No specific bash permission rule matched command "${request.target}", so the fallback outcome is "${commandDecision.outcome}".`;
+
+    return {
+      outcome: commandDecision.outcome,
+      scope: request.scope,
+      reason,
+    };
+  }
+
+  const outcome = config.permission[request.scope] as PermissionOutcome;
 
   return {
     outcome,

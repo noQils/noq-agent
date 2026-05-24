@@ -2,9 +2,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isAgentMode, type AgentMode } from './agentMode';
+import {
+  isRuleBasedCommandPermission,
+  type CommandPermissionConfig,
+  type CommandPermissionRules,
+} from './commandPolicy';
 import { type PermissionOutcome, type PermissionScope } from './permissions/types';
 
-export type PermissionConfig = Record<PermissionScope, PermissionOutcome>;
+export interface PermissionConfig {
+  todo: PermissionOutcome;
+  read: PermissionOutcome;
+  edit: PermissionOutcome;
+  list: PermissionOutcome;
+  glob: PermissionOutcome;
+  grep: PermissionOutcome;
+  bash: CommandPermissionConfig;
+  external_directory: PermissionOutcome;
+  doom_loop: PermissionOutcome;
+}
 
 export interface AgentConfig {
   defaultMode: AgentMode;
@@ -13,7 +28,11 @@ export interface AgentConfig {
 
 type ConfigFile = {
   defaultMode?: unknown;
-  permission?: Partial<Record<PermissionScope, PermissionOutcome>>;
+  permission?: Partial<{
+    [Scope in Exclude<PermissionScope, 'bash'>]: PermissionOutcome;
+  } & {
+    bash: CommandPermissionConfig;
+  }>;
 };
 
 const CONFIG_FILE_NAME = 'noq-agent.json';
@@ -61,10 +80,33 @@ function isPermissionOutcome(value: unknown): value is PermissionOutcome {
   return typeof value === 'string' && permissionOutcomes.includes(value as PermissionOutcome);
 }
 
+function isCommandPermissionRules(value: unknown): value is CommandPermissionRules {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+
+  return Object.entries(value).every(([pattern, outcome]) => (
+    typeof pattern === 'string'
+    && pattern.trim().length > 0
+    && isPermissionOutcome(outcome)
+  ));
+}
+
+function isCommandPermissionConfig(value: unknown): value is CommandPermissionConfig {
+  return isPermissionOutcome(value) || isCommandPermissionRules(value);
+}
+
+function cloneCommandPermissionConfig(value: CommandPermissionConfig): CommandPermissionConfig {
+  return isRuleBasedCommandPermission(value) ? { ...value } : value;
+}
+
 function cloneDefaultConfig(): AgentConfig {
   return {
     defaultMode: defaultConfig.defaultMode,
-    permission: { ...defaultConfig.permission },
+    permission: {
+      ...defaultConfig.permission,
+      bash: cloneCommandPermissionConfig(defaultConfig.permission.bash),
+    },
   };
 }
 
@@ -95,6 +137,18 @@ function validateAndMergeConfig(rawConfig: unknown, configPath: string): AgentCo
   for (const [scope, outcome] of Object.entries(configFile.permission)) {
     if (!isPermissionScope(scope)) {
       throw new Error(`Unknown permission scope "${scope}" in ${configPath}.`);
+    }
+
+    if (scope === 'bash') {
+      if (!isCommandPermissionConfig(outcome)) {
+        throw new Error(
+          `Invalid permission configuration for "bash" in ${configPath}. ` +
+          `Expected "${permissionOutcomes.join('" | "')}" or an object mapping command patterns to those values.`,
+        );
+      }
+
+      mergedConfig.permission.bash = cloneCommandPermissionConfig(outcome);
+      continue;
     }
 
     if (!isPermissionOutcome(outcome)) {

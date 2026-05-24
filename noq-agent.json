@@ -7,7 +7,13 @@
     "glob": "allow",
     "grep": "allow",
     "edit": "ask",
-    "bash": "ask",
+    "bash": {
+      "*": "ask",
+      "npm run build": "allow",
+      "npm test*": "allow",
+      "git status*": "allow",
+      "rm *": "deny"
+    },
     "external_directory": "deny",
     "doom_loop": "ask"
   }
