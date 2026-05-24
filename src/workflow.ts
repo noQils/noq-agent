@@ -11,6 +11,7 @@ import { getSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
 import { getToolsForMode } from './tools';
+import { formatTodoItems, hasTodoItems, resetTodoState } from './todoState';
 
 // Function to get the file path argument
 function getFilePathArg(args: Record<string, unknown>): string | null {
@@ -30,6 +31,7 @@ type WorkflowState = {
     commandsRunSinceLastMutation: Set<string>;
     flowRoundCount: number;
     planResponseRewriteIssued: boolean;
+    todoReminderIssued: boolean;
 };
 
 function getRunCommandArg(args: Record<string, unknown>): string | null {
@@ -231,6 +233,31 @@ function buildPlanModeRewriteMessage(): string {
     );
 }
 
+function shouldPromptForTodoTracking(
+    executedToolCalls: ExecutedToolCall[],
+    workflowState: WorkflowState,
+): boolean {
+    return !workflowState.todoReminderIssued
+        && !hasTodoItems()
+        && executedToolCalls.length >= 2
+        && workflowState.flowRoundCount >= 1;
+}
+
+function buildTodoTrackingReminderMessage(): string {
+    return buildWorkflowReminder(
+        'This task appears to involve multiple meaningful steps. ' +
+        'Before continuing, create a short todo list with todo_write and keep it updated as steps start, complete, or change. ' +
+        'Use the full updated list on each todo_write call.'
+    );
+}
+
+function buildTodoStateMessage(): string {
+    return (
+        `${formatTodoItems()}\n` +
+        'Use todo_write to keep this list current by replacing the full list when progress changes.'
+    );
+}
+
 // Function to run an agent turn
 export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise<string> {
     if (!provider) {
@@ -238,6 +265,7 @@ export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise
     }
 
     resetPermissionDecisionCache();
+    resetTodoState();
 
     const messages: ChatMessage[] = [{ role: 'system', content: getSystemPrompt(mode) }];
     messages.push({ role: 'user' as const, content: userPrompt });
@@ -283,13 +311,21 @@ export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise
         commandsRunSinceLastMutation: new Set(),
         flowRoundCount: 0,
         planResponseRewriteIssued: false,
+        todoReminderIssued: false,
     }
     
     while (workflowState.flowRoundCount < maxFlowRounds) {
         workflowState.flowRoundCount++;
         console.log(`Flow round ${workflowState.flowRoundCount}`)
 
-        response = await provider.chat(messages, {
+        const messagesForProvider = hasTodoItems()
+            ? [
+                ...messages,
+                { role: 'system' as const, content: buildTodoStateMessage() },
+              ]
+            : messages;
+
+        response = await provider.chat(messagesForProvider, {
             mode,
             tools: availableTools,
         });
@@ -371,6 +407,15 @@ export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise
             messages.push({
                 role: 'user' as const,
                 content: buildRerunVerificationCommandMessage(verificationCommandsNeedingRerun),
+            });
+            continue;
+        }
+
+        if (shouldPromptForTodoTracking(executedToolCalls, workflowState)) {
+            workflowState.todoReminderIssued = true;
+            messages.push({
+                role: 'user' as const,
+                content: buildTodoTrackingReminderMessage(),
             });
             continue;
         }
