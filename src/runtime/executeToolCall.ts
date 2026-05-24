@@ -1,4 +1,9 @@
 import { type AgentMode } from '../agentMode';
+import {
+  allowPermissionForSession,
+  allowPermissionOnce,
+  isPermissionPreApproved,
+} from '../permissions/approvals';
 import { evaluatePermission } from '../permissions/evaluate';
 import { promptForPermission } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
@@ -158,7 +163,22 @@ export async function executeToolCall(
   if (permissionDecision.outcome === 'ask') {
     const cacheKey = getPermissionRequestCacheKey(permissionRequest);
     const cachedDecision = permissionDecisionCache.get(cacheKey);
-    const allowed = cachedDecision ?? await promptForPermission(permissionRequest);
+    let allowed = cachedDecision ?? false;
+
+    if (cachedDecision === undefined) {
+      if (isPermissionPreApproved(permissionRequest)) {
+        allowed = true;
+      } else {
+        const promptDecision = await promptForPermission(permissionRequest);
+        if (promptDecision === 'allow_session') {
+          allowPermissionForSession(permissionRequest);
+          allowed = true;
+        } else if (promptDecision === 'allow_once') {
+          allowPermissionOnce(permissionRequest);
+          allowed = true;
+        }
+      }
+    }
 
     permissionDecisionCache.set(cacheKey, allowed);
 

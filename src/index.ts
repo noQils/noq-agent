@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import { isAgentMode, type AgentMode } from './agentMode';
 import { getConfig } from './config';
+import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';
 import { beginSessionChangeTracking, finishSessionChangeTracking, resetSessionChangeTracking } from './sessionChangeTracker';
 import { appendSessionTurn, buildSessionHistoryMessages, getLatestSessionDiff, loadOrCreateSession, undoLastSessionSnapshot } from './sessionStore';
 import { runAgentTurn } from './workflow';
@@ -165,38 +166,45 @@ async function main() {
     throw new Error('Please provide a prompt after the mode flags.');
   }
 
-  if (!sessionId) {
-    const response = await runAgentTurn(userPrompt, mode);
-    console.log(response);
-    return;
-  }
-
-  const session = loadOrCreateSession(sessionId);
-  const historyMessages = buildSessionHistoryMessages(session);
-
-  beginSessionChangeTracking();
-  let response: string;
+  resetPermissionApprovalState();
+  setPermissionApprovalSession(sessionId);
 
   try {
-    response = await runAgentTurn(userPrompt, mode, { historyMessages });
-  } catch (error) {
-    resetSessionChangeTracking();
-    throw error;
+    if (!sessionId) {
+      const response = await runAgentTurn(userPrompt, mode);
+      console.log(response);
+      return;
+    }
+
+    const session = loadOrCreateSession(sessionId);
+    const historyMessages = buildSessionHistoryMessages(session);
+
+    beginSessionChangeTracking();
+    let response: string;
+
+    try {
+      response = await runAgentTurn(userPrompt, mode, { historyMessages });
+    } catch (error) {
+      resetSessionChangeTracking();
+      throw error;
+    }
+
+    const fileChanges = finishSessionChangeTracking();
+    appendSessionTurn(
+      sessionId,
+      {
+        timestamp: new Date().toISOString(),
+        mode,
+        userPrompt,
+        response,
+      },
+      fileChanges,
+    );
+
+    console.log(response);
+  } finally {
+    resetPermissionApprovalState();
   }
-
-  const fileChanges = finishSessionChangeTracking();
-  appendSessionTurn(
-    sessionId,
-    {
-      timestamp: new Date().toISOString(),
-      mode,
-      userPrompt,
-      response,
-    },
-    fileChanges,
-  );
-
-  console.log(response);
 }
 
 main().catch((error) => {

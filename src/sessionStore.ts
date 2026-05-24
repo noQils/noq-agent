@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 import { type AgentMode } from './agentMode';
 import { ensureParentDirectory, resolveProjectPath, writeFileContent } from './fileUtils';
+import { type PermissionScope } from './permissions/types';
 import { type ChatMessage } from './providers/types';
 import { type SessionFileChange } from './sessionChangeTracker';
 
@@ -30,12 +31,19 @@ export interface SessionSnapshot {
   diff: string;
 }
 
+export interface SessionPermissionApproval {
+  createdAt: string;
+  scope: PermissionScope;
+  targetPattern: string;
+}
+
 export interface AgentSession {
   id: string;
   createdAt: string;
   updatedAt: string;
   turns: SessionTurn[];
   snapshots: SessionSnapshot[];
+  permissionApprovals: SessionPermissionApproval[];
 }
 
 function createTimestamp(): string {
@@ -60,6 +68,7 @@ function createEmptySession(sessionId: string): AgentSession {
     updatedAt: timestamp,
     turns: [],
     snapshots: [],
+    permissionApprovals: [],
   };
 }
 
@@ -115,7 +124,16 @@ function loadSessionFile(sessionId: string): AgentSession | null {
     return null;
   }
 
-  return JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8')) as AgentSession;
+  const session = JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8')) as Partial<AgentSession>;
+
+  return {
+    id: session.id ?? sessionId,
+    createdAt: session.createdAt ?? createTimestamp(),
+    updatedAt: session.updatedAt ?? session.createdAt ?? createTimestamp(),
+    turns: Array.isArray(session.turns) ? session.turns : [],
+    snapshots: Array.isArray(session.snapshots) ? session.snapshots : [],
+    permissionApprovals: Array.isArray(session.permissionApprovals) ? session.permissionApprovals : [],
+  };
 }
 
 function writeSnapshotSide(
@@ -218,6 +236,38 @@ export function loadOrCreateSession(sessionId: string): AgentSession {
   }
 
   const session = createEmptySession(sessionId);
+  saveSession(session);
+  return session;
+}
+
+export function getSessionPermissionApprovals(sessionId: string): SessionPermissionApproval[] {
+  const session = loadOrCreateSession(sessionId);
+  return session.permissionApprovals;
+}
+
+export function appendSessionPermissionApproval(
+  sessionId: string,
+  approval: Omit<SessionPermissionApproval, 'createdAt'>,
+): AgentSession {
+  const session = loadOrCreateSession(sessionId);
+  const createdAt = createTimestamp();
+  const nextApproval: SessionPermissionApproval = {
+    createdAt,
+    ...approval,
+  };
+
+  const existingApprovalIndex = session.permissionApprovals.findIndex((existingApproval) => (
+    existingApproval.scope === nextApproval.scope
+    && existingApproval.targetPattern === nextApproval.targetPattern
+  ));
+
+  if (existingApprovalIndex >= 0) {
+    session.permissionApprovals[existingApprovalIndex] = nextApproval;
+  } else {
+    session.permissionApprovals.push(nextApproval);
+  }
+
+  session.updatedAt = createdAt;
   saveSession(session);
   return session;
 }
