@@ -21,11 +21,14 @@ function getPlanModeInstructions(): string {
 - If the user asks you to make changes, explain the concrete plan you would follow in build mode instead.
 - Focus on the next steps, risks, and the smallest recommended implementation path.
 - Prefer inspecting the relevant files first, then give a practical implementation plan grounded in what you found.
+- Prefer a short numbered implementation plan over a long explanation.
 - Do not keep repeating that plan mode is read-only. State the limitation once, then move on to the useful plan.
 - When the user asks for a change, structure the answer around:
   1. what you inspected,
   2. what you would change in build mode,
   3. any key risks or follow-up checks.
+- If the target path does not exist, say that plainly and propose the exact file path you would create in build mode.
+- If the user mentions a directory-like path for a new function or module, infer a sensible file path inside it and state that inference clearly.
 - Keep the plan concise and concrete. Avoid filler, repeated disclaimers, or generic advice.`; 
 }
 
@@ -35,8 +38,19 @@ function getPlanModeResponseRules(): string {
 - After that single limitation sentence, switch immediately to the concrete build-mode plan.
 - Do not repeat the same limitation in different words.
 - Do not offer extra read-only checks unless you are actually going to perform them in this answer.
+- Do not include markdown code fences in plan mode.
+- Do not include full code blocks or full function implementations unless the user explicitly asks for example code, pseudocode, or an implementation sketch.
+- Do not end with "if you want, I can..." option menus. End with the plan itself unless a short clarifying note is truly necessary.
+- Prefer naming the exact file you would create or edit, based on what you inspected.
+- Your final answer in plan mode must be short:
+  either 2 to 4 sentences,
+  or a numbered list with at most 3 items.
+- For straightforward coding requests, prefer this exact shape:
+  1. one sentence about what you inspected,
+  2. one sentence about the exact file you would create or edit,
+  3. one sentence about the implementation or follow-up check.
 - For simple requests, prefer a short answer in this form:
-  "I can't complete that in plan mode. In build mode I would: 1. ..., 2. ..., 3. ..."`; 
+  "I can't complete that in plan mode. I inspected X. In build mode I would: 1. ..., 2. ..., 3. ..."`; 
 }
 
 export function getSystemPrompt(mode: AgentMode): string {

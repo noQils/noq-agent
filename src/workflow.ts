@@ -29,6 +29,7 @@ type WorkflowState = {
     verificationCommandsNeedingRerun: Set<string>;
     commandsRunSinceLastMutation: Set<string>;
     flowRoundCount: number;
+    planResponseRewriteIssued: boolean;
 };
 
 function getRunCommandArg(args: Record<string, unknown>): string | null {
@@ -211,6 +212,25 @@ function buildClosestPathMessage(requestedPath: string, candidatePath: string): 
     return `The referenced file "${requestedPath}" does not exist. A close existing file match was found: "${candidatePath}". If the request sounds like editing or adding content inside an existing file, treat "${candidatePath}" as the intended target and read it directly. Do not keep searching for "${requestedPath}" unless you need to decide whether the user clearly asked for a new file with that exact path.`;
 }
 
+function shouldRewritePlanModeResponse(mode: AgentMode, responseText: string, rewriteIssued: boolean): boolean {
+    if (mode !== 'plan' || rewriteIssued) {
+        return false;
+    }
+
+    return /```/.test(responseText)
+        || /if you want, i can/i.test(responseText)
+        || /example usage/i.test(responseText);
+}
+
+function buildPlanModeRewriteMessage(): string {
+    return buildWorkflowReminder(
+        'Rewrite your previous answer for plan mode. ' +
+        'Keep it to 2 to 4 sentences or a numbered list with at most 3 items. ' +
+        'Do not include code fences, sample implementations, usage examples, or "if you want, I can" menus. ' +
+        'Base the answer on what you inspected, name the exact file or path you would create or edit in build mode, and keep the answer practical.'
+    );
+}
+
 // Function to run an agent turn
 export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise<string> {
     if (!provider) {
@@ -254,7 +274,7 @@ export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise
         }
     }
 
-    const maxFlowRounds = 3;
+    const maxFlowRounds = mode === 'plan' ? 4 : 3;
     let response: ChatResult = { text: ''};
     let stopMessage: string | undefined;
     let workflowState: WorkflowState = {
@@ -262,6 +282,7 @@ export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise
         verificationCommandsNeedingRerun: new Set(),
         commandsRunSinceLastMutation: new Set(),
         flowRoundCount: 0,
+        planResponseRewriteIssued: false,
     }
     
     while (workflowState.flowRoundCount < maxFlowRounds) {
@@ -355,6 +376,15 @@ export async function runAgentTurn(userPrompt: string, mode: AgentMode): Promise
         }
 
         if (allMutationsVerified && response.text?.trim()) {
+            if (shouldRewritePlanModeResponse(mode, response.text, workflowState.planResponseRewriteIssued)) {
+                workflowState.planResponseRewriteIssued = true;
+                messages.push({
+                    role: 'user' as const,
+                    content: buildPlanModeRewriteMessage(),
+                });
+                continue;
+            }
+
             return response.text;
         }
 
