@@ -9,7 +9,7 @@ import {
   type ChatMessage, 
   type ChatResult, 
   type ExecutedToolCall 
-} from './base';
+} from './types';
 import { 
   allTools, 
   type InternalTool
@@ -18,9 +18,9 @@ import {
   canonicalizeArgs,
   areSameStallSensitiveCalls,
   type ToolCallFingerprint,
-} from './toolFingerprint';
-import { buildInvalidToolArgsFailure } from './toolFailures';
-import { parseAndNormalizeToolArgsJson } from './toolArgs';
+} from './shared/toolFingerprint';
+import { buildInvalidToolArgsFailure } from './shared/toolFailures';
+import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
 import { executeToolCall } from '../runtime/executeToolCall';
 
 // Helper function to retrieve the API key from environment variables

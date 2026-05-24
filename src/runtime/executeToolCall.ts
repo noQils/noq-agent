@@ -1,9 +1,9 @@
 import { evaluatePermission } from '../permissions/evaluate';
 import { promptForPermission } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
-import { canonicalizeArgsValue } from '../providers/toolFingerprint';
+import { canonicalizeArgsValue } from '../providers/shared/toolFingerprint';
 import { getToolByName } from '../tools';
-import { type ExecutedToolCall } from '../providers/base';
+import { type ExecutedToolCall } from '../providers/types';
 
 export interface ToolExecutionResult {
   output: string;

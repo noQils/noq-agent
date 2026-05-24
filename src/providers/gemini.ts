@@ -14,15 +14,15 @@ import {
   type ChatMessage, 
   type ChatResult,
   type ExecutedToolCall,
-} from './base';
+} from './types';
 import { allTools, type InternalTool } from '../tools/index';
 import {
   canonicalizeArgsValue,
   areSameStallSensitiveCalls,
   type ToolCallFingerprint,
-} from './toolFingerprint';
-import { buildInvalidToolArgsFailure } from './toolFailures';
-import { normalizeToolArgs } from './toolArgs';
+} from './shared/toolFingerprint';
+import { buildInvalidToolArgsFailure } from './shared/toolFailures';
+import { normalizeToolArgs } from './shared/toolArgs';
 import { executeToolCall } from '../runtime/executeToolCall';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined

@@ -1,4 +1,4 @@
-import { type ExecutedToolCall } from './base';
+import { type ExecutedToolCall } from '../types';
 
 export interface ToolFailureResult {
   output: string;

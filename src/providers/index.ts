@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { type Provider } from './base';
+import { type Provider } from './types';
 import { chat as ollamaChat } from './ollama';
 import { chat as geminiChat } from './gemini';
 import { chat as openAIChat } from './openai';

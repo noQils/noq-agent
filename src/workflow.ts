@@ -5,7 +5,7 @@ import {
   type ChatMessage,
   type ChatResult,
   type ExecutedToolCall,
-} from './providers/base';
+} from './providers/types';
 import { getDefaultSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
