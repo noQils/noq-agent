@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import * as ts from 'typescript';
 
+import { type FormattedDefinitionLocation } from './definitionTypes';
 import { type FormattedDiagnostic } from './diagnosticsTypes';
 import { getProjectFilePaths, resolveProjectPath } from './fileUtils';
 
@@ -22,13 +23,6 @@ const supportedScriptExtensions = [
 
 const defaultMaxDiagnostics = 100;
 const maxAllowedDiagnostics = 500;
-
-export interface FormattedDefinitionLocation {
-  filePath: string;
-  line: number;
-  column: number;
-  lineText: string;
-}
 
 interface LoadedTypeScriptProject {
   languageService: ts.LanguageService;
