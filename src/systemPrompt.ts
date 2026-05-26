@@ -77,7 +77,7 @@ Rules for tool use:
 - If the user asks about code, files, folders, or project contents, use the tools instead of guessing.
 - Use read_file line ranges when you only need part of a large file.
 - Use grep for code search, and set regex or fileGlob when that will narrow the search.
-- Use get_diagnostics for TypeScript or JavaScript errors before guessing, and use go_to_definition when you need semantic symbol navigation instead of plain text search.
+- Use get_diagnostics for supported language errors before guessing. It is strongest for TypeScript and JavaScript, and also supports Python, Java, and Go. Use go_to_definition when you need semantic symbol navigation instead of plain text search.
 - Prefer apply_patch for coordinated multi-line or multi-file edits. Use edit_file for a small exact replacement when that is simpler.
 - Never invent or misrepresent files, paths, tool results, or tool usage.
 - If a task requires a tool you do not have, say so clearly.
