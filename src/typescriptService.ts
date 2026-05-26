@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import * as ts from 'typescript';
 
+import { type FormattedDiagnostic } from './diagnosticsTypes';
 import { getProjectFilePaths, resolveProjectPath } from './fileUtils';
 
 const supportedScriptExtensions = [
@@ -21,15 +22,6 @@ const supportedScriptExtensions = [
 
 const defaultMaxDiagnostics = 100;
 const maxAllowedDiagnostics = 500;
-
-export interface FormattedDiagnostic {
-  filePath?: string;
-  line?: number;
-  column?: number;
-  code: number;
-  category: string;
-  message: string;
-}
 
 export interface FormattedDefinitionLocation {
   filePath: string;
@@ -198,6 +190,7 @@ function formatDiagnostic(diagnostic: ts.Diagnostic): FormattedDiagnostic {
     code: diagnostic.code,
     category: formatDiagnosticCategory(diagnostic.category),
     message,
+    language: 'typescript',
   };
 
   if (!diagnostic.file || diagnostic.start === undefined) {
