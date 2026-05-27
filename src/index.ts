@@ -2,7 +2,13 @@
 import { isAgentMode, type AgentMode } from './agentMode';
 import { getConfig } from './config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';
-import { createSessionWithGeneratedId, getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
+import {
+  createSessionWithGeneratedId,
+  getLatestSessionDiff,
+  loadOrCreateSession,
+  undoLastSessionSnapshot,
+} from './sessionStore';
+import { startInteractiveSession } from './repl';
 import { runSessionTurn } from './sessionTurnRunner';
 
 function printHelp() {
@@ -139,11 +145,6 @@ async function main() {
     return;
   }
 
-  if (args.length === 0) {
-    printHelp();
-    process.exit(1);
-  }
-
   const config = getConfig();
   const { mode, promptParts, sessionId, action } = parseCliArgs(args, config.defaultMode);
   const userPrompt = promptParts.join(' ').trim();
@@ -164,13 +165,17 @@ async function main() {
     return;
   }
 
-  if (userPrompt.length === 0) {
-    throw new Error('Please provide a prompt after the mode flags.');
-  }
-
   resetPermissionApprovalState();
 
   try {
+    if (userPrompt.length === 0) {
+      const activeSessionId = sessionId ?? createSessionWithGeneratedId().id;
+      loadOrCreateSession(activeSessionId);
+      setPermissionApprovalSession(activeSessionId);
+      await startInteractiveSession(activeSessionId, mode);
+      return;
+    }
+
     let activeSessionId = sessionId;
     if (!activeSessionId) {
       activeSessionId = createSessionWithGeneratedId().id;
