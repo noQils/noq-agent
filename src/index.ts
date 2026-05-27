@@ -100,6 +100,7 @@ interface ParsedCliArgs {
   promptParts: string[];
   sessionId?: string;
   action: CliAction;
+  directTui: boolean;
 }
 
 function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
@@ -107,6 +108,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
   let mode = defaultMode;
   let sessionId: string | undefined;
   let action: CliAction = 'chat';
+  let directTui = false;
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -126,6 +128,11 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
 
     if (arg === '--undo') {
       action = 'undo';
+      continue;
+    }
+
+    if (arg === '--tui') {
+      directTui = true;
       continue;
     }
 
@@ -177,6 +184,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
     mode,
     promptParts,
     action,
+    directTui,
     ...(sessionId ? { sessionId } : {}),
   };
 }
@@ -196,7 +204,7 @@ async function main() {
   }
 
   const config = getConfig();
-  const { mode, promptParts, sessionId, action } = parseCliArgs(args, config.defaultMode);
+  const { mode, promptParts, sessionId, action, directTui } = parseCliArgs(args, config.defaultMode);
   const userPrompt = promptParts.join(' ').trim();
 
   if ((action === 'diff' || action === 'undo') && !sessionId) {
@@ -223,20 +231,22 @@ async function main() {
       loadOrCreateSession(activeSessionId);
       setPermissionApprovalSession(activeSessionId);
 
-      const launchMode = await selectInteractiveLaunchMode();
-      if (launchMode === 'popup') {
-        const launchResult = launchSessionWindow({
-          sessionId: activeSessionId,
-          mode,
-        });
+      if (!directTui) {
+        const launchMode = await selectInteractiveLaunchMode();
+        if (launchMode === 'popup') {
+          const launchResult = launchSessionWindow({
+            sessionId: activeSessionId,
+            mode,
+          });
 
-        if (launchResult.launched) {
-          return;
+          if (launchResult.launched) {
+            return;
+          }
+
+          printPopupFallbackMessage(
+            launchResult.message ?? 'Popup window mode could not be started. Starting the interactive session in the current terminal instead.',
+          );
         }
-
-        printPopupFallbackMessage(
-          launchResult.message ?? 'Popup window mode could not be started. Starting the interactive session in the current terminal instead.',
-        );
       }
 
       await startInteractiveSession(activeSessionId, mode);

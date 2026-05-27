@@ -39,6 +39,7 @@ function getCliBootstrapArgs(): string[] {
 function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
   return [
     ...getCliBootstrapArgs(),
+    '--tui',
     '--session',
     options.sessionId,
     '--mode',
