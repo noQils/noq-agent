@@ -150,7 +150,8 @@ function buildVerifyMutationsMessage(affectedFiles: string[]): string {
 
     return buildWorkflowReminder(
         'You changed file(s) but did not verify the result. ' +
-        'Read the changed file(s) again, confirm the requested change was applied, and then continue with any remaining part of the original request.' +
+        'Read the changed file(s) again, confirm the requested change was applied, and then continue with any remaining part of the original request. ' +
+        'When you give the final answer, lead with what you changed for the user and mention verification only briefly as confirmation.' +
         suffix
     );
 }
@@ -199,7 +200,11 @@ function buildBlockedActionMessage(calls: ExecutedToolCall[]): string {
 }
 
 function buildSummaryOnlyMessage(): string {
-    return buildWorkflowReminder('The requested changes are already applied and verified. Provide a concise final summary answering the original user request only.');
+    return buildWorkflowReminder(
+        'The requested changes are already applied and verified. ' +
+        'Provide a concise final summary answering the original user request only. ' +
+        'Lead with what you created or changed, name the relevant file when helpful, and mention verification only briefly as supporting evidence instead of the main point.'
+    );
 }
 
 function buildAnswerNowMessage(): string {
