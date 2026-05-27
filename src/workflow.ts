@@ -36,6 +36,7 @@ type WorkflowState = {
     flowRoundCount: number;
     buildResponseRewriteIssued: boolean;
     planResponseRewriteIssued: boolean;
+    planFalseCompletionRewriteIssued: boolean;
     sawSuccessfulMutation: boolean;
     todoReminderIssued: boolean;
 };
@@ -275,6 +276,14 @@ function isPlanModeRefusalResponse(responseText: string): boolean {
         || /^i cannot complete that in plan mode\b/.test(trimmed);
 }
 
+function isPlanModeFalseCompletionResponse(responseText: string): boolean {
+    const trimmed = responseText.trim().toLowerCase();
+    return /^done\b/.test(trimmed)
+        || /^completed\b/.test(trimmed)
+        || /^i (created|added|updated|edited|implemented|wrote|made|finished)\b/.test(trimmed)
+        || /\bdone\s+[—-]\s+i (created|added|updated|edited|implemented|wrote|made|finished)\b/.test(trimmed);
+}
+
 function isMutationStyleUserRequest(userPrompt: string): boolean {
     return /\b(create|add|make|write|implement|update|edit|modify|change|fix|refactor|rename|remove|delete)\b/i.test(userPrompt);
 }
@@ -332,6 +341,32 @@ function buildPlanRefusalRewriteMessage(): string {
         'Do not begin with a refusal or limitation sentence. ' +
         'For this coding request, give the direct implementation plan: say what you inspected, name the exact file or path you would create or edit, and describe what you would implement there. ' +
         'Keep it concise, practical, and read-only. ' +
+        'Do not call more tools.'
+    );
+}
+
+function shouldRewritePlanFalseCompletionResponse(
+    mode: AgentMode,
+    userPrompt: string,
+    responseText: string,
+    rewriteIssued: boolean,
+): boolean {
+    if (mode !== 'plan' || rewriteIssued) {
+        return false;
+    }
+
+    if (!isPlanStyleUserRequest(userPrompt) || isPlanModeMetaRequest(userPrompt)) {
+        return false;
+    }
+
+    return isPlanModeFalseCompletionResponse(responseText);
+}
+
+function buildPlanFalseCompletionRewriteMessage(): string {
+    return buildWorkflowReminder(
+        'Rewrite your previous answer for plan mode. ' +
+        'Do not claim that any file was created, edited, updated, implemented, or completed. ' +
+        'Describe the work only as a proposed build-mode plan based on what you inspected: name the exact file or path you would create or edit, explain what you would change there, and mention the main follow-up check if it matters. ' +
         'Do not call more tools.'
     );
 }
@@ -406,6 +441,14 @@ function handlePlanModeCompletion(
     workflowState: WorkflowState,
 ): CompletionAction | null {
     if (response.text?.trim()) {
+        if (shouldRewritePlanFalseCompletionResponse('plan', userPrompt, response.text, workflowState.planFalseCompletionRewriteIssued)) {
+            workflowState.planFalseCompletionRewriteIssued = true;
+            return {
+                type: 'continue',
+                reminder: buildPlanFalseCompletionRewriteMessage(),
+            };
+        }
+
         if (shouldRewritePlanRefusalResponse('plan', userPrompt, response.text, workflowState.planResponseRewriteIssued)) {
             workflowState.planResponseRewriteIssued = true;
             return {
@@ -596,6 +639,7 @@ export async function runAgentTurn(
         flowRoundCount: 0,
         buildResponseRewriteIssued: false,
         planResponseRewriteIssued: false,
+        planFalseCompletionRewriteIssued: false,
         sawSuccessfulMutation: false,
         todoReminderIssued: false,
     }
