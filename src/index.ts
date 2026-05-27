@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+
 import { isAgentMode, type AgentMode } from './agentMode';
 import { getConfig } from './config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';
@@ -10,6 +13,8 @@ import {
 } from './sessionStore';
 import { startInteractiveSession } from './interactiveSession';
 import { runSessionTurn } from './sessionTurnRunner';
+
+type InteractiveLaunchMode = 'terminal' | 'popup';
 
 function printHelp() {
   console.log(`noq-agent - local AI coding agent CLI
@@ -53,6 +58,38 @@ function printVersion() {
 
 function printSessionContinuationHint(sessionId: string): void {
   console.log(`\nTo continue this conversation use: noq --session ${sessionId}`);
+}
+
+async function selectInteractiveLaunchMode(): Promise<InteractiveLaunchMode> {
+  if (!input.isTTY || !output.isTTY) {
+    return 'terminal';
+  }
+
+  const rl = readline.createInterface({ input, output });
+
+  try {
+    const answer = await rl.question(
+      [
+        'Choose how to open the interactive session:',
+        '  1. Use current terminal',
+        '  2. Open popup window',
+        'Select [1]: ',
+      ].join('\n'),
+    );
+
+    const normalizedAnswer = answer.trim().toLowerCase();
+    if (normalizedAnswer === '2' || normalizedAnswer === 'popup' || normalizedAnswer === 'p') {
+      return 'popup';
+    }
+
+    return 'terminal';
+  } finally {
+    rl.close();
+  }
+}
+
+function printPopupUnavailableMessage(): void {
+  console.log('Popup window mode is not available yet. Starting the interactive session in the current terminal instead.');
 }
 
 type CliAction = 'chat' | 'diff' | 'undo';
@@ -184,6 +221,12 @@ async function main() {
       const activeSessionId = sessionId ?? createSessionWithGeneratedId().id;
       loadOrCreateSession(activeSessionId);
       setPermissionApprovalSession(activeSessionId);
+
+      const launchMode = await selectInteractiveLaunchMode();
+      if (launchMode === 'popup') {
+        printPopupUnavailableMessage();
+      }
+
       await startInteractiveSession(activeSessionId, mode);
       return;
     }
