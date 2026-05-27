@@ -1,5 +1,7 @@
 import { createCliRenderer, type CliRenderer } from '@opentui/core';
 
+import { openTuiTheme } from './openTuiTheme';
+
 export async function createOpenTuiRenderer(): Promise<CliRenderer> {
   return createCliRenderer({
     screenMode: 'alternate-screen',
@@ -7,6 +9,6 @@ export async function createOpenTuiRenderer(): Promise<CliRenderer> {
     targetFps: 30,
     maxFps: 60,
     useMouse: true,
-    backgroundColor: '#0d1117',
+    backgroundColor: openTuiTheme.color.canvas,
   });
 }

@@ -52,12 +52,23 @@ type AssistantContentBlock =
   | { type: 'code'; language: string; content: string }
   | { type: 'table'; lines: string[] };
 
-function commandLabels(isCompact: boolean): string[] {
+interface CommandHint {
+  key: string;
+  value?: string;
+}
+
+function commandHints(isCompact: boolean): CommandHint[] {
   if (isCompact) {
-    return ['/mode', '/diff', '/exit'];
+    return [{ key: '/mode' }, { key: '/diff' }, { key: '/exit' }];
   }
 
-  return ['/mode plan', '/mode build', '/plan show', '/diff', '/undo', '/exit'];
+  return [
+    { key: '/mode', value: 'plan|build' },
+    { key: '/plan', value: 'show' },
+    { key: '/diff' },
+    { key: '/undo' },
+    { key: '/exit' },
+  ];
 }
 
 function diffBlockHeight(text: string, isCompact: boolean): number {
@@ -219,8 +230,8 @@ function AssistantContent(props: { text: string; isCompact: boolean }) {
             return (
               <box
                 border
-                borderStyle="single"
-                borderColor={openTuiTheme.color.lineStrong}
+                borderStyle="rounded"
+                borderColor={openTuiTheme.color.line}
                 backgroundColor={openTuiTheme.color.panelRaised}
                 paddingX={1}
                 paddingY={0}
@@ -247,8 +258,8 @@ function AssistantContent(props: { text: string; isCompact: boolean }) {
             return (
               <box
                 border
-                borderStyle="single"
-                borderColor={openTuiTheme.color.lineStrong}
+                borderStyle="rounded"
+                borderColor={openTuiTheme.color.line}
                 backgroundColor={openTuiTheme.color.panelRaised}
                 flexDirection="column"
                 paddingX={1}
@@ -281,31 +292,28 @@ function TranscriptEntry(props: {
   isCompact: boolean;
 }) {
   const role = () => openTuiTheme.role[props.entry.kind];
-  const title = () => (props.entry.kind === 'system' ? role().title : role().label);
   const timestamp = () => compactLocalTime(props.entry.createdAt);
 
   return (
     <box
       id={props.entry.id}
       flexDirection="column"
-      marginBottom={1}
-      border
-      borderStyle="rounded"
+      marginBottom={props.isCompact ? 0 : 1}
+      border={['left']}
+      borderStyle="single"
       borderColor={role().border}
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
       paddingX={1}
       paddingY={0}
-      bottomTitle={props.showTime ? timestamp() : ''}
-      bottomTitleAlignment="right"
     >
       <box flexDirection="row" justifyContent="space-between" gap={1}>
         <text fg={role().accent} truncate>
-          {title()}
+          {role().label}
         </text>
         {props.showTime ? (
-          <text fg={openTuiTheme.color.ghost} truncate>
-            {props.entry.kind}
+          <text fg={openTuiTheme.color.textFaint} truncate>
+            {timestamp()}
           </text>
         ) : null}
       </box>
@@ -353,60 +361,65 @@ function TranscriptEntry(props: {
 function EmptyTranscriptState(props: { isCompact: boolean }) {
   return (
     <box
-      border
-      borderStyle="rounded"
-      borderColor={openTuiTheme.color.lineSoft}
-      backgroundColor={openTuiTheme.color.panelSoft}
+      backgroundColor={openTuiTheme.color.canvas}
       paddingX={1}
       paddingY={props.isCompact ? 0 : 1}
       flexDirection="column"
       gap={props.isCompact ? 0 : 1}
     >
-      <text fg={openTuiTheme.color.text}>Session ready</text>
-      <text fg={openTuiTheme.color.textMuted} wrapMode="word">
-        Type a prompt below, or run /diff, /plan show, /undo, or /exit.
-      </text>
+      <box flexDirection="row" gap={1}>
+        <text fg={openTuiTheme.color.teal}>
+{`
+███╗   ██╗ ██████╗  ██████╗
+████╗  ██║██╔═══██╗██╔═══██╗
+██╔██╗ ██║██║   ██║██║   ██║
+██║╚██╗██║██║   ██║██║   ██║
+██║ ╚████║╚██████╔╝╚██████╔╝
+╚═╝  ╚═══╝ ╚═════╝  ╚══▀█▄╗
+                        ╚═╝
+`}
+        </text>
+      </box>
+      {props.isCompact ? (
+        <text fg={openTuiTheme.color.textMuted}>Type a message to begin.</text>
+      ) : (
+        <>
+          <text fg={openTuiTheme.color.text}>What shall we build today?</text>
+          <text fg={openTuiTheme.color.textMuted} wrapMode="word">
+            Send a prompt below, or use /diff, /plan show, /undo, and /exit.
+          </text>
+        </>
+      )}
     </box>
   );
 }
 
-function CommandRail(props: {
-  isCompact: boolean;
-  showStatus: boolean;
-  statusText: string;
-  statusColor: string;
-}) {
+function CommandRail(props: { isCompact: boolean }) {
   return (
     <box
-      border
-      borderStyle="rounded"
-      borderColor={openTuiTheme.color.lineSoft}
-      focusedBorderColor={openTuiTheme.color.lineStrong}
       backgroundColor={openTuiTheme.color.rail}
       paddingX={1}
       paddingY={0}
-      minHeight={3}
-      justifyContent="space-between"
+      minHeight={1}
       flexDirection="row"
       gap={1}
     >
       <box flexDirection="row" gap={1} flexShrink={1}>
-        <For each={commandLabels(props.isCompact)}>
-          {(command) => (
-            <box backgroundColor={openTuiTheme.color.chip} paddingX={1}>
-              <text fg={openTuiTheme.color.textMuted} truncate>
-                {command}
+        <For each={commandHints(props.isCompact)}>
+          {(hint) => (
+            <box flexDirection="row" gap={hint.value ? 1 : 0}>
+              <text fg={openTuiTheme.color.teal} truncate>
+                {hint.key}
               </text>
+              {hint.value ? (
+                <text fg={openTuiTheme.color.textFaint} truncate>
+                  {hint.value}
+                </text>
+              ) : null}
             </box>
           )}
         </For>
       </box>
-
-      {props.showStatus ? (
-        <text fg={props.statusColor} truncate>
-          {props.statusText}
-        </text>
-      ) : null}
     </box>
   );
 }
@@ -439,9 +452,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const isNarrow = () => dimensions().width < 72;
   const isCompact = () => dimensions().width < 72 || dimensions().height < 22;
   const isShort = () => dimensions().height < 22;
-  const showTerminalSize = () => dimensions().width >= 76;
   const showEntryTime = () => dimensions().width >= 58;
-  const showFooterStatus = () => dimensions().width >= 76 && !isShort();
   const visibleEntries = () => cappedEntries(props.entries(), maxRenderedEntries);
   const hiddenEntryCount = () => Math.max(0, props.entries().length - visibleEntries().length);
   const resolvedStatusLabel = () => statusLabel(props.statusMessage(), props.isBusy());
@@ -451,9 +462,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       ? `${resolvedStatusLabel()}${busySuffix(busyFrame())}`
       : resolvedStatusLabel()
   );
-  const composerTitle = () => (props.isBusy() ? 'Busy' : 'Composer');
   const composerBorderColor = () => (
-    props.isBusy() ? openTuiTheme.color.amberSoft : openTuiTheme.color.tealSoft
+    props.isBusy() ? openTuiTheme.color.amberSoft : openTuiTheme.color.teal
   );
   const composerFocusedBorderColor = () => (
     props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal
@@ -466,11 +476,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     return isNarrow() ? 'Message + Enter' : 'Type a message and press Enter';
   };
   const sessionLabel = () => truncateMiddle(props.sessionId, isNarrow() ? 18 : 32);
-  const transcriptTitle = () => (
-    hiddenEntryCount() > 0
-      ? `Conversation - latest ${visibleEntries().length} of ${props.entries().length}`
-      : 'Conversation'
-  );
 
   return (
     <box
@@ -482,50 +487,50 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       backgroundColor={openTuiTheme.color.canvas}
     >
       <box
-        border
-        borderStyle="rounded"
-        borderColor={openTuiTheme.color.lineSoft}
-        focusedBorderColor={openTuiTheme.color.lineStrong}
-        backgroundColor={openTuiTheme.color.canvasRaised}
+        backgroundColor={openTuiTheme.color.canvas}
         paddingX={1}
         paddingY={0}
-        minHeight={3}
+        minHeight={1}
         justifyContent="space-between"
         flexDirection="row"
         gap={1}
       >
         <box flexDirection="row" gap={1} flexShrink={1}>
-          <text fg={openTuiTheme.color.text} truncate>
+          <text fg={openTuiTheme.color.teal} truncate>
             noq
           </text>
-          <text fg={openTuiTheme.color.cyan} truncate maxWidth={isNarrow() ? 18 : 32}>
+          <text fg={openTuiTheme.color.lineStrong} truncate>
+            {'///'}
+          </text>
+          <text fg={openTuiTheme.color.textMuted} truncate maxWidth={isNarrow() ? 18 : 32}>
             {sessionLabel()}
           </text>
-          <text fg={modeColor(props.mode())} truncate>
-            [{props.mode().toUpperCase()}]
-          </text>
+          <box
+            backgroundColor={
+              props.mode() === 'build'
+                ? openTuiTheme.color.teal
+                : openTuiTheme.color.panelRaised
+            }
+            paddingX={1}
+          >
+            <text
+              fg={props.mode() === 'build' ? openTuiTheme.color.canvas : modeColor(props.mode())}
+              truncate
+            >
+              {props.mode().toUpperCase()}
+            </text>
+          </box>
         </box>
 
-        <box flexDirection="row" gap={1} flexShrink={0}>
+        <box flexDirection="row" flexShrink={0}>
           <text fg={resolvedStatusColor()} truncate maxWidth={isNarrow() ? 16 : 34}>
             {animatedStatus()}
           </text>
-          {showTerminalSize() ? (
-            <text fg={openTuiTheme.color.ghost}>
-              {dimensions().width}x{dimensions().height}
-            </text>
-          ) : null}
         </box>
       </box>
 
       <box
-        border
-        borderStyle="rounded"
-        borderColor={openTuiTheme.color.line}
-        focusedBorderColor={openTuiTheme.color.lineStrong}
-        title={transcriptTitle()}
-        titleAlignment="center"
-        backgroundColor={openTuiTheme.color.panel}
+        backgroundColor={openTuiTheme.color.canvas}
         paddingX={1}
         paddingY={isCompact() ? 0 : 1}
         flexDirection="column"
@@ -537,20 +542,28 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           stickyScroll
           stickyStart="bottom"
           viewportCulling
-          backgroundColor={openTuiTheme.color.panel}
+          backgroundColor={openTuiTheme.color.canvas}
           contentOptions={{
-            backgroundColor: openTuiTheme.color.panel,
+            backgroundColor: openTuiTheme.color.canvas,
           }}
           viewportOptions={{
-            backgroundColor: openTuiTheme.color.panel,
+            backgroundColor: openTuiTheme.color.canvas,
           }}
           scrollbarOptions={{
             trackOptions: {
               backgroundColor: openTuiTheme.color.panelRaised,
-              foregroundColor: openTuiTheme.color.tealSoft,
+              foregroundColor: openTuiTheme.color.teal,
             },
           }}
         >
+          {hiddenEntryCount() > 0 ? (
+            <box marginBottom={1}>
+              <text fg={openTuiTheme.color.textFaint}>
+                {`Showing latest ${visibleEntries().length} of ${props.entries().length} messages`}
+              </text>
+            </box>
+          ) : null}
+
           <For each={visibleEntries()}>
             {(entry) => (
               <TranscriptEntry entry={entry} showTime={showEntryTime()} isCompact={isCompact()} />
@@ -568,10 +581,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         borderStyle="rounded"
         borderColor={composerBorderColor()}
         focusedBorderColor={composerFocusedBorderColor()}
-        title={composerTitle()}
-        titleAlignment="left"
-        bottomTitle={props.isBusy() ? 'locked' : 'enter to send'}
-        bottomTitleAlignment="right"
         paddingX={1}
         paddingY={0}
         backgroundColor={openTuiTheme.color.input}
@@ -580,7 +589,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         gap={1}
       >
         <text fg={props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal}>
-          {'>'}
+          {':::'}
         </text>
         <input
           value={props.inputValue()}
@@ -599,12 +608,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         />
       </box>
 
-      <CommandRail
-        isCompact={isCompact()}
-        showStatus={showFooterStatus()}
-        statusText={animatedStatus()}
-        statusColor={resolvedStatusColor()}
-      />
+      <CommandRail isCompact={isCompact()} />
     </box>
   );
 }

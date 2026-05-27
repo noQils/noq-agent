@@ -42,6 +42,17 @@ function formatPermissionSummary(request: PermissionRequest): string {
 }
 
 function printSessionContinuationHint(sessionId: string): void {
+  console.log(
+`
+███╗   ██╗ ██████╗  ██████╗
+████╗  ██║██╔═══██╗██╔═══██╗
+██╔██╗ ██║██║   ██║██║   ██║
+██║╚██╗██║██║   ██║██║   ██║
+██║ ╚████║╚██████╔╝╚██████╔╝
+╚═╝  ╚═══╝ ╚═════╝  ╚══▀█▄╗
+                        ╚═╝
+`
+  );
   console.log(`To continue this conversation use: noq --session ${sessionId}`);
 }
 
