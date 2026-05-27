@@ -12,6 +12,7 @@ import {
   undoLastSessionSnapshot,
 } from './sessionStore';
 import { startInteractiveSession } from './interactiveSession';
+import { launchSessionWindow } from './sessionWindowLauncher';
 import { runSessionTurn } from './sessionTurnRunner';
 
 type InteractiveLaunchMode = 'terminal' | 'popup';
@@ -88,8 +89,8 @@ async function selectInteractiveLaunchMode(): Promise<InteractiveLaunchMode> {
   }
 }
 
-function printPopupUnavailableMessage(): void {
-  console.log('Popup window mode is not available yet. Starting the interactive session in the current terminal instead.');
+function printPopupFallbackMessage(message: string): void {
+  console.log(message);
 }
 
 type CliAction = 'chat' | 'diff' | 'undo';
@@ -224,7 +225,18 @@ async function main() {
 
       const launchMode = await selectInteractiveLaunchMode();
       if (launchMode === 'popup') {
-        printPopupUnavailableMessage();
+        const launchResult = launchSessionWindow({
+          sessionId: activeSessionId,
+          mode,
+        });
+
+        if (launchResult.launched) {
+          return;
+        }
+
+        printPopupFallbackMessage(
+          launchResult.message ?? 'Popup window mode could not be started. Starting the interactive session in the current terminal instead.',
+        );
       }
 
       await startInteractiveSession(activeSessionId, mode);
