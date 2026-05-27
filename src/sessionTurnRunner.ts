@@ -9,6 +9,7 @@ import {
   appendSessionTurn,
   buildSessionHistoryMessages,
   loadOrCreateSession,
+  saveSessionPlanArtifact,
 } from './sessionStore';
 import { runAgentTurn } from './workflow';
 
@@ -47,6 +48,13 @@ export async function runSessionTurn(
     },
     fileChanges,
   );
+
+  if (mode === 'plan') {
+    saveSessionPlanArtifact(sessionId, {
+      userPrompt,
+      response,
+    });
+  }
 
   return {
     sessionId,

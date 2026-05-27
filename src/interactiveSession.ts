@@ -2,7 +2,7 @@ import readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { isAgentMode, type AgentMode } from './agentMode';
-import { getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
+import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
 import { runSessionTurn } from './sessionTurnRunner';
 
 type PromptResult =
@@ -114,6 +114,11 @@ export async function startInteractiveSession(
 
     if (userInput === '/undo') {
       console.log(undoLastSessionSnapshot(sessionId));
+      continue;
+    }
+
+    if (userInput === '/plan show') {
+      console.log(formatLatestSessionPlan(sessionId));
       continue;
     }
 

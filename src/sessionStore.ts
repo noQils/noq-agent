@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 import { type AgentMode } from './agentMode';
 import { ensureParentDirectory, resolveProjectPath, writeFileContent } from './fileUtils';
+import { buildReferencedPathGroups } from './pathReferenceHints';
 import { type PermissionScope } from './permissions/types';
 import { type ChatMessage } from './providers/types';
 import { type SessionFileChange } from './sessionChangeTracker';
@@ -37,6 +38,14 @@ export interface SessionPermissionApproval {
   targetPattern: string;
 }
 
+export interface SessionPlanArtifact {
+  createdAt: string;
+  userPrompt: string;
+  response: string;
+  referencedPaths: string[];
+  proposedPaths: string[];
+}
+
 export interface AgentSession {
   id: string;
   createdAt: string;
@@ -44,6 +53,7 @@ export interface AgentSession {
   turns: SessionTurn[];
   snapshots: SessionSnapshot[];
   permissionApprovals: SessionPermissionApproval[];
+  latestPlanArtifact: SessionPlanArtifact | null;
 }
 
 function createTimestamp(): string {
@@ -80,6 +90,7 @@ function createEmptySession(sessionId: string): AgentSession {
     turns: [],
     snapshots: [],
     permissionApprovals: [],
+    latestPlanArtifact: null,
   };
 }
 
@@ -103,6 +114,22 @@ function truncateText(text: string, maxLength: number): string {
   }
 
   return `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+function extractCandidatePaths(userPrompt: string): string[] {
+  return Array.from(
+    new Set(
+      buildReferencedPathGroups(userPrompt)
+        .flatMap((group) => group.candidatePaths)
+        .map((candidatePath) => candidatePath.trim())
+        .filter((candidatePath) => candidatePath.length > 0),
+    ),
+  );
+}
+
+function extractResponsePaths(response: string): string[] {
+  const fileReferenceRegex = /\b(?:[\w.-]+[\\/])*[\w.-]+\.[a-zA-Z0-9]{1,10}\b/g;
+  return Array.from(new Set(response.match(fileReferenceRegex) ?? []));
 }
 
 function buildCompactedHistoryMessage(turns: SessionTurn[]): ChatMessage | null {
@@ -148,6 +175,7 @@ function loadSessionFile(sessionId: string): AgentSession | null {
     turns: Array.isArray(session.turns) ? session.turns : [],
     snapshots: Array.isArray(session.snapshots) ? session.snapshots : [],
     permissionApprovals: Array.isArray(session.permissionApprovals) ? session.permissionApprovals : [],
+    latestPlanArtifact: session.latestPlanArtifact ?? null,
   };
 }
 
@@ -357,6 +385,52 @@ export function appendSessionTurn(
   session.updatedAt = createTimestamp();
   saveSession(session);
   return session;
+}
+
+export function saveSessionPlanArtifact(
+  sessionId: string,
+  artifact: Pick<SessionPlanArtifact, 'userPrompt' | 'response'>,
+): AgentSession {
+  const session = loadOrCreateSession(sessionId);
+  session.latestPlanArtifact = {
+    createdAt: createTimestamp(),
+    userPrompt: artifact.userPrompt,
+    response: artifact.response,
+    referencedPaths: extractCandidatePaths(artifact.userPrompt),
+    proposedPaths: extractResponsePaths(artifact.response),
+  };
+  session.updatedAt = createTimestamp();
+  saveSession(session);
+  return session;
+}
+
+export function formatLatestSessionPlan(sessionId: string): string {
+  const session = loadSessionFile(sessionId);
+  if (!session) {
+    throw new Error(`Session not found: ${sessionId}`);
+  }
+
+  const artifact = session.latestPlanArtifact;
+  if (!artifact) {
+    return `No saved plan is recorded for session "${sessionId}".`;
+  }
+
+  const sections = [
+    `Latest saved plan for session "${sessionId}":`,
+    '',
+    `Prompt: ${artifact.userPrompt}`,
+  ];
+
+  if (artifact.referencedPaths.length > 0) {
+    sections.push('', `Referenced paths: ${artifact.referencedPaths.join(', ')}`);
+  }
+
+  if (artifact.proposedPaths.length > 0) {
+    sections.push('', `Proposed paths: ${artifact.proposedPaths.join(', ')}`);
+  }
+
+  sections.push('', 'Plan response:', artifact.response);
+  return sections.join('\n');
 }
 
 export function getLatestSessionDiff(sessionId: string): string {

@@ -255,6 +255,7 @@ Interactive session commands:
 ```text
 /mode plan
 /mode build
+/plan show
 /diff
 /undo
 /exit

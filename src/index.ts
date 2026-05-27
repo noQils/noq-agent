@@ -40,6 +40,7 @@ Examples:
 Interactive session commands:
   /mode plan
   /mode build
+  /plan show
   /diff
   /undo
   /exit
