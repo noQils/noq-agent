@@ -50,6 +50,17 @@ function createTimestamp(): string {
   return new Date().toISOString();
 }
 
+function formatSessionTimestamp(date: Date): string {
+  const year = date.getFullYear().toString().padStart(4, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`;
+}
+
 function createSnapshotId(): string {
   return `snapshot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -79,6 +90,10 @@ function getSessionsDirectoryPath(): string {
 function getSessionFilePath(sessionId: string): string {
   assertValidSessionId(sessionId);
   return path.join(getSessionsDirectoryPath(), `${sessionId}.json`);
+}
+
+function doesSessionExist(sessionId: string): boolean {
+  return fs.existsSync(getSessionFilePath(sessionId));
 }
 
 function truncateText(text: string, maxLength: number): string {
@@ -235,6 +250,26 @@ export function loadOrCreateSession(sessionId: string): AgentSession {
     return existingSession;
   }
 
+  const session = createEmptySession(sessionId);
+  saveSession(session);
+  return session;
+}
+
+export function generateUniqueSessionId(now: Date = new Date()): string {
+  const baseSessionId = `session-${formatSessionTimestamp(now)}`;
+  let sessionId = baseSessionId;
+  let suffix = 2;
+
+  while (doesSessionExist(sessionId)) {
+    sessionId = `${baseSessionId}-${suffix}`;
+    suffix++;
+  }
+
+  return sessionId;
+}
+
+export function createSessionWithGeneratedId(now: Date = new Date()): AgentSession {
+  const sessionId = generateUniqueSessionId(now);
   const session = createEmptySession(sessionId);
   saveSession(session);
   return session;
