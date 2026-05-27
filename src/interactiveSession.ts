@@ -211,6 +211,22 @@ function appendEntry(entries: SessionEntry[], kind: SessionEntryKind, text: stri
   });
 }
 
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function appendCommandResult(
+  entries: SessionEntry[],
+  command: () => Promise<string> | string,
+): Promise<void> {
+  try {
+    const result = await command();
+    appendEntry(entries, 'system', result);
+  } catch (error) {
+    appendEntry(entries, 'system', `Command failed: ${formatErrorMessage(error)}`);
+  }
+}
+
 export async function startInteractiveSession(
   sessionId: string,
   initialMode: AgentMode,
@@ -245,17 +261,17 @@ export async function startInteractiveSession(
     }
 
     if (userInput === '/diff') {
-      appendEntry(entries, 'system', getLatestSessionDiff(sessionId));
+      await appendCommandResult(entries, () => getLatestSessionDiff(sessionId));
       continue;
     }
 
     if (userInput === '/undo') {
-      appendEntry(entries, 'system', undoLastSessionSnapshot(sessionId));
+      await appendCommandResult(entries, () => undoLastSessionSnapshot(sessionId));
       continue;
     }
 
     if (userInput === '/plan show') {
-      appendEntry(entries, 'system', formatLatestSessionPlan(sessionId));
+      await appendCommandResult(entries, () => formatLatestSessionPlan(sessionId));
       continue;
     }
 
@@ -271,7 +287,11 @@ export async function startInteractiveSession(
       continue;
     }
 
-    const { response } = await runSessionTurn(sessionId, rawInput, mode);
-    appendEntry(entries, 'assistant', response);
+    try {
+      const { response } = await runSessionTurn(sessionId, rawInput, mode);
+      appendEntry(entries, 'assistant', response);
+    } catch (error) {
+      appendEntry(entries, 'system', `Turn failed: ${formatErrorMessage(error)}`);
+    }
   }
 }
