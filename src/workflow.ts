@@ -263,8 +263,10 @@ function buildPlanModeRewriteMessage(): string {
     return buildWorkflowReminder(
         'Rewrite your previous answer for plan mode. ' +
         'Keep it to 2 to 4 sentences or a numbered list with at most 3 items. ' +
+        'Lead with the concrete implementation plan, not with a limitation sentence. ' +
+        'Base the answer on what you inspected, name the exact file or path you would create or edit in build mode, and describe what you would implement there. ' +
         'Do not include code fences, sample implementations, usage examples, or "if you want, I can" menus. ' +
-        'Base the answer on what you inspected, name the exact file or path you would create or edit in build mode, and keep the answer practical.'
+        'Keep the answer practical and read-only.'
     );
 }
 
