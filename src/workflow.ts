@@ -146,6 +146,14 @@ function buildContinueMessage(affectedFiles: string[]): string {
     );
 }
 
+function buildPlanContinueMessage(): string {
+    return buildWorkflowReminder(
+        'You are still in plan mode. ' +
+        'Continue only if you need one more inspection step to finish the implementation plan. ' +
+        'Otherwise, stop using tools and provide the concrete build-mode plan now.'
+    );
+}
+
 function buildVerifyMutationsMessage(affectedFiles: string[]): string {
     const suffix = affectedFiles.length > 0
         ? ` Changed file(s): ${affectedFiles.join(', ')}.`
@@ -207,6 +215,14 @@ function buildSummaryOnlyMessage(): string {
         'The requested changes are already applied and verified. ' +
         'Provide a concise final summary answering the original user request only. ' +
         'Lead with what you created or changed, name the relevant file when helpful, and mention verification only briefly as supporting evidence instead of the main point.'
+    );
+}
+
+function buildPlanSummaryOnlyMessage(): string {
+    return buildWorkflowReminder(
+        'You already gathered enough inspection context for the original user request. ' +
+        'Provide the final plan now. ' +
+        'State what you inspected, name the exact file or path you would create or edit, describe what you would change there, and mention the main follow-up check if it matters.'
     );
 }
 
@@ -285,6 +301,14 @@ function buildPlanModeRewriteMessage(): string {
     );
 }
 
+function buildPlanAnswerNowMessage(): string {
+    return buildWorkflowReminder(
+        'You already gathered the relevant inspection results for the original user request. ' +
+        'Do not call more tools unless a truly missing fact blocks the plan. ' +
+        'Provide the concise build-mode implementation plan now based on the current evidence.'
+    );
+}
+
 function shouldRewritePlanRefusalResponse(
     mode: AgentMode,
     userPrompt: string,
@@ -343,11 +367,13 @@ function buildBuildResponseRewriteMessage(): string {
 }
 
 function shouldPromptForTodoTracking(
+    mode: AgentMode,
     executedToolCalls: ExecutedToolCall[],
     workflowState: WorkflowState,
     stopReason?: ChatResult['stopReason'],
 ): boolean {
-    return !workflowState.todoReminderIssued
+    return mode === 'build'
+        && !workflowState.todoReminderIssued
         && !hasTodoItems()
         && executedToolCalls.length >= 2
         && stopReason !== 'no_tool_calls'
@@ -367,6 +393,148 @@ function buildTodoStateMessage(): string {
         `${formatTodoItems()}\n` +
         'Use todo_write to keep this list current by replacing the full list when progress changes.'
     );
+}
+
+type CompletionAction =
+    | { type: 'return'; text: string }
+    | { type: 'continue'; reminder: string; fastForwardToFinalRound?: boolean };
+
+function handlePlanModeCompletion(
+    userPrompt: string,
+    response: ChatResult,
+    executedToolCalls: ExecutedToolCall[],
+    workflowState: WorkflowState,
+): CompletionAction | null {
+    if (response.text?.trim()) {
+        if (shouldRewritePlanRefusalResponse('plan', userPrompt, response.text, workflowState.planResponseRewriteIssued)) {
+            workflowState.planResponseRewriteIssued = true;
+            return {
+                type: 'continue',
+                reminder: buildPlanRefusalRewriteMessage(),
+            };
+        }
+
+        if (shouldRewritePlanModeResponse('plan', response.text, workflowState.planResponseRewriteIssued)) {
+            workflowState.planResponseRewriteIssued = true;
+            return {
+                type: 'continue',
+                reminder: buildPlanModeRewriteMessage(),
+            };
+        }
+
+        return { type: 'return', text: response.text };
+    }
+
+    if (response.stopReason === 'tool_round_limit_reached') {
+        return {
+            type: 'continue',
+            reminder: buildPlanSummaryOnlyMessage(),
+            fastForwardToFinalRound: true,
+        };
+    }
+
+    if (response.stopReason === 'no_tool_calls' && executedToolCalls.length > 0) {
+        return {
+            type: 'continue',
+            reminder: buildPlanAnswerNowMessage(),
+        };
+    }
+
+    if (executedToolCalls.length === 0 || response.stopReason === 'no_tool_calls') {
+        return { type: 'return', text: response.text };
+    }
+
+    return {
+        type: 'continue',
+        reminder: buildPlanContinueMessage(),
+    };
+}
+
+function handleBuildModeCompletion(
+    userPrompt: string,
+    response: ChatResult,
+    executedToolCalls: ExecutedToolCall[],
+    workflowState: WorkflowState,
+): CompletionAction | null {
+    const allMutationsVerified = workflowState.mutatedFilesNeedingVerification.size === 0;
+
+    if (response.stopReason === 'tool_round_limit_reached') {
+        if (allMutationsVerified) {
+            if (response.text?.trim()) {
+                if (shouldRewriteBuildResponse('build', userPrompt, response.text, workflowState)) {
+                    workflowState.buildResponseRewriteIssued = true;
+                    return {
+                        type: 'continue',
+                        reminder: buildBuildResponseRewriteMessage(),
+                    };
+                }
+
+                return { type: 'return', text: response.text };
+            }
+
+            return {
+                type: 'continue',
+                reminder: buildSummaryOnlyMessage(),
+                fastForwardToFinalRound: true,
+            };
+        }
+
+        return {
+            type: 'continue',
+            reminder: buildVerifyMutationsMessage(Array.from(workflowState.mutatedFilesNeedingVerification)),
+        };
+    }
+
+    if (!allMutationsVerified) {
+        return {
+            type: 'continue',
+            reminder: buildVerifyMutationsMessage(Array.from(workflowState.mutatedFilesNeedingVerification)),
+        };
+    }
+
+    const verificationCommandsNeedingRerun = Array.from(workflowState.verificationCommandsNeedingRerun);
+    if (verificationCommandsNeedingRerun.length > 0) {
+        return {
+            type: 'continue',
+            reminder: buildRerunVerificationCommandMessage(verificationCommandsNeedingRerun),
+        };
+    }
+
+    if (response.text?.trim()) {
+        if (shouldRewriteBuildResponse('build', userPrompt, response.text, workflowState)) {
+            workflowState.buildResponseRewriteIssued = true;
+            return {
+                type: 'continue',
+                reminder: buildBuildResponseRewriteMessage(),
+            };
+        }
+
+        return { type: 'return', text: response.text };
+    }
+
+    if (response.stopReason === 'no_tool_calls' && executedToolCalls.length > 0) {
+        return {
+            type: 'continue',
+            reminder: buildAnswerNowMessage(),
+        };
+    }
+
+    if (executedToolCalls.length === 0 || response.stopReason === 'no_tool_calls') {
+        return { type: 'return', text: response.text };
+    }
+
+    const affectedFiles = Array.from([
+        ...workflowState.mutatedFilesNeedingVerification,
+        ...executedToolCalls
+            .filter((call) => (call.toolName === 'edit_file' || call.toolName === 'write_file') && call.succeeded)
+            .map((call) => getFilePathArg(call.args))
+            .filter((filePath): filePath is string => Boolean(filePath)),
+    ]);
+
+    return {
+        type: 'continue',
+        reminder: buildContinueMessage(affectedFiles),
+    };
 }
 
 // Function to run an agent turn
@@ -483,92 +651,28 @@ export async function runAgentTurn(
             continue;
         }
 
-        const allMutationsVerified = workflowState.mutatedFilesNeedingVerification.size === 0;
-        const unverifiedMutatedFiles = Array.from(workflowState.mutatedFilesNeedingVerification);
-        const affectedFiles = Array.from([
-            ...workflowState.mutatedFilesNeedingVerification, 
-            ...turnState.mutatedFiles
-        ]);
+        const completionAction = mode === 'plan'
+            ? handlePlanModeCompletion(userPrompt, response, executedToolCalls, workflowState)
+            : handleBuildModeCompletion(userPrompt, response, executedToolCalls, workflowState);
 
-        if (response.stopReason === 'tool_round_limit_reached') {
-            if (allMutationsVerified) {
-                if (response.text?.trim()) {
-                    return response.text;
-                }
+        if (completionAction) {
+            if (completionAction.type === 'return') {
+                return completionAction.text;
+            }
 
-                messages.push({ 
-                    role: 'user' as const, 
-                    content: buildSummaryOnlyMessage(),
-                });
+            messages.push({
+                role: 'user' as const,
+                content: completionAction.reminder,
+            });
 
+            if (completionAction.fastForwardToFinalRound) {
                 workflowState.flowRoundCount = maxFlowRounds - 1;
-                continue;
             }
 
-            messages.push({ 
-                role: 'user' as const, 
-                content: buildVerifyMutationsMessage(unverifiedMutatedFiles),
-            });
             continue;
         }
 
-        if (!allMutationsVerified) {
-            messages.push({ 
-                role: 'user' as const, 
-                content: buildVerifyMutationsMessage(unverifiedMutatedFiles),
-            });
-            continue;
-        }
-
-        const verificationCommandsNeedingRerun = Array.from(workflowState.verificationCommandsNeedingRerun);
-        if (verificationCommandsNeedingRerun.length > 0) {
-            messages.push({
-                role: 'user' as const,
-                content: buildRerunVerificationCommandMessage(verificationCommandsNeedingRerun),
-            });
-            continue;
-        }
-
-        if (allMutationsVerified && response.text?.trim()) {
-            if (shouldRewriteBuildResponse(mode, userPrompt, response.text, workflowState)) {
-                workflowState.buildResponseRewriteIssued = true;
-                messages.push({
-                    role: 'user' as const,
-                    content: buildBuildResponseRewriteMessage(),
-                });
-                continue;
-            }
-
-            if (shouldRewritePlanRefusalResponse(mode, userPrompt, response.text, workflowState.planResponseRewriteIssued)) {
-                workflowState.planResponseRewriteIssued = true;
-                messages.push({
-                    role: 'user' as const,
-                    content: buildPlanRefusalRewriteMessage(),
-                });
-                continue;
-            }
-
-            if (shouldRewritePlanModeResponse(mode, response.text, workflowState.planResponseRewriteIssued)) {
-                workflowState.planResponseRewriteIssued = true;
-                messages.push({
-                    role: 'user' as const,
-                    content: buildPlanModeRewriteMessage(),
-                });
-                continue;
-            }
-
-            return response.text;
-        }
-
-        if (allMutationsVerified && response.stopReason === 'no_tool_calls' && executedToolCalls.length > 0) {
-            messages.push({
-                role: 'user' as const,
-                content: buildAnswerNowMessage(),
-            });
-            continue;
-        }
-
-        if (shouldPromptForTodoTracking(executedToolCalls, workflowState, response.stopReason)) {
+        if (shouldPromptForTodoTracking(mode, executedToolCalls, workflowState, response.stopReason)) {
             workflowState.todoReminderIssued = true;
             messages.push({
                 role: 'user' as const,
@@ -581,9 +685,9 @@ export async function runAgentTurn(
             return response.text;
         }
 
-        messages.push({ 
-            role: 'user' as const, 
-            content: buildContinueMessage(affectedFiles),
+        messages.push({
+            role: 'user' as const,
+            content: buildContinueMessage(Array.from(turnState.mutatedFiles)),
         });
     }
 
