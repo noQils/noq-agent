@@ -1,18 +1,18 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Box, Text, useApp, useInput } from 'ink';
+import React, { useMemo } from 'react';
+import { Box, Text, useInput } from 'ink';
 
 import { type AgentMode } from '../agentMode';
 import { type SessionEntry } from './state';
-
-type ScreenInputResult =
-  | { kind: 'submit'; line: string }
-  | { kind: 'exit' };
 
 interface InteractiveSessionAppProps {
   sessionId: string;
   mode: AgentMode;
   entries: SessionEntry[];
-  onFinish: (result: ScreenInputResult) => void;
+  inputValue: string;
+  isBusy: boolean;
+  onInputValueChange: (value: string) => void;
+  onSubmit: () => void;
+  onExit: () => void;
 }
 
 function buildStatusLine(sessionId: string, mode: AgentMode): string {
@@ -59,45 +59,40 @@ export function InteractiveSessionApp({
   sessionId,
   mode,
   entries,
-  onFinish,
+  inputValue,
+  isBusy,
+  onInputValueChange,
+  onSubmit,
+  onExit,
 }: InteractiveSessionAppProps): React.JSX.Element {
-  const { exit } = useApp();
-  const [inputValue, setInputValue] = useState('');
-  const finishedRef = useRef(false);
-
   const visibleEntries = useMemo(() => getVisibleEntries(entries), [entries]);
 
-  const finish = (result: ScreenInputResult): void => {
-    if (finishedRef.current) {
+  useInput((input, key) => {
+    if (isBusy) {
+      if (key.ctrl && input === 'c') {
+        onExit();
+      }
+
       return;
     }
 
-    finishedRef.current = true;
-    onFinish(result);
-    exit();
-  };
-
-  useInput((input, key) => {
     if (key.ctrl && input === 'c') {
-      finish({ kind: 'exit' });
+      onExit();
       return;
     }
 
     if (key.escape) {
-      finish({ kind: 'exit' });
+      onExit();
       return;
     }
 
     if (key.return) {
-      finish({
-        kind: 'submit',
-        line: inputValue,
-      });
+      onSubmit();
       return;
     }
 
     if (key.backspace || key.delete) {
-      setInputValue((currentValue) => currentValue.slice(0, -1));
+      onInputValueChange(inputValue.slice(0, -1));
       return;
     }
 
@@ -106,7 +101,7 @@ export function InteractiveSessionApp({
     }
 
     if (input.length > 0) {
-      setInputValue((currentValue) => currentValue + input);
+      onInputValueChange(inputValue + input);
     }
   });
 
@@ -143,13 +138,13 @@ export function InteractiveSessionApp({
 
       <Box
         borderStyle="round"
-        borderColor="green"
+        borderColor={isBusy ? 'yellow' : 'green'}
         paddingX={1}
         flexDirection="column"
         marginBottom={1}
       >
-        <Text color="green">Message</Text>
-        <Text>{`> ${inputValue}`}</Text>
+        <Text color={isBusy ? 'yellow' : 'green'}>{isBusy ? 'Working' : 'Message'}</Text>
+        <Text>{isBusy ? 'Waiting for the current turn to finish...' : `> ${inputValue}`}</Text>
       </Box>
 
       <Text backgroundColor="white" color="black">

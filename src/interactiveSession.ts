@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from 'ink';
+import { render, type Instance } from 'ink';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { isAgentMode, type AgentMode } from './agentMode';
@@ -8,8 +8,15 @@ import { runSessionTurn } from './sessionTurnRunner';
 import { InteractiveSessionApp } from './tui/InteractiveSessionApp';
 import { type SessionEntry, type SessionEntryKind } from './tui/state';
 
-type ScreenInputResult =
-  | { kind: 'submit'; line: string }
+interface InteractiveSessionState {
+  mode: AgentMode;
+  entries: SessionEntry[];
+  inputValue: string;
+  isBusy: boolean;
+}
+
+type PendingAction =
+  | { kind: 'submit' }
   | { kind: 'exit' };
 
 function printSessionContinuationHint(sessionId: string): void {
@@ -28,53 +35,49 @@ function isModeCommand(inputLine: string): boolean {
   return inputLine === '/mode' || inputLine.startsWith('/mode ');
 }
 
-function readTuiInput(
-  sessionId: string,
-  mode: AgentMode,
-  entries: SessionEntry[],
-): Promise<ScreenInputResult> {
-  return new Promise((resolve) => {
-    const app = render(
-      React.createElement(InteractiveSessionApp, {
-        sessionId,
-        mode,
-        entries,
-        onFinish: (result: ScreenInputResult) => {
-          resolve(result);
-        },
-      }),
-      {
-        stdin: input,
-        stdout: output,
-        exitOnCtrlC: false,
-      },
-    );
-
-    void app.waitUntilExit();
-  });
-}
-
-function appendEntry(entries: SessionEntry[], kind: SessionEntryKind, text: string): void {
-  entries.push({
-    kind,
-    text,
-  });
+function appendEntry(entries: SessionEntry[], kind: SessionEntryKind, text: string): SessionEntry[] {
+  return [
+    ...entries,
+    {
+      kind,
+      text,
+    },
+  ];
 }
 
 function formatErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function appendCommandResult(
-  entries: SessionEntry[],
-  command: () => Promise<string> | string,
-): Promise<void> {
-  try {
-    const result = await command();
-    appendEntry(entries, 'system', result);
-  } catch (error) {
-    appendEntry(entries, 'system', `Command failed: ${formatErrorMessage(error)}`);
-  }
+function createInitialState(mode: AgentMode): InteractiveSessionState {
+  return {
+    mode,
+    entries: [],
+    inputValue: '',
+    isBusy: false,
+  };
+}
+
+function renderInteractiveSessionApp(
+  instance: Instance,
+  sessionId: string,
+  state: InteractiveSessionState,
+  onInputValueChange: (value: string) => void,
+  onSubmit: () => void,
+  onExit: () => void,
+): void {
+  instance.rerender(
+    React.createElement(InteractiveSessionApp, {
+      sessionId,
+      mode: state.mode,
+      entries: state.entries,
+      inputValue: state.inputValue,
+      isBusy: state.isBusy,
+      onInputValueChange,
+      onSubmit,
+      onExit,
+    }),
+  );
 }
 
 export async function startInteractiveSession(
@@ -85,63 +88,161 @@ export async function startInteractiveSession(
     throw new Error('Interactive session mode requires a TTY.');
   }
 
-  let mode = initialMode;
-  const entries: SessionEntry[] = [];
+  let state = createInitialState(initialMode);
+  let pendingActionResolver: ((action: PendingAction) => void) | null = null;
 
-  while (true) {
-    const promptResult = await readTuiInput(sessionId, mode, entries);
+  const setState = (nextState: InteractiveSessionState): void => {
+    state = nextState;
+    renderInteractiveSessionApp(
+      inkInstance,
+      sessionId,
+      state,
+      (value) => {
+        setState({
+          ...state,
+          inputValue: value,
+        });
+      },
+      () => {
+        pendingActionResolver?.({ kind: 'submit' });
+      },
+      () => {
+        pendingActionResolver?.({ kind: 'exit' });
+      },
+    );
+  };
 
-    if (promptResult.kind === 'exit') {
-      console.log('');
-      printSessionContinuationHint(sessionId);
-      return;
-    }
+  const inkInstance = render(React.createElement(React.Fragment), {
+    stdin: input,
+    stdout: output,
+    exitOnCtrlC: false,
+  });
 
-    const rawInput = promptResult.line;
-    const userInput = rawInput.trim();
-    if (userInput.length === 0) {
-      continue;
-    }
+  setState(state);
 
-    appendEntry(entries, 'user', rawInput);
+  try {
+    while (true) {
+      const action = await new Promise<PendingAction>((resolve) => {
+        pendingActionResolver = resolve;
+      });
+      pendingActionResolver = null;
 
-    if (userInput === '/exit' || userInput === '/quit') {
-      printSessionContinuationHint(sessionId);
-      return;
-    }
+      if (action.kind === 'exit') {
+        inkInstance.unmount();
+        console.log('');
+        printSessionContinuationHint(sessionId);
+        return;
+      }
 
-    if (userInput === '/diff') {
-      await appendCommandResult(entries, () => getLatestSessionDiff(sessionId));
-      continue;
-    }
-
-    if (userInput === '/undo') {
-      await appendCommandResult(entries, () => undoLastSessionSnapshot(sessionId));
-      continue;
-    }
-
-    if (userInput === '/plan show') {
-      await appendCommandResult(entries, () => formatLatestSessionPlan(sessionId));
-      continue;
-    }
-
-    if (isModeCommand(userInput)) {
-      const requestedMode = userInput.slice('/mode'.length).trim();
-      if (!isAgentMode(requestedMode)) {
-        appendEntry(entries, 'system', printModeCommandError());
+      const rawInput = state.inputValue;
+      const userInput = rawInput.trim();
+      if (userInput.length === 0) {
+        setState({
+          ...state,
+          inputValue: '',
+        });
         continue;
       }
 
-      mode = requestedMode;
-      appendEntry(entries, 'system', printModeChange(mode));
-      continue;
-    }
+      setState({
+        ...state,
+        entries: appendEntry(state.entries, 'user', rawInput),
+        inputValue: '',
+      });
 
-    try {
-      const { response } = await runSessionTurn(sessionId, rawInput, mode);
-      appendEntry(entries, 'assistant', response);
-    } catch (error) {
-      appendEntry(entries, 'system', `Turn failed: ${formatErrorMessage(error)}`);
+      if (userInput === '/exit' || userInput === '/quit') {
+        inkInstance.unmount();
+        printSessionContinuationHint(sessionId);
+        return;
+      }
+
+      if (userInput === '/diff') {
+        try {
+          const result = getLatestSessionDiff(sessionId);
+          setState({
+            ...state,
+            entries: appendEntry(state.entries, 'system', result),
+          });
+        } catch (error) {
+          setState({
+            ...state,
+            entries: appendEntry(state.entries, 'system', `Command failed: ${formatErrorMessage(error)}`),
+          });
+        }
+        continue;
+      }
+
+      if (userInput === '/undo') {
+        try {
+          const result = undoLastSessionSnapshot(sessionId);
+          setState({
+            ...state,
+            entries: appendEntry(state.entries, 'system', result),
+          });
+        } catch (error) {
+          setState({
+            ...state,
+            entries: appendEntry(state.entries, 'system', `Command failed: ${formatErrorMessage(error)}`),
+          });
+        }
+        continue;
+      }
+
+      if (userInput === '/plan show') {
+        try {
+          const result = formatLatestSessionPlan(sessionId);
+          setState({
+            ...state,
+            entries: appendEntry(state.entries, 'system', result),
+          });
+        } catch (error) {
+          setState({
+            ...state,
+            entries: appendEntry(state.entries, 'system', `Command failed: ${formatErrorMessage(error)}`),
+          });
+        }
+        continue;
+      }
+
+      if (isModeCommand(userInput)) {
+        const requestedMode = userInput.slice('/mode'.length).trim();
+        if (!isAgentMode(requestedMode)) {
+          setState({
+            ...state,
+            entries: appendEntry(state.entries, 'system', printModeCommandError()),
+          });
+          continue;
+        }
+
+        setState({
+          ...state,
+          mode: requestedMode,
+          entries: appendEntry(state.entries, 'system', printModeChange(requestedMode)),
+        });
+        continue;
+      }
+
+      setState({
+        ...state,
+        isBusy: true,
+      });
+
+      try {
+        const { response } = await runSessionTurn(sessionId, rawInput, state.mode);
+        setState({
+          ...state,
+          isBusy: false,
+          entries: appendEntry(state.entries, 'assistant', response),
+        });
+      } catch (error) {
+        setState({
+          ...state,
+          isBusy: false,
+          entries: appendEntry(state.entries, 'system', `Turn failed: ${formatErrorMessage(error)}`),
+        });
+      }
     }
+  } finally {
+    inkInstance.unmount();
   }
 }
