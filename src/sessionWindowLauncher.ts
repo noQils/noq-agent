@@ -65,6 +65,7 @@ function tryLaunchWithWindowsTerminal(options: LaunchSessionWindowOptions): Laun
       'new-tab',
       '-d',
       workingDirectory,
+      '--',
       process.execPath,
       ...childArgs,
     ],
