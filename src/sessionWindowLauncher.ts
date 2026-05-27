@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 
 import { type AgentMode } from './agentMode';
 
@@ -13,33 +14,14 @@ export interface LaunchSessionWindowResult {
   message?: string;
 }
 
-function isTsNodeEntry(entryPath: string): boolean {
-  const normalizedEntryPath = entryPath.replaceAll('\\', '/').toLowerCase();
-  return normalizedEntryPath.includes('/ts-node/') || normalizedEntryPath.endsWith('/ts-node');
-}
-
-function getCliBootstrapArgs(): string[] {
-  const entryPath = process.argv[1];
-  if (!entryPath) {
-    throw new Error('Unable to determine the current CLI entrypoint.');
-  }
-
-  if (isTsNodeEntry(entryPath)) {
-    const sourcePath = process.argv[2];
-    if (!sourcePath) {
-      throw new Error('Unable to determine the current ts-node source entrypoint.');
-    }
-
-    return [entryPath, sourcePath];
-  }
-
-  return [entryPath];
+function getOpenTuiEntrypoint(): string {
+  return path.join(process.cwd(), 'src', 'opentui', 'index.tsx');
 }
 
 function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
   return [
-    ...getCliBootstrapArgs(),
-    '--tui',
+    'run',
+    getOpenTuiEntrypoint(),
     '--session',
     options.sessionId,
     '--mode',
@@ -65,7 +47,7 @@ function tryLaunchWithWindowsTerminal(options: LaunchSessionWindowOptions): Laun
       'new-tab',
       '-d',
       workingDirectory,
-      process.execPath,
+      'bun',
       ...childArgs,
     ],
     {
@@ -97,7 +79,7 @@ function tryLaunchWithPowerShell(options: LaunchSessionWindowOptions): LaunchSes
 
   const command = [
     `Set-Location -LiteralPath '${escapePowerShellSingleQuotedValue(workingDirectory)}'`,
-    `Start-Process -FilePath '${escapePowerShellSingleQuotedValue(process.execPath)}' -ArgumentList @(${argumentList}) -WorkingDirectory '${escapePowerShellSingleQuotedValue(workingDirectory)}'`,
+    `Start-Process -FilePath 'bun' -ArgumentList @(${argumentList}) -WorkingDirectory '${escapePowerShellSingleQuotedValue(workingDirectory)}'`,
   ].join('; ');
 
   const result = spawnSync(
