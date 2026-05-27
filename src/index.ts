@@ -2,9 +2,8 @@
 import { isAgentMode, type AgentMode } from './agentMode';
 import { getConfig } from './config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';
-import { getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
+import { createSessionWithGeneratedId, getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
 import { runSessionTurn } from './sessionTurnRunner';
-import { runAgentTurn } from './workflow';
 
 function printHelp() {
   console.log(`noq-agent - local AI coding agent CLI
@@ -32,6 +31,10 @@ Examples:
 
 function printVersion() {
   console.log('1.0.0');
+}
+
+function printSessionContinuationHint(sessionId: string): void {
+  console.log(`\nTo continue this conversation use: noq --session ${sessionId}`);
 }
 
 type CliAction = 'chat' | 'diff' | 'undo';
@@ -166,17 +169,18 @@ async function main() {
   }
 
   resetPermissionApprovalState();
-  setPermissionApprovalSession(sessionId);
 
   try {
-    if (!sessionId) {
-      const response = await runAgentTurn(userPrompt, mode);
-      console.log(response);
-      return;
+    let activeSessionId = sessionId;
+    if (!activeSessionId) {
+      activeSessionId = createSessionWithGeneratedId().id;
     }
 
-    const { response } = await runSessionTurn(sessionId, userPrompt, mode);
+    setPermissionApprovalSession(activeSessionId);
+
+    const { response } = await runSessionTurn(activeSessionId, userPrompt, mode);
     console.log(response);
+    printSessionContinuationHint(activeSessionId);
   } finally {
     resetPermissionApprovalState();
   }
