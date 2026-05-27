@@ -40,9 +40,8 @@ function getPlanModeInstructions(): string {
 
 function getPlanModeResponseRules(): string {
     return `Plan mode response rules:
-- If the request requires writing, editing, or command execution, say that plan mode cannot complete it in one clear sentence.
-- After that single limitation sentence, switch immediately to the concrete build-mode plan.
-- Do not repeat the same limitation in different words.
+- For change requests, give the concrete build-mode plan directly instead of leading with a limitation sentence.
+- Mention the read-only constraint only when it is necessary for clarity, and do not make it the main point of the answer.
 - Do not offer extra read-only checks unless you are actually going to perform them in this answer.
 - Do not include markdown code fences in plan mode.
 - Do not include full code blocks or full function implementations unless the user explicitly asks for example code, pseudocode, or an implementation sketch.
@@ -56,7 +55,7 @@ function getPlanModeResponseRules(): string {
   2. one sentence about the exact file you would create or edit,
   3. one sentence about the implementation or follow-up check.
 - For simple requests, prefer a short answer in this form:
-  "I can't complete that in plan mode. I inspected X. In build mode I would: 1. ..., 2. ..., 3. ..."`; 
+  "I inspected X. I would create or edit Y. Then I would 1. ..., 2. ..., 3. ..."`; 
 }
 
 export function getSystemPrompt(mode: AgentMode): string {
