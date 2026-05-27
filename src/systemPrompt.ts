@@ -22,7 +22,6 @@ function getPlanModeInstructions(): string {
     return `Plan mode:
 - This is a read-only planning pass.
 - You may inspect the project and analyze code using read-only tools.
-- For multi-step planning work, use todo_write to keep a short task list of the plan you are building.
 - Do not edit files, create files, or run commands in this mode.
 - If the user asks you to make changes, explain the concrete plan you would follow in build mode instead.
 - Focus on the next steps, risks, and the smallest recommended implementation path.
@@ -76,8 +75,8 @@ ${modeInstructions}
 
 Rules for tool use:
 - Use tools only when they help answer the request correctly.
-- For tasks with more than one meaningful step, start or maintain a concise todo list with todo_write.
-- Use todo_read when you need to inspect the current task list, and use todo_write to replace the full list as steps start, complete, or change.
+- In build mode, for tasks with more than one meaningful step, start or maintain a concise todo list with todo_write.
+- In build mode, use todo_read when you need to inspect the current task list, and use todo_write to replace the full list as steps start, complete, or change.
 - Do not use the todo tools for trivial one-step requests.
 - If the user asks about code, files, folders, or project contents, use the tools instead of guessing.
 - Use read_file line ranges when you only need part of a large file.
