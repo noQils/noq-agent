@@ -3,6 +3,8 @@ import { render, type Instance } from 'ink';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { isAgentMode, type AgentMode } from './agentMode';
+import { onPermissionPromptClosed, onPermissionPromptOpened } from './permissions/promptEvents';
+import { type PermissionRequest } from './permissions/types';
 import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
 import { runSessionTurn } from './sessionTurnRunner';
 import { InteractiveSessionApp } from './tui/InteractiveSessionApp';
@@ -17,6 +19,8 @@ interface InteractiveSessionState {
   entries: SessionEntry[];
   inputValue: string;
   isBusy: boolean;
+  isWaitingForPermission: boolean;
+  permissionSummary: string | null;
 }
 
 type PendingAction =
@@ -59,17 +63,42 @@ function createInitialState(mode: AgentMode): InteractiveSessionState {
     entries: [],
     inputValue: '',
     isBusy: false,
+    isWaitingForPermission: false,
+    permissionSummary: null,
   };
 }
 
+function formatPermissionSummary(request: PermissionRequest): string {
+  const target = request.target || '(no target)';
+  return `${request.toolName} on ${target}`;
+}
+
 function buildViewModel(sessionId: string, state: InteractiveSessionState): InteractiveSessionViewModel {
+  const inputTone = state.isWaitingForPermission
+    ? 'permission'
+    : state.isBusy
+      ? 'busy'
+      : 'idle';
+
+  const inputLabel = state.isWaitingForPermission
+    ? 'Permission'
+    : state.isBusy
+      ? 'Working'
+      : 'Message';
+
+  const inputText = state.isWaitingForPermission
+    ? `Awaiting approval for ${state.permissionSummary ?? 'the current action'}...`
+    : state.isBusy
+      ? 'Waiting for the current turn to finish...'
+      : `> ${state.inputValue}`;
+
   return {
     statusText: `Session: ${sessionId} | Mode: ${state.mode}`,
     helpText: '/mode plan | /mode build | /plan show | /diff | /undo | /exit',
     entries: state.entries,
-    inputLabel: state.isBusy ? 'Working' : 'Message',
-    inputText: state.isBusy ? 'Waiting for the current turn to finish...' : `> ${state.inputValue}`,
-    inputTone: state.isBusy ? 'busy' : 'idle',
+    inputLabel,
+    inputText,
+    inputTone,
     emptyStateText: 'Conversation started. Type a message or use /exit to leave the session.',
   };
 }
@@ -104,9 +133,34 @@ export async function startInteractiveSession(
 
   let state = createInitialState(initialMode);
   let pendingActionResolver: ((action: PendingAction) => void) | null = null;
+  let inkInstance: Instance | null = null;
 
-  const setState = (nextState: InteractiveSessionState): void => {
-    state = nextState;
+  const mountInkApp = (): void => {
+    if (inkInstance) {
+      return;
+    }
+
+    inkInstance = render(React.createElement(React.Fragment), {
+      stdin: input,
+      stdout: output,
+      exitOnCtrlC: false,
+    });
+  };
+
+  const unmountInkApp = (): void => {
+    if (!inkInstance) {
+      return;
+    }
+
+    inkInstance.unmount();
+    inkInstance = null;
+  };
+
+  const syncInkApp = (): void => {
+    if (!inkInstance) {
+      return;
+    }
+
     renderInteractiveSessionApp(
       inkInstance,
       sessionId,
@@ -126,13 +180,33 @@ export async function startInteractiveSession(
     );
   };
 
-  const inkInstance = render(React.createElement(React.Fragment), {
-    stdin: input,
-    stdout: output,
-    exitOnCtrlC: false,
+  const setState = (nextState: InteractiveSessionState): void => {
+    state = nextState;
+    syncInkApp();
+  };
+
+  mountInkApp();
+  syncInkApp();
+
+  const unsubscribePermissionOpened = onPermissionPromptOpened(({ request }) => {
+    setState({
+      ...state,
+      isBusy: true,
+      isWaitingForPermission: true,
+      permissionSummary: formatPermissionSummary(request),
+    });
+    unmountInkApp();
   });
 
-  setState(state);
+  const unsubscribePermissionClosed = onPermissionPromptClosed(() => {
+    state = {
+      ...state,
+      isWaitingForPermission: false,
+      permissionSummary: null,
+    };
+    mountInkApp();
+    syncInkApp();
+  });
 
   try {
     while (true) {
@@ -142,7 +216,7 @@ export async function startInteractiveSession(
       pendingActionResolver = null;
 
       if (action.kind === 'exit') {
-        inkInstance.unmount();
+        unmountInkApp();
         console.log('');
         printSessionContinuationHint(sessionId);
         return;
@@ -165,7 +239,7 @@ export async function startInteractiveSession(
       });
 
       if (userInput === '/exit' || userInput === '/quit') {
-        inkInstance.unmount();
+        unmountInkApp();
         printSessionContinuationHint(sessionId);
         return;
       }
@@ -246,17 +320,23 @@ export async function startInteractiveSession(
         setState({
           ...state,
           isBusy: false,
+          isWaitingForPermission: false,
+          permissionSummary: null,
           entries: appendEntry(state.entries, 'assistant', response),
         });
       } catch (error) {
         setState({
           ...state,
           isBusy: false,
+          isWaitingForPermission: false,
+          permissionSummary: null,
           entries: appendEntry(state.entries, 'system', `Turn failed: ${formatErrorMessage(error)}`),
         });
       }
     }
   } finally {
-    inkInstance.unmount();
+    unsubscribePermissionOpened();
+    unsubscribePermissionClosed();
+    unmountInkApp();
   }
 }

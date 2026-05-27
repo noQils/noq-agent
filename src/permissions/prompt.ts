@@ -2,6 +2,7 @@ import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { hasPersistentPermissionSession } from './approvals';
+import { emitPermissionPromptClosed, emitPermissionPromptOpened } from './promptEvents';
 import { type PermissionRequest } from './types';
 
 export type PermissionPromptDecision =
@@ -28,6 +29,7 @@ export async function promptForPermission(request: PermissionRequest): Promise<P
     return 'deny';
   }
 
+  emitPermissionPromptOpened(request);
   const rl = readline.createInterface({ input, output });
 
   try {
@@ -53,5 +55,6 @@ export async function promptForPermission(request: PermissionRequest): Promise<P
     return 'deny';
   } finally {
     rl.close();
+    emitPermissionPromptClosed(request);
   }
 }

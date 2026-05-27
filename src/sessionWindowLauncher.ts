@@ -65,7 +65,6 @@ function tryLaunchWithWindowsTerminal(options: LaunchSessionWindowOptions): Laun
       'new-tab',
       '-d',
       workingDirectory,
-      '--',
       process.execPath,
       ...childArgs,
     ],
@@ -134,16 +133,21 @@ export function launchSessionWindow(options: LaunchSessionWindowOptions): Launch
     };
   }
 
+  const powershellResult = tryLaunchWithPowerShell(options);
+  if (powershellResult.launched) {
+    return powershellResult;
+  }
+
   if (canLaunchWindowsTerminal()) {
     const wtResult = tryLaunchWithWindowsTerminal(options);
     if (wtResult.launched) {
       return wtResult;
     }
-  }
 
-  const powershellResult = tryLaunchWithPowerShell(options);
-  if (powershellResult.launched) {
-    return powershellResult;
+    return {
+      launched: false,
+      message: wtResult.message ?? powershellResult.message ?? 'Failed to open a popup terminal window.',
+    };
   }
 
   return {

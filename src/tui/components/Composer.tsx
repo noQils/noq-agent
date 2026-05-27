@@ -6,7 +6,7 @@ import { tuiTheme } from '../theme';
 interface ComposerProps {
   label: string;
   text: string;
-  tone: 'idle' | 'busy';
+  tone: 'idle' | 'busy' | 'permission';
 }
 
 export function Composer({

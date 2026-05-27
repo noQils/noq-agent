@@ -27,6 +27,10 @@ export const tuiTheme = {
       borderColor: 'yellow',
       labelColor: 'yellow',
     },
+    permission: {
+      borderColor: 'magenta',
+      labelColor: 'magenta',
+    },
   },
   helpFooter: {
     foreground: 'black',

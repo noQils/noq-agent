@@ -11,6 +11,6 @@ export interface InteractiveSessionViewModel {
   entries: SessionEntry[];
   inputLabel: string;
   inputText: string;
-  inputTone: 'idle' | 'busy';
+  inputTone: 'idle' | 'busy' | 'permission';
   emptyStateText: string;
 }
