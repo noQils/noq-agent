@@ -244,6 +244,21 @@ function shouldRewritePlanModeResponse(mode: AgentMode, responseText: string, re
         || /example usage/i.test(responseText);
 }
 
+function isPlanStyleUserRequest(userPrompt: string): boolean {
+    return /\b(create|add|make|write|implement|update|edit|modify|change|fix|refactor|rename|remove|delete)\b/i.test(userPrompt);
+}
+
+function isPlanModeMetaRequest(userPrompt: string): boolean {
+    return /\b(plan mode|planning mode|read-only mode)\b/i.test(userPrompt);
+}
+
+function isPlanModeRefusalResponse(responseText: string): boolean {
+    const trimmed = responseText.trim().toLowerCase();
+    return /^i can['’]t complete that in plan mode\b/.test(trimmed)
+        || /^plan mode cannot complete\b/.test(trimmed)
+        || /^i cannot complete that in plan mode\b/.test(trimmed);
+}
+
 function isMutationStyleUserRequest(userPrompt: string): boolean {
     return /\b(create|add|make|write|implement|update|edit|modify|change|fix|refactor|rename|remove|delete)\b/i.test(userPrompt);
 }
@@ -267,6 +282,33 @@ function buildPlanModeRewriteMessage(): string {
         'Base the answer on what you inspected, name the exact file or path you would create or edit in build mode, and describe what you would implement there. ' +
         'Do not include code fences, sample implementations, usage examples, or "if you want, I can" menus. ' +
         'Keep the answer practical and read-only.'
+    );
+}
+
+function shouldRewritePlanRefusalResponse(
+    mode: AgentMode,
+    userPrompt: string,
+    responseText: string,
+    rewriteIssued: boolean,
+): boolean {
+    if (mode !== 'plan' || rewriteIssued) {
+        return false;
+    }
+
+    if (!isPlanStyleUserRequest(userPrompt) || isPlanModeMetaRequest(userPrompt)) {
+        return false;
+    }
+
+    return isPlanModeRefusalResponse(responseText);
+}
+
+function buildPlanRefusalRewriteMessage(): string {
+    return buildWorkflowReminder(
+        'Rewrite your previous answer for plan mode. ' +
+        'Do not begin with a refusal or limitation sentence. ' +
+        'For this coding request, give the direct implementation plan: say what you inspected, name the exact file or path you would create or edit, and describe what you would implement there. ' +
+        'Keep it concise, practical, and read-only. ' +
+        'Do not call more tools.'
     );
 }
 
@@ -493,6 +535,15 @@ export async function runAgentTurn(
                 messages.push({
                     role: 'user' as const,
                     content: buildBuildResponseRewriteMessage(),
+                });
+                continue;
+            }
+
+            if (shouldRewritePlanRefusalResponse(mode, userPrompt, response.text, workflowState.planResponseRewriteIssued)) {
+                workflowState.planResponseRewriteIssued = true;
+                messages.push({
+                    role: 'user' as const,
+                    content: buildPlanRefusalRewriteMessage(),
                 });
                 continue;
             }
