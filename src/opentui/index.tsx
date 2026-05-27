@@ -1,22 +1,30 @@
-/** @jsxImportSource @opentui/solid */
+import { isAgentMode, type AgentMode } from '../agentMode';
+import { startOpenTuiInteractiveSession } from './startOpenTuiInteractiveSession';
 
-import { render } from '@opentui/solid';
+function getArgumentValue(flag: string): string | null {
+  const flagIndex = process.argv.indexOf(flag);
+  if (flagIndex < 0) {
+    return null;
+  }
 
-import { OpenTuiShell } from './OpenTuiShell';
-import { createOpenTuiRenderer } from './createOpenTuiRenderer';
+  return process.argv[flagIndex + 1] ?? null;
+}
+
+function resolveMode(rawMode: string | null): AgentMode {
+  if (rawMode && isAgentMode(rawMode)) {
+    return rawMode;
+  }
+
+  return 'build';
+}
 
 async function main(): Promise<void> {
-  const renderer = await createOpenTuiRenderer();
-
-  try {
-    await render(() => <OpenTuiShell />, renderer);
-  } catch (error) {
-    renderer.destroy();
-    throw error;
-  }
+  const sessionId = getArgumentValue('--session') ?? 'opentui-preview';
+  const mode = resolveMode(getArgumentValue('--mode'));
+  await startOpenTuiInteractiveSession(sessionId, mode);
 }
 
 void main().catch((error) => {
-  console.error('Failed to start the OpenTUI shell:', error);
+  console.error('Failed to start the OpenTUI interactive session:', error);
   process.exitCode = 1;
 });
