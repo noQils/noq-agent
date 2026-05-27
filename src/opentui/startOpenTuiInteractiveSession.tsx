@@ -9,11 +9,17 @@ import { onPermissionPromptClosed, onPermissionPromptOpened } from '../permissio
 import { type PermissionRequest } from '../permissions/types';
 import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
-import { type SessionEntry } from '../tui/state';
 import { createOpenTuiRenderer } from './createOpenTuiRenderer';
-import { OpenTuiInteractiveSessionApp } from './OpenTuiInteractiveSessionApp';
+import {
+  OpenTuiInteractiveSessionApp,
+  type OpenTuiSessionEntry,
+} from './OpenTuiInteractiveSessionApp';
 
-function appendEntry(entries: SessionEntry[], kind: SessionEntry['kind'], text: string): SessionEntry[] {
+function appendEntry(
+  entries: OpenTuiSessionEntry[],
+  kind: OpenTuiSessionEntry['kind'],
+  text: string,
+): OpenTuiSessionEntry[] {
   return [...entries, { kind, text }];
 }
 
@@ -45,7 +51,7 @@ function isModeCommand(inputLine: string): boolean {
 function SessionRoot(props: {
   sessionId: string;
   mode: () => AgentMode;
-  entries: () => SessionEntry[];
+  entries: () => OpenTuiSessionEntry[];
   inputValue: () => string;
   isBusy: () => boolean;
   statusMessage: () => string | null;
@@ -77,7 +83,7 @@ export async function startOpenTuiInteractiveSession(
   const renderer = await createOpenTuiRenderer();
 
   const [mode, setMode] = createSignal<AgentMode>(initialMode);
-  const [entries, setEntries] = createSignal<SessionEntry[]>([]);
+  const [entries, setEntries] = createSignal<OpenTuiSessionEntry[]>([]);
   const [inputValue, setInputValue] = createSignal('');
   const [isBusy, setIsBusy] = createSignal(false);
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);

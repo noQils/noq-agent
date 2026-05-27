@@ -5,12 +5,18 @@ import { For } from 'solid-js';
 import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
 
 import { type AgentMode } from '../agentMode';
-import { type SessionEntry } from '../tui/state';
+
+export type OpenTuiSessionEntryKind = 'user' | 'assistant' | 'system';
+
+export interface OpenTuiSessionEntry {
+  kind: OpenTuiSessionEntryKind;
+  text: string;
+}
 
 interface OpenTuiInteractiveSessionAppProps {
   sessionId: string;
   mode: () => AgentMode;
-  entries: () => SessionEntry[];
+  entries: () => OpenTuiSessionEntry[];
   inputValue: () => string;
   isBusy: () => boolean;
   statusMessage: () => string | null;
@@ -19,7 +25,7 @@ interface OpenTuiInteractiveSessionAppProps {
   onExit: () => void;
 }
 
-function roleColor(kind: SessionEntry['kind']): string {
+function roleColor(kind: OpenTuiSessionEntry['kind']): string {
   if (kind === 'user') {
     return '#7dd3fc';
   }
@@ -31,7 +37,7 @@ function roleColor(kind: SessionEntry['kind']): string {
   return '#fbbf24';
 }
 
-function roleLabel(kind: SessionEntry['kind']): string {
+function roleLabel(kind: OpenTuiSessionEntry['kind']): string {
   if (kind === 'user') {
     return 'You';
   }
