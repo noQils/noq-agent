@@ -91,7 +91,7 @@ function escapePowerShellSingleQuotedValue(value: string): string {
 function tryLaunchWithPowerShell(options: LaunchSessionWindowOptions): LaunchSessionWindowResult {
   const workingDirectory = options.cwd ?? process.cwd();
   const childArgs = buildChildArgs(options);
-  const argumentList = [process.execPath, ...childArgs]
+  const argumentList = childArgs
     .map((value) => `'${escapePowerShellSingleQuotedValue(value)}'`)
     .join(', ');
 
