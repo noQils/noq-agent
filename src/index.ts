@@ -8,7 +8,7 @@ import {
   loadOrCreateSession,
   undoLastSessionSnapshot,
 } from './sessionStore';
-import { startInteractiveSession } from './repl';
+import { startInteractiveSession } from './interactiveSession';
 import { runSessionTurn } from './sessionTurnRunner';
 
 function printHelp() {
