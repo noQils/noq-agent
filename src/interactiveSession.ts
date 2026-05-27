@@ -74,6 +74,10 @@ function printModeCommandError(): void {
   console.log('Usage: /mode plan or /mode build');
 }
 
+function isModeCommand(inputLine: string): boolean {
+  return inputLine === '/mode' || inputLine.startsWith('/mode ');
+}
+
 export async function startInteractiveSession(
   sessionId: string,
   initialMode: AgentMode,
@@ -113,7 +117,7 @@ export async function startInteractiveSession(
       continue;
     }
 
-    if (userInput.startsWith('/mode')) {
+    if (isModeCommand(userInput)) {
       const requestedMode = userInput.slice('/mode'.length).trim();
       if (!isAgentMode(requestedMode)) {
         printModeCommandError();

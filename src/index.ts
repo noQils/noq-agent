@@ -15,23 +15,34 @@ function printHelp() {
   console.log(`noq-agent - local AI coding agent CLI
 
 Usage:
+  noq
   noq "your prompt"
-  noq --session my-session "your prompt"
+  noq --session <session-id>
+  noq --session <session-id> "your prompt"
   noq --mode plan "your prompt"
   noq --mode build "your prompt"
-  noq --session my-session --diff
-  noq --session my-session --undo
+  noq --session <session-id> --diff
+  noq --session <session-id> --undo
   noq --plan "your prompt"
   noq --help
   noq --version
 
 Examples:
+  noq
   noq "Read src/tools/runCommand.ts and summarize it."
   noq --mode plan "Read src/tools and tell me how you would add a todo tool."
   noq "Use run_command to run npx tsc --noEmit and summarize the result."
-  noq --session feature-a "Create src/example.ts and verify it."
-  noq --session feature-a --diff
-  noq --session feature-a --undo
+  noq --session session-20260527-114600
+  noq --session session-20260527-114600 "Create src/example.ts and verify it."
+  noq --session session-20260527-114600 --diff
+  noq --session session-20260527-114600 --undo
+
+Interactive session commands:
+  /mode plan
+  /mode build
+  /diff
+  /undo
+  /exit
 `);
 }
 

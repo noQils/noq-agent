@@ -24,6 +24,7 @@ The current agent can:
 - track multi-step work with in-memory todos
 - provide TypeScript/JavaScript diagnostics
 - jump to TypeScript/JavaScript symbol definitions
+- start a new interactive conversation with a generated session id
 - persist session history across CLI invocations
 - show the latest agent-generated diff for a session
 - undo the last agent-generated snapshot for a session
@@ -181,17 +182,22 @@ When a command asks for approval, the CLI supports:
 - allow always for the current named session when `--session` is active
 - deny
 
+Interactive sessions keep the same process alive across turns, so “allow always for this run” remains available until you exit that conversation. Resumed named sessions can also reuse approvals that were stored with “allow always for this named session”.
+
 For rule-based `bash` permissions, the last matching rule wins.
 
 ## Sessions, Diffs, and Undo
 
 The agent supports persistent local sessions.
 
-With `--session`, it stores prior turns under `.noq-agent/sessions` in the current workspace and can replay compacted history into future runs.
+Running `noq` starts a new interactive conversation and automatically creates a session id like `session-20260527-114600`. Running `noq "your prompt"` also creates a persistent session automatically, sends that prompt as the first turn, and prints a resume command afterward.
+
+All sessions are stored under `.noq-agent/sessions` in the current workspace and prior turns are replayed as compacted history in future runs.
 
 Session features:
 
 - persistent turn history
+- auto-generated session ids for new conversations
 - latest snapshot diff via `--diff`
 - undo last agent-generated snapshot via `--undo`
 - tracking of agent-made file changes from edit tools and workspace changes caused by `run_command`
@@ -199,14 +205,22 @@ Session features:
 Example:
 
 ```bash
-noq --session feature-a "Create src/example.ts and verify it."
-noq --session feature-a --diff
-noq --session feature-a --undo
+noq
+noq "Create src/example.ts and verify it."
+noq --session session-20260527-114600
+noq --session session-20260527-114600 --diff
+noq --session session-20260527-114600 --undo
 ```
 
 ## CLI Usage
 
 After building and linking the CLI locally, you can run:
+
+```bash
+noq
+```
+
+Start a new session with a first prompt:
 
 ```bash
 noq "Read src/tools/runCommand.ts and summarize it."
@@ -228,6 +242,22 @@ Version output:
 
 ```bash
 noq --version
+```
+
+Resume a previous conversation:
+
+```bash
+noq --session session-20260527-114600
+```
+
+Interactive session commands:
+
+```text
+/mode plan
+/mode build
+/diff
+/undo
+/exit
 ```
 
 ## Example Prompts
@@ -259,9 +289,9 @@ noq --mode plan "Inspect src/tools/readFile.ts, use semantic navigation to find 
 Session + undo:
 
 ```bash
-noq --session feature-notes "Create tmp/session-memory.txt containing the text 'first turn', then confirm it."
-noq --session feature-notes --diff
-noq --session feature-notes --undo
+noq "Create tmp/session-memory.txt containing the text 'first turn', then confirm it."
+noq --session session-20260527-114600 --diff
+noq --session session-20260527-114600 --undo
 ```
 
 ## Setup
@@ -349,7 +379,7 @@ npm link
 6. Run the agent:
 
 ```bash
-noq "your prompt"
+noq
 ```
 
 ## Current Safety Model
