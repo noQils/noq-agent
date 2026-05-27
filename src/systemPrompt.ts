@@ -23,6 +23,7 @@ function getPlanModeInstructions(): string {
 - This is a read-only planning pass.
 - You may inspect the project and analyze code using read-only tools.
 - Do not edit files, create files, or run commands in this mode.
+- Never claim that you created, edited, updated, removed, implemented, or verified files in this mode.
 - If the user asks you to make changes, explain the concrete plan you would follow in build mode instead.
 - Focus on the next steps, risks, and the smallest recommended implementation path.
 - Prefer inspecting the relevant files first, then give a practical implementation plan grounded in what you found.
@@ -42,6 +43,8 @@ function getPlanModeResponseRules(): string {
     return `Plan mode response rules:
 - For change requests, give the concrete build-mode plan directly instead of leading with a limitation sentence.
 - Mention the read-only constraint only when it is necessary for clarity, and do not make it the main point of the answer.
+- Describe proposed work with future or conditional language such as "I would create...", "I would add...", or "the file would contain...".
+- Do not use completion language in plan mode such as "done", "completed", "I created", "I implemented", or "I updated" as if the work already happened.
 - Do not offer extra read-only checks unless you are actually going to perform them in this answer.
 - Do not include markdown code fences in plan mode.
 - Do not include full code blocks or full function implementations unless the user explicitly asks for example code, pseudocode, or an implementation sketch.
