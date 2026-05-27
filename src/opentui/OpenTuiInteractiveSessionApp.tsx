@@ -1,14 +1,31 @@
 /** @jsxImportSource @opentui/solid */
 
-import { For, type Accessor } from 'solid-js';
+import { createEffect, createSignal, For, onCleanup, type Accessor } from 'solid-js';
 
-import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
+import { DiffRenderable } from '@opentui/core';
+import { Dynamic, extend, useKeyboard, useTerminalDimensions } from '@opentui/solid';
 
 import { type AgentMode } from '../agentMode';
+import {
+  cappedEntries,
+  compactLocalTime,
+  getOpenTuiMarkdownSyntaxStyle,
+  isUnifiedDiff,
+  modeColor,
+  openTuiTheme,
+  statusColor,
+  statusLabel,
+  truncateMiddle,
+  type OpenTuiEntryRole,
+} from './openTuiTheme';
 
-export type OpenTuiSessionEntryKind = 'user' | 'assistant' | 'system';
+extend({ diff: DiffRenderable });
+
+export type OpenTuiSessionEntryKind = OpenTuiEntryRole;
 
 export interface OpenTuiSessionEntry {
+  id: string;
+  createdAt: string;
   kind: OpenTuiSessionEntryKind;
   text: string;
 }
@@ -25,70 +42,378 @@ interface OpenTuiInteractiveSessionAppProps {
   onExit: () => void;
 }
 
-const transcriptViewportSize = 24;
+const maxRenderedEntries = 200;
+const diffComponent: any = 'diff';
 
-function roleColor(kind: OpenTuiSessionEntry['kind']): string {
-  if (kind === 'user') {
-    return '#38bdf8';
+type AssistantContentBlock =
+  | { type: 'heading'; text: string }
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; items: string[] }
+  | { type: 'code'; language: string; content: string }
+  | { type: 'table'; lines: string[] };
+
+function commandLabels(isCompact: boolean): string[] {
+  if (isCompact) {
+    return ['/mode', '/diff', '/exit'];
   }
 
-  if (kind === 'assistant') {
-    return '#34d399';
-  }
-
-  return '#f59e0b';
+  return ['/mode plan', '/mode build', '/plan show', '/diff', '/undo', '/exit'];
 }
 
-function roleLabel(kind: OpenTuiSessionEntry['kind']): string {
-  if (kind === 'user') {
-    return 'You';
-  }
-
-  if (kind === 'assistant') {
-    return 'Agent';
-  }
-
-  return 'System';
+function diffBlockHeight(text: string, isCompact: boolean): number {
+  const lineCount = text.split(/\r?\n/).length;
+  const maxHeight = isCompact ? 6 : 8;
+  return Math.max(4, Math.min(maxHeight, lineCount));
 }
 
-function statusToneColor(statusMessage: string | null, isBusy: boolean): string {
-  if (statusMessage && statusMessage.toLowerCase().includes('failed')) {
-    return '#f87171';
-  }
-
-  if (statusMessage && statusMessage.toLowerCase().includes('approval')) {
-    return '#fbbf24';
-  }
-
-  if (isBusy) {
-    return '#f59e0b';
-  }
-
-  return '#94a3b8';
+function busySuffix(frame: number): string {
+  return '.'.repeat(frame % 4);
 }
 
-function statusLabel(statusMessage: string | null, isBusy: boolean): string {
-  if (statusMessage) {
-    return statusMessage;
-  }
-
-  if (isBusy) {
-    return 'Working';
-  }
-
-  return 'Ready';
+function isFenceLine(line: string): boolean {
+  return line.trim().startsWith('```');
 }
 
-function transcriptEntries(entries: OpenTuiSessionEntry[]): OpenTuiSessionEntry[] {
-  if (entries.length <= transcriptViewportSize) {
-    return entries;
+function isListLine(line: string): boolean {
+  return /^\s*[-*]\s+/.test(line);
+}
+
+function parseListItem(line: string): string {
+  return line.replace(/^\s*[-*]\s+/, '').trim();
+}
+
+function isHeadingLine(line: string): boolean {
+  return /^#{1,6}\s+\S/.test(line);
+}
+
+function parseHeading(line: string): string {
+  return line.replace(/^#{1,6}\s+/, '').trim();
+}
+
+function isTableSeparator(line: string): boolean {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function isTableStart(lines: string[], index: number): boolean {
+  const line = lines[index] ?? '';
+  const nextLine = lines[index + 1] ?? '';
+  return line.includes('|') && isTableSeparator(nextLine);
+}
+
+function parseAssistantContent(text: string): AssistantContentBlock[] {
+  const lines = text.replaceAll('\r\n', '\n').split('\n');
+  const blocks: AssistantContentBlock[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index] ?? '';
+
+    if (line.trim().length === 0) {
+      index += 1;
+      continue;
+    }
+
+    if (isFenceLine(line)) {
+      const language = line.trim().slice(3).trim() || 'text';
+      const codeLines: string[] = [];
+      index += 1;
+
+      while (index < lines.length && !isFenceLine(lines[index] ?? '')) {
+        codeLines.push(lines[index] ?? '');
+        index += 1;
+      }
+
+      if (index < lines.length) {
+        index += 1;
+      }
+
+      blocks.push({ type: 'code', language, content: codeLines.join('\n') });
+      continue;
+    }
+
+    if (isHeadingLine(line)) {
+      blocks.push({ type: 'heading', text: parseHeading(line) });
+      index += 1;
+      continue;
+    }
+
+    if (isListLine(line)) {
+      const items: string[] = [];
+      while (index < lines.length && isListLine(lines[index] ?? '')) {
+        items.push(parseListItem(lines[index] ?? ''));
+        index += 1;
+      }
+
+      blocks.push({ type: 'list', items });
+      continue;
+    }
+
+    if (isTableStart(lines, index)) {
+      const tableLines: string[] = [];
+      while (index < lines.length && (lines[index] ?? '').includes('|')) {
+        tableLines.push((lines[index] ?? '').trim());
+        index += 1;
+      }
+
+      blocks.push({ type: 'table', lines: tableLines });
+      continue;
+    }
+
+    const paragraphLines: string[] = [];
+    while (
+      index < lines.length
+      && (lines[index] ?? '').trim().length > 0
+      && !isFenceLine(lines[index] ?? '')
+      && !isHeadingLine(lines[index] ?? '')
+      && !isListLine(lines[index] ?? '')
+      && !isTableStart(lines, index)
+    ) {
+      paragraphLines.push((lines[index] ?? '').trim());
+      index += 1;
+    }
+
+    blocks.push({ type: 'paragraph', text: paragraphLines.join(' ') });
   }
 
-  return entries.slice(-transcriptViewportSize);
+  return blocks;
+}
+
+function codeBlockHeight(content: string, isCompact: boolean): number {
+  const lineCount = content.length === 0 ? 1 : content.split(/\r?\n/).length;
+  return Math.max(2, Math.min(isCompact ? 6 : 10, lineCount));
+}
+
+function AssistantContent(props: { text: string; isCompact: boolean }) {
+  const blocks = () => parseAssistantContent(props.text);
+
+  return (
+    <box flexDirection="column" gap={props.isCompact ? 0 : 1}>
+      <For each={blocks()}>
+        {(block) => {
+          if (block.type === 'heading') {
+            return (
+              <text fg={openTuiTheme.color.text} wrapMode="word">
+                {block.text}
+              </text>
+            );
+          }
+
+          if (block.type === 'list') {
+            return (
+              <box flexDirection="column">
+                <For each={block.items}>
+                  {(item) => (
+                    <box flexDirection="row" gap={1}>
+                      <text fg={openTuiTheme.color.teal}>-</text>
+                      <text fg={openTuiTheme.color.textSoft} wrapMode="word" flexGrow={1}>
+                        {item}
+                      </text>
+                    </box>
+                  )}
+                </For>
+              </box>
+            );
+          }
+
+          if (block.type === 'code') {
+            return (
+              <box
+                border
+                borderStyle="single"
+                borderColor={openTuiTheme.color.lineStrong}
+                backgroundColor={openTuiTheme.color.panelRaised}
+                paddingX={1}
+                paddingY={0}
+                title={block.language}
+              >
+                <code
+                  content={block.content}
+                  filetype={block.language}
+                  syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
+                  height={codeBlockHeight(block.content, props.isCompact)}
+                  width="100%"
+                  fg={openTuiTheme.color.textSoft}
+                  bg={openTuiTheme.color.panelRaised}
+                  drawUnstyledText
+                  wrapMode="none"
+                  selectionBg={openTuiTheme.color.selectionBg}
+                  selectionFg={openTuiTheme.color.selectionFg}
+                />
+              </box>
+            );
+          }
+
+          if (block.type === 'table') {
+            return (
+              <box
+                border
+                borderStyle="single"
+                borderColor={openTuiTheme.color.lineStrong}
+                backgroundColor={openTuiTheme.color.panelRaised}
+                flexDirection="column"
+                paddingX={1}
+              >
+                <For each={block.lines}>
+                  {(tableLine) => (
+                    <text fg={openTuiTheme.color.textSoft} truncate>
+                      {tableLine}
+                    </text>
+                  )}
+                </For>
+              </box>
+            );
+          }
+
+          return (
+            <text fg={openTuiTheme.color.textSoft} wrapMode="word">
+              {block.text}
+            </text>
+          );
+        }}
+      </For>
+    </box>
+  );
+}
+
+function TranscriptEntry(props: {
+  entry: OpenTuiSessionEntry;
+  showTime: boolean;
+  isCompact: boolean;
+}) {
+  const role = () => openTuiTheme.role[props.entry.kind];
+  const title = () => (props.entry.kind === 'system' ? role().title : role().label);
+  const timestamp = () => compactLocalTime(props.entry.createdAt);
+
+  return (
+    <box
+      id={props.entry.id}
+      flexDirection="column"
+      marginBottom={1}
+      border
+      borderStyle="rounded"
+      borderColor={role().border}
+      focusedBorderColor={role().accent}
+      backgroundColor={role().background}
+      paddingX={1}
+      paddingY={0}
+      bottomTitle={props.showTime ? timestamp() : ''}
+      bottomTitleAlignment="right"
+    >
+      <box flexDirection="row" justifyContent="space-between" gap={1}>
+        <text fg={role().accent} truncate>
+          {title()}
+        </text>
+        {props.showTime ? (
+          <text fg={openTuiTheme.color.ghost} truncate>
+            {props.entry.kind}
+          </text>
+        ) : null}
+      </box>
+
+      {props.entry.kind === 'assistant' ? (
+        <AssistantContent text={props.entry.text} isCompact={props.isCompact} />
+      ) : props.entry.kind === 'system' && isUnifiedDiff(props.entry.text) ? (
+        <Dynamic
+          component={diffComponent}
+          diff={props.entry.text}
+          height={diffBlockHeight(props.entry.text, props.isCompact)}
+          view="unified"
+          fg={openTuiTheme.color.textSoft}
+          syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
+          wrapMode="word"
+          showLineNumbers={!props.isCompact}
+          lineNumberFg={openTuiTheme.color.textFaint}
+          lineNumberBg={role().background}
+          addedBg={openTuiTheme.color.diffAddedBg}
+          removedBg={openTuiTheme.color.diffRemovedBg}
+          contextBg={role().background}
+          addedContentBg={openTuiTheme.color.diffAddedContentBg}
+          removedContentBg={openTuiTheme.color.diffRemovedContentBg}
+          contextContentBg={role().background}
+          addedSignColor={openTuiTheme.color.green}
+          removedSignColor={openTuiTheme.color.red}
+          selectionBg={openTuiTheme.color.selectionBg}
+          selectionFg={openTuiTheme.color.selectionFg}
+        />
+      ) : (
+        <text
+          fg={props.entry.kind === 'system' ? openTuiTheme.color.textSoft : openTuiTheme.color.text}
+          bg={role().background}
+          wrapMode="word"
+          selectionBg={openTuiTheme.color.selectionBg}
+          selectionFg={openTuiTheme.color.selectionFg}
+        >
+          {props.entry.text}
+        </text>
+      )}
+    </box>
+  );
+}
+
+function EmptyTranscriptState(props: { isCompact: boolean }) {
+  return (
+    <box
+      border
+      borderStyle="rounded"
+      borderColor={openTuiTheme.color.lineSoft}
+      backgroundColor={openTuiTheme.color.panelSoft}
+      paddingX={1}
+      paddingY={props.isCompact ? 0 : 1}
+      flexDirection="column"
+      gap={props.isCompact ? 0 : 1}
+    >
+      <text fg={openTuiTheme.color.text}>Session ready</text>
+      <text fg={openTuiTheme.color.textMuted} wrapMode="word">
+        Type a prompt below, or run /diff, /plan show, /undo, or /exit.
+      </text>
+    </box>
+  );
+}
+
+function CommandRail(props: {
+  isCompact: boolean;
+  showStatus: boolean;
+  statusText: string;
+  statusColor: string;
+}) {
+  return (
+    <box
+      border
+      borderStyle="rounded"
+      borderColor={openTuiTheme.color.lineSoft}
+      focusedBorderColor={openTuiTheme.color.lineStrong}
+      backgroundColor={openTuiTheme.color.rail}
+      paddingX={1}
+      paddingY={0}
+      minHeight={3}
+      justifyContent="space-between"
+      flexDirection="row"
+      gap={1}
+    >
+      <box flexDirection="row" gap={1} flexShrink={1}>
+        <For each={commandLabels(props.isCompact)}>
+          {(command) => (
+            <box backgroundColor={openTuiTheme.color.chip} paddingX={1}>
+              <text fg={openTuiTheme.color.textMuted} truncate>
+                {command}
+              </text>
+            </box>
+          )}
+        </For>
+      </box>
+
+      {props.showStatus ? (
+        <text fg={props.statusColor} truncate>
+          {props.statusText}
+        </text>
+      ) : null}
+    </box>
+  );
 }
 
 export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionAppProps) {
   const dimensions = useTerminalDimensions();
+  const [busyFrame, setBusyFrame] = createSignal(0);
 
   useKeyboard((key) => {
     if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
@@ -96,102 +421,144 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     }
   });
 
-  const visibleEntries = () => transcriptEntries(props.entries());
+  createEffect(() => {
+    if (!props.isBusy()) {
+      setBusyFrame(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setBusyFrame((currentFrame) => (currentFrame + 1) % 4);
+    }, 240);
+
+    onCleanup(() => {
+      clearInterval(interval);
+    });
+  });
+
+  const isNarrow = () => dimensions().width < 72;
+  const isCompact = () => dimensions().width < 72 || dimensions().height < 22;
+  const isShort = () => dimensions().height < 22;
+  const showTerminalSize = () => dimensions().width >= 76;
+  const showEntryTime = () => dimensions().width >= 58;
+  const showFooterStatus = () => dimensions().width >= 76 && !isShort();
+  const visibleEntries = () => cappedEntries(props.entries(), maxRenderedEntries);
   const hiddenEntryCount = () => Math.max(0, props.entries().length - visibleEntries().length);
-  const statusText = () => statusLabel(props.statusMessage(), props.isBusy());
-  const statusColor = () => statusToneColor(props.statusMessage(), props.isBusy());
-  const composerTitle = () => (props.isBusy() ? 'Busy' : 'Composer');
-  const composerBorderColor = () => (props.isBusy() ? '#f59e0b' : '#14b8a6');
-  const composerFocusedBorderColor = () => (props.isBusy() ? '#fbbf24' : '#2dd4bf');
-  const placeholder = () => (
+  const resolvedStatusLabel = () => statusLabel(props.statusMessage(), props.isBusy());
+  const resolvedStatusColor = () => statusColor(props.statusMessage(), props.isBusy());
+  const animatedStatus = () => (
     props.isBusy()
-      ? 'Waiting for the current turn to finish...'
-      : 'Type a message and press Enter'
+      ? `${resolvedStatusLabel()}${busySuffix(busyFrame())}`
+      : resolvedStatusLabel()
+  );
+  const composerTitle = () => (props.isBusy() ? 'Busy' : 'Composer');
+  const composerBorderColor = () => (
+    props.isBusy() ? openTuiTheme.color.amberSoft : openTuiTheme.color.tealSoft
+  );
+  const composerFocusedBorderColor = () => (
+    props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal
+  );
+  const placeholder = () => {
+    if (props.isBusy()) {
+      return isNarrow() ? 'Waiting...' : 'Waiting for the current turn to finish...';
+    }
+
+    return isNarrow() ? 'Message + Enter' : 'Type a message and press Enter';
+  };
+  const sessionLabel = () => truncateMiddle(props.sessionId, isNarrow() ? 18 : 32);
+  const transcriptTitle = () => (
+    hiddenEntryCount() > 0
+      ? `Conversation - latest ${visibleEntries().length} of ${props.entries().length}`
+      : 'Conversation'
   );
 
   return (
     <box
       width="100%"
       height="100%"
-      padding={1}
+      padding={isShort() ? 0 : 1}
       flexDirection="column"
-      gap={1}
-      backgroundColor="#020617"
+      gap={isShort() ? 0 : 1}
+      backgroundColor={openTuiTheme.color.canvas}
     >
       <box
         border
         borderStyle="rounded"
-        borderColor="#0f172a"
-        focusedBorderColor="#1e293b"
+        borderColor={openTuiTheme.color.lineSoft}
+        focusedBorderColor={openTuiTheme.color.lineStrong}
+        backgroundColor={openTuiTheme.color.canvasRaised}
         paddingX={1}
         paddingY={0}
+        minHeight={3}
         justifyContent="space-between"
+        flexDirection="row"
+        gap={1}
       >
-        <box gap={2}>
-          <text fg="#e2e8f0">noq</text>
-          <text fg="#38bdf8">{props.sessionId}</text>
-          <text fg={props.mode() === 'plan' ? '#fbbf24' : '#34d399'}>{props.mode().toUpperCase()}</text>
-        </box>
-        <box gap={2}>
-          <text fg={statusColor()}>{statusText()}</text>
-          <text fg="#475569">
-            {dimensions().width}x{dimensions().height}
+        <box flexDirection="row" gap={1} flexShrink={1}>
+          <text fg={openTuiTheme.color.text} truncate>
+            noq
           </text>
+          <text fg={openTuiTheme.color.cyan} truncate maxWidth={isNarrow() ? 18 : 32}>
+            {sessionLabel()}
+          </text>
+          <text fg={modeColor(props.mode())} truncate>
+            [{props.mode().toUpperCase()}]
+          </text>
+        </box>
+
+        <box flexDirection="row" gap={1} flexShrink={0}>
+          <text fg={resolvedStatusColor()} truncate maxWidth={isNarrow() ? 16 : 34}>
+            {animatedStatus()}
+          </text>
+          {showTerminalSize() ? (
+            <text fg={openTuiTheme.color.ghost}>
+              {dimensions().width}x{dimensions().height}
+            </text>
+          ) : null}
         </box>
       </box>
 
       <box
         border
         borderStyle="rounded"
-        borderColor="#1e293b"
-        focusedBorderColor="#334155"
-        title="Conversation"
-        padding={1}
+        borderColor={openTuiTheme.color.line}
+        focusedBorderColor={openTuiTheme.color.lineStrong}
+        title={transcriptTitle()}
+        titleAlignment="center"
+        backgroundColor={openTuiTheme.color.panel}
+        paddingX={1}
+        paddingY={isCompact() ? 0 : 1}
         flexDirection="column"
         flexGrow={1}
-        minHeight={10}
-        backgroundColor="#020817"
+        minHeight={isShort() ? 3 : 8}
       >
-        {hiddenEntryCount() > 0 ? (
-          <text fg="#64748b">
-            Showing latest {visibleEntries().length} messages ({hiddenEntryCount()} earlier hidden)
-          </text>
-        ) : null}
-
-        <scrollbox flexGrow={1} viewportCulling>
+        <scrollbox
+          flexGrow={1}
+          stickyScroll
+          stickyStart="bottom"
+          viewportCulling
+          backgroundColor={openTuiTheme.color.panel}
+          contentOptions={{
+            backgroundColor: openTuiTheme.color.panel,
+          }}
+          viewportOptions={{
+            backgroundColor: openTuiTheme.color.panel,
+          }}
+          scrollbarOptions={{
+            trackOptions: {
+              backgroundColor: openTuiTheme.color.panelRaised,
+              foregroundColor: openTuiTheme.color.tealSoft,
+            },
+          }}
+        >
           <For each={visibleEntries()}>
             {(entry) => (
-              <box
-                flexDirection="column"
-                marginBottom={1}
-                border
-                borderStyle="rounded"
-                borderColor={entry.kind === 'system' ? '#3f3f46' : '#1f2937'}
-                paddingX={1}
-                paddingY={0}
-              >
-                <box justifyContent="space-between">
-                  <text fg={roleColor(entry.kind)}>{roleLabel(entry.kind)}</text>
-                  <text fg="#475569">{entry.kind}</text>
-                </box>
-                <text>{entry.text}</text>
-              </box>
+              <TranscriptEntry entry={entry} showTime={showEntryTime()} isCompact={isCompact()} />
             )}
           </For>
 
           {props.entries().length === 0 ? (
-            <box
-              border
-              borderStyle="rounded"
-              borderColor="#1e293b"
-              padding={1}
-              flexDirection="column"
-              gap={1}
-            >
-              <text fg="#e2e8f0">Conversation started</text>
-              <text fg="#94a3b8">Type a message below, or use /exit to leave the session.</text>
-              <text fg="#64748b">Plan mode can inspect and propose changes. Build mode can execute them.</text>
-            </box>
+            <EmptyTranscriptState isCompact={isCompact()} />
           ) : null}
         </scrollbox>
       </box>
@@ -202,35 +569,42 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         borderColor={composerBorderColor()}
         focusedBorderColor={composerFocusedBorderColor()}
         title={composerTitle()}
+        titleAlignment="left"
+        bottomTitle={props.isBusy() ? 'locked' : 'enter to send'}
+        bottomTitleAlignment="right"
         paddingX={1}
         paddingY={0}
-        backgroundColor="#04101f"
+        backgroundColor={openTuiTheme.color.input}
+        minHeight={3}
+        flexDirection="row"
+        gap={1}
       >
+        <text fg={props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal}>
+          {'>'}
+        </text>
         <input
           value={props.inputValue()}
           placeholder={placeholder()}
           focused={!props.isBusy()}
-          width="100%"
-          textColor="#f8fafc"
+          flexGrow={1}
+          textColor={openTuiTheme.color.text}
+          focusedTextColor={openTuiTheme.color.text}
+          placeholderColor={openTuiTheme.color.textFaint}
           backgroundColor="transparent"
           focusedBackgroundColor="transparent"
+          selectionBg={openTuiTheme.color.selectionBg}
+          selectionFg={openTuiTheme.color.selectionFg}
           onInput={props.onInput}
           onSubmit={props.onSubmit}
         />
       </box>
 
-      <box
-        border
-        borderStyle="rounded"
-        borderColor="#0f172a"
-        focusedBorderColor="#1e293b"
-        paddingX={1}
-        paddingY={0}
-        justifyContent="space-between"
-      >
-        <text fg="#94a3b8">/mode plan | /mode build | /plan show | /diff | /undo | /exit</text>
-        <text fg={statusColor()}>{statusText()}</text>
-      </box>
+      <CommandRail
+        isCompact={isCompact()}
+        showStatus={showFooterStatus()}
+        statusText={animatedStatus()}
+        statusColor={resolvedStatusColor()}
+      />
     </box>
   );
 }

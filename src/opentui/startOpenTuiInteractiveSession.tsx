@@ -21,7 +21,15 @@ function appendEntry(
   kind: OpenTuiSessionEntry['kind'],
   text: string,
 ): OpenTuiSessionEntry[] {
-  return [...entries, { kind, text }];
+  return [
+    ...entries,
+    {
+      id: `entry-${Date.now()}-${entries.length + 1}`,
+      createdAt: new Date().toISOString(),
+      kind,
+      text,
+    },
+  ];
 }
 
 function formatErrorMessage(error: unknown): string {
