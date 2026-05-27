@@ -3,6 +3,7 @@
 import { createSignal } from 'solid-js';
 
 import { render, useRenderer } from '@opentui/solid';
+import { CliRenderEvents } from '@opentui/core';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
 import { onPermissionPromptClosed, onPermissionPromptOpened } from '../permissions/promptEvents';
@@ -81,6 +82,11 @@ export async function startOpenTuiInteractiveSession(
   initialMode: AgentMode,
 ): Promise<void> {
   const renderer = await createOpenTuiRenderer();
+  const waitForDestroy = new Promise<void>((resolve) => {
+    renderer.once(CliRenderEvents.DESTROY, () => {
+      resolve();
+    });
+  });
 
   const [mode, setMode] = createSignal<AgentMode>(initialMode);
   const [entries, setEntries] = createSignal<OpenTuiSessionEntry[]>([]);
@@ -231,6 +237,9 @@ export async function startOpenTuiInteractiveSession(
       ),
       renderer,
     );
+
+    renderer.start();
+    await waitForDestroy;
   } finally {
     unsubscribePermissionOpened();
     unsubscribePermissionClosed();
