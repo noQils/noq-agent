@@ -33,6 +33,7 @@ function getPlanModeInstructions(): string {
   1. what you inspected,
   2. what you would change in build mode,
   3. any key risks or follow-up checks.
+- For straightforward coding requests, prefer a compact mini-spec: inspected context, exact target file, what will be added or changed there, and the most important follow-up check.
 - If the target path does not exist, say that plainly and propose the exact file path you would create in build mode.
 - If the user mentions a directory-like path for a new function or module, infer a sensible file path inside it and state that inference clearly.
 - Keep the plan concise and concrete. Avoid filler, repeated disclaimers, or generic advice.`; 
@@ -48,14 +49,15 @@ function getPlanModeResponseRules(): string {
 - Do not end with "if you want, I can..." option menus. End with the plan itself unless a short clarifying note is truly necessary.
 - Prefer naming the exact file you would create or edit, based on what you inspected.
 - Your final answer in plan mode must be short:
-  either 2 to 4 sentences,
-  or a numbered list with at most 3 items.
+  either 3 to 5 sentences,
+  or a numbered list with at most 4 items.
 - For straightforward coding requests, prefer this exact shape:
   1. one sentence about what you inspected,
   2. one sentence about the exact file you would create or edit,
-  3. one sentence about the implementation or follow-up check.
+  3. one sentence about what you would add or change there,
+  4. one sentence about the main follow-up check if it matters.
 - For simple requests, prefer a short answer in this form:
-  "I inspected X. I would create or edit Y. Then I would 1. ..., 2. ..., 3. ..."`; 
+  "I inspected X. I would create or edit Y. I would add or change Z there. Then I would verify or follow up by ..."`; 
 }
 
 export function getSystemPrompt(mode: AgentMode): string {
