@@ -6,6 +6,7 @@ import { HelpFooter } from './components/HelpFooter';
 import { StatusBar } from './components/StatusBar';
 import { type InteractiveSessionViewModel } from './state';
 import { TranscriptPane } from './components/TranscriptPane';
+import { tuiTheme } from './theme';
 
 interface InteractiveSessionAppProps {
   viewModel: InteractiveSessionViewModel;
@@ -65,14 +66,13 @@ export function InteractiveSessionApp({
   });
 
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column" paddingX={tuiTheme.layout.rootPaddingX}>
       <StatusBar text={viewModel.statusText} />
       <TranscriptPane entries={visibleEntries} emptyStateText={viewModel.emptyStateText} />
       <Composer
         label={viewModel.inputLabel}
         text={viewModel.inputText}
-        borderColor={viewModel.inputBorderColor}
-        labelColor={viewModel.inputLabelColor}
+        tone={viewModel.inputTone}
       />
       <HelpFooter text={viewModel.helpText} />
     </Box>

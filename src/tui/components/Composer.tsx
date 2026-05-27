@@ -1,28 +1,30 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 
+import { tuiTheme } from '../theme';
+
 interface ComposerProps {
   label: string;
   text: string;
-  borderColor: string;
-  labelColor: string;
+  tone: 'idle' | 'busy';
 }
 
 export function Composer({
   label,
   text,
-  borderColor,
-  labelColor,
+  tone,
 }: ComposerProps): React.JSX.Element {
+  const toneTheme = tuiTheme.composer[tone];
+
   return (
     <Box
       borderStyle="round"
-      borderColor={borderColor}
-      paddingX={1}
+      borderColor={toneTheme.borderColor}
+      paddingX={tuiTheme.layout.panelPaddingX}
       flexDirection="column"
-      marginBottom={1}
+      marginBottom={tuiTheme.layout.sectionMarginBottom}
     >
-      <Text color={labelColor}>{label}</Text>
+      <Text color={toneTheme.labelColor}>{label}</Text>
       <Text>{text}</Text>
     </Box>
   );

@@ -6,7 +6,11 @@ import { isAgentMode, type AgentMode } from './agentMode';
 import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
 import { runSessionTurn } from './sessionTurnRunner';
 import { InteractiveSessionApp } from './tui/InteractiveSessionApp';
-import { type SessionEntry, type SessionEntryKind } from './tui/state';
+import {
+  type InteractiveSessionViewModel,
+  type SessionEntry,
+  type SessionEntryKind,
+} from './tui/state';
 
 interface InteractiveSessionState {
   mode: AgentMode;
@@ -58,6 +62,18 @@ function createInitialState(mode: AgentMode): InteractiveSessionState {
   };
 }
 
+function buildViewModel(sessionId: string, state: InteractiveSessionState): InteractiveSessionViewModel {
+  return {
+    statusText: `Session: ${sessionId} | Mode: ${state.mode}`,
+    helpText: '/mode plan | /mode build | /plan show | /diff | /undo | /exit',
+    entries: state.entries,
+    inputLabel: state.isBusy ? 'Working' : 'Message',
+    inputText: state.isBusy ? 'Waiting for the current turn to finish...' : `> ${state.inputValue}`,
+    inputTone: state.isBusy ? 'busy' : 'idle',
+    emptyStateText: 'Conversation started. Type a message or use /exit to leave the session.',
+  };
+}
+
 function renderInteractiveSessionApp(
   instance: Instance,
   sessionId: string,
@@ -68,9 +84,7 @@ function renderInteractiveSessionApp(
 ): void {
   instance.rerender(
     React.createElement(InteractiveSessionApp, {
-      sessionId,
-      mode: state.mode,
-      entries: state.entries,
+      viewModel: buildViewModel(sessionId, state),
       inputValue: state.inputValue,
       isBusy: state.isBusy,
       onInputValueChange,
