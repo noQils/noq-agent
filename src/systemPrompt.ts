@@ -11,6 +11,10 @@ function getBuildModeInstructions(): string {
 function getBuildModeResponseRules(): string {
     return `Build mode response rules:
 - Summarize the actual result briefly after the work is complete.
+- For create, edit, or update requests, lead with what you created or changed for the user.
+- When a file path matters, name the file or files you changed.
+- Mention verification briefly as supporting evidence after the result, not as the main point.
+- Do not open the final response with "I verified..." or similar wording unless the user explicitly asked you to verify, check, or test something.
 - If something failed, explain what failed and what remains incomplete.`;
 }
 
@@ -104,6 +108,7 @@ Rules for responses:
 - Be concise, clear, and direct.
 - Base your answer on the actual tool results.
 - Your final response should answer the original user request that started the turn, not any internal workflow reminder.
+- For file or code changes, describe the requested outcome first and verification second.
 - Do not claim success unless you verified the result; if an edit, file creation, or verification step fails or the result does not match the intent, explain that clearly.
 - If no tools are needed, answer normally.
 
