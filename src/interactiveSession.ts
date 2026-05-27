@@ -1,5 +1,4 @@
 import React from 'react';
-import { render, type Instance } from 'ink';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { isAgentMode, type AgentMode } from './agentMode';
@@ -8,6 +7,7 @@ import { type PermissionRequest } from './permissions/types';
 import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
 import { runSessionTurn } from './sessionTurnRunner';
 import { InteractiveSessionApp } from './tui/InteractiveSessionApp';
+import { createFullscreenRenderer, type FullscreenRendererHandle } from './tui/fullscreenRenderer';
 import {
   type InteractiveSessionViewModel,
   type SessionEntry,
@@ -104,14 +104,14 @@ function buildViewModel(sessionId: string, state: InteractiveSessionState): Inte
 }
 
 function renderInteractiveSessionApp(
-  instance: Instance,
+  renderer: FullscreenRendererHandle,
   sessionId: string,
   state: InteractiveSessionState,
   onInputValueChange: (value: string) => void,
   onSubmit: () => void,
   onExit: () => void,
 ): void {
-  instance.rerender(
+  renderer.rerender(
     React.createElement(InteractiveSessionApp, {
       viewModel: buildViewModel(sessionId, state),
       inputValue: state.inputValue,
@@ -133,36 +133,32 @@ export async function startInteractiveSession(
 
   let state = createInitialState(initialMode);
   let pendingActionResolver: ((action: PendingAction) => void) | null = null;
-  let inkInstance: Instance | null = null;
+  let inkRenderer: FullscreenRendererHandle | null = null;
 
   const mountInkApp = (): void => {
-    if (inkInstance) {
+    if (inkRenderer) {
       return;
     }
 
-    inkInstance = render(React.createElement(React.Fragment), {
-      stdin: input,
-      stdout: output,
-      exitOnCtrlC: false,
-    });
+    inkRenderer = createFullscreenRenderer(React.createElement(React.Fragment));
   };
 
   const unmountInkApp = (): void => {
-    if (!inkInstance) {
+    if (!inkRenderer) {
       return;
     }
 
-    inkInstance.unmount();
-    inkInstance = null;
+    inkRenderer.unmount();
+    inkRenderer = null;
   };
 
   const syncInkApp = (): void => {
-    if (!inkInstance) {
+    if (!inkRenderer) {
       return;
     }
 
     renderInteractiveSessionApp(
-      inkInstance,
+      inkRenderer,
       sessionId,
       state,
       (value) => {
