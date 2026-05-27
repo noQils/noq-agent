@@ -192,6 +192,13 @@ The agent supports persistent local sessions.
 
 Running `noq` starts a new interactive conversation and automatically creates a session id like `session-20260527-114600`. Running `noq "your prompt"` also creates a persistent session automatically, sends that prompt as the first turn, and prints a resume command afterward.
 
+When you start or resume an interactive conversation with `noq` or `noq --session <id>`, the CLI first asks whether to open the session TUI in:
+
+- the current terminal
+- a popup terminal window
+
+Popup terminal launch is currently implemented for Windows and falls back to the current terminal when a popup cannot be opened.
+
 All sessions are stored under `.noq-agent/sessions` in the current workspace and prior turns are replayed as compacted history in future runs.
 
 Session features:
@@ -219,6 +226,8 @@ After building and linking the CLI locally, you can run:
 ```bash
 noq
 ```
+
+That interactive flow will first ask whether you want to use the session TUI in the current terminal or in a popup terminal window.
 
 Start a new session with a first prompt:
 
@@ -249,6 +258,8 @@ Resume a previous conversation:
 ```bash
 noq --session session-20260527-114600
 ```
+
+Resuming a conversation uses the same launch choice flow.
 
 Interactive session commands:
 

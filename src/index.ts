@@ -43,6 +43,12 @@ Examples:
   noq --session session-20260527-114600 --diff
   noq --session session-20260527-114600 --undo
 
+Interactive session startup:
+  Starting or resuming a conversation first asks whether to use:
+  - the current terminal TUI
+  - a popup terminal window
+  Popup window mode currently launches a separate terminal window on Windows.
+
 Interactive session commands:
   /mode plan
   /mode build
