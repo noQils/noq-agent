@@ -45,8 +45,8 @@ Examples:
 
 Interactive session startup:
   Starting or resuming a conversation first asks whether to use:
-  - the current terminal TUI
-  - a popup terminal window
+  - the current terminal Ink TUI
+  - a popup terminal window running the same Ink TUI
   Popup window mode currently launches a separate terminal window on Windows.
 
 Interactive session commands:
