@@ -34,7 +34,9 @@ type WorkflowState = {
     verificationCommandsNeedingRerun: Set<string>;
     commandsRunSinceLastMutation: Set<string>;
     flowRoundCount: number;
+    buildResponseRewriteIssued: boolean;
     planResponseRewriteIssued: boolean;
+    sawSuccessfulMutation: boolean;
     todoReminderIssued: boolean;
 };
 
@@ -76,6 +78,7 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
                     workflowState.verificationCommandsNeedingRerun.add(command);
                 }
                 workflowState.commandsRunSinceLastMutation.clear();
+                workflowState.sawSuccessfulMutation = true;
                 turnState.mutatedFiles.add(filePath);
                 turnState.failedMutationCounts.delete(filePath);
             } else if (call.failureKind !== 'permission_denied' && call.failureKind !== 'mode_denied') {
@@ -241,12 +244,57 @@ function shouldRewritePlanModeResponse(mode: AgentMode, responseText: string, re
         || /example usage/i.test(responseText);
 }
 
+function isMutationStyleUserRequest(userPrompt: string): boolean {
+    return /\b(create|add|make|write|implement|update|edit|modify|change|fix|refactor|rename|remove|delete)\b/i.test(userPrompt);
+}
+
+function isVerificationFocusedUserRequest(userPrompt: string): boolean {
+    return /\b(verify|verification|check|confirm|test|validate)\b/i.test(userPrompt);
+}
+
+function isVerificationCenteredResponse(responseText: string): boolean {
+    const trimmed = responseText.trim().toLowerCase();
+    return /^i (verified|checked|confirmed)\b/.test(trimmed)
+        || /^verified\b/.test(trimmed)
+        || /^verification (is )?complete\b/.test(trimmed);
+}
+
 function buildPlanModeRewriteMessage(): string {
     return buildWorkflowReminder(
         'Rewrite your previous answer for plan mode. ' +
         'Keep it to 2 to 4 sentences or a numbered list with at most 3 items. ' +
         'Do not include code fences, sample implementations, usage examples, or "if you want, I can" menus. ' +
         'Base the answer on what you inspected, name the exact file or path you would create or edit in build mode, and keep the answer practical.'
+    );
+}
+
+function shouldRewriteBuildResponse(
+    mode: AgentMode,
+    userPrompt: string,
+    responseText: string,
+    workflowState: WorkflowState,
+): boolean {
+    if (mode !== 'build' || workflowState.buildResponseRewriteIssued) {
+        return false;
+    }
+
+    if (!workflowState.sawSuccessfulMutation || workflowState.mutatedFilesNeedingVerification.size > 0) {
+        return false;
+    }
+
+    if (!isMutationStyleUserRequest(userPrompt) || isVerificationFocusedUserRequest(userPrompt)) {
+        return false;
+    }
+
+    return isVerificationCenteredResponse(responseText);
+}
+
+function buildBuildResponseRewriteMessage(): string {
+    return buildWorkflowReminder(
+        'Rewrite your previous answer for build mode. ' +
+        'The requested change is already complete and verified. ' +
+        'Answer the original user request directly, lead with what you created or changed, name the relevant file when helpful, and mention verification only briefly as confirmation. ' +
+        'Do not call more tools.'
     );
 }
 
@@ -334,7 +382,9 @@ export async function runAgentTurn(
         verificationCommandsNeedingRerun: new Set(),
         commandsRunSinceLastMutation: new Set(),
         flowRoundCount: 0,
+        buildResponseRewriteIssued: false,
         planResponseRewriteIssued: false,
+        sawSuccessfulMutation: false,
         todoReminderIssued: false,
     }
     
@@ -436,6 +486,15 @@ export async function runAgentTurn(
         }
 
         if (allMutationsVerified && response.text?.trim()) {
+            if (shouldRewriteBuildResponse(mode, userPrompt, response.text, workflowState)) {
+                workflowState.buildResponseRewriteIssued = true;
+                messages.push({
+                    role: 'user' as const,
+                    content: buildBuildResponseRewriteMessage(),
+                });
+                continue;
+            }
+
             if (shouldRewritePlanModeResponse(mode, response.text, workflowState.planResponseRewriteIssued)) {
                 workflowState.planResponseRewriteIssued = true;
                 messages.push({
