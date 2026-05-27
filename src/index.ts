@@ -47,6 +47,7 @@ Interactive session startup:
   Starting or resuming a conversation first asks whether to use:
   - the current terminal Ink TUI
   - a popup terminal window running the same Ink TUI
+  The Ink TUI runs in the terminal's alternate screen buffer, so it takes over the terminal window while active and restores the previous shell screen on exit.
   Popup window mode currently launches a separate terminal window on Windows.
 
 Interactive session commands:

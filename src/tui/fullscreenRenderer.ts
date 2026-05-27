@@ -1,8 +1,12 @@
 import React from 'react';
-import { withFullScreen } from 'fullscreen-ink';
 import { stdin as input, stdout as output } from 'node:process';
 
-import { type Instance } from 'ink';
+import { render, type Instance } from 'ink';
+
+const ENTER_ALTERNATE_SCREEN = '\u001B[?1049h';
+const EXIT_ALTERNATE_SCREEN = '\u001B[?1049l';
+const CLEAR_SCREEN = '\u001B[2J';
+const CURSOR_HOME = '\u001B[H';
 
 export interface FullscreenRendererHandle {
   instance: Instance;
@@ -13,21 +17,34 @@ export interface FullscreenRendererHandle {
 export function createFullscreenRenderer(
   tree: React.ReactElement,
 ): FullscreenRendererHandle {
-  const fullscreenApp = withFullScreen(tree, {
+  output.write(ENTER_ALTERNATE_SCREEN);
+  output.write(CLEAR_SCREEN);
+  output.write(CURSOR_HOME);
+
+  const instance = render(tree, {
     stdin: input,
     stdout: output,
     exitOnCtrlC: false,
   });
-
-  fullscreenApp.start();
+  let isUnmounted = false;
 
   return {
-    instance: fullscreenApp.instance,
+    instance,
     rerender(nextTree) {
-      fullscreenApp.instance.rerender(nextTree);
+      if (isUnmounted) {
+        return;
+      }
+
+      instance.rerender(nextTree);
     },
     unmount() {
-      fullscreenApp.instance.unmount();
+      if (isUnmounted) {
+        return;
+      }
+
+      isUnmounted = true;
+      instance.unmount();
+      output.write(EXIT_ALTERNATE_SCREEN);
     },
   };
 }
