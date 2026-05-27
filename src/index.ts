@@ -2,8 +2,8 @@
 import { isAgentMode, type AgentMode } from './agentMode';
 import { getConfig } from './config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';
-import { beginSessionChangeTracking, finishSessionChangeTracking, resetSessionChangeTracking } from './sessionChangeTracker';
-import { appendSessionTurn, buildSessionHistoryMessages, getLatestSessionDiff, loadOrCreateSession, undoLastSessionSnapshot } from './sessionStore';
+import { getLatestSessionDiff, undoLastSessionSnapshot } from './sessionStore';
+import { runSessionTurn } from './sessionTurnRunner';
 import { runAgentTurn } from './workflow';
 
 function printHelp() {
@@ -175,31 +175,7 @@ async function main() {
       return;
     }
 
-    const session = loadOrCreateSession(sessionId);
-    const historyMessages = buildSessionHistoryMessages(session);
-
-    beginSessionChangeTracking();
-    let response: string;
-
-    try {
-      response = await runAgentTurn(userPrompt, mode, { historyMessages });
-    } catch (error) {
-      resetSessionChangeTracking();
-      throw error;
-    }
-
-    const fileChanges = finishSessionChangeTracking();
-    appendSessionTurn(
-      sessionId,
-      {
-        timestamp: new Date().toISOString(),
-        mode,
-        userPrompt,
-        response,
-      },
-      fileChanges,
-    );
-
+    const { response } = await runSessionTurn(sessionId, userPrompt, mode);
     console.log(response);
   } finally {
     resetPermissionApprovalState();
