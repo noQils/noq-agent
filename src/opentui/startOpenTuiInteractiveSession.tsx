@@ -5,6 +5,8 @@ import { createSignal } from 'solid-js';
 import { render, useRenderer } from '@opentui/solid';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
+import { onPermissionPromptClosed, onPermissionPromptOpened } from '../permissions/promptEvents';
+import { type PermissionRequest } from '../permissions/types';
 import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
 import { type SessionEntry } from '../tui/state';
@@ -17,6 +19,11 @@ function appendEntry(entries: SessionEntry[], kind: SessionEntry['kind'], text: 
 
 function formatErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function formatPermissionSummary(request: PermissionRequest): string {
+  const target = request.target || '(no target)';
+  return `${request.toolName} on ${target}`;
 }
 
 function printSessionContinuationHint(sessionId: string): void {
@@ -77,6 +84,7 @@ export async function startOpenTuiInteractiveSession(
 
   let shouldPrintHint = false;
   let isDestroyed = false;
+  let isSuspendedForPermission = false;
 
   const exitSession = (): void => {
     shouldPrintHint = true;
@@ -174,6 +182,30 @@ export async function startOpenTuiInteractiveSession(
     }
   };
 
+  const unsubscribePermissionOpened = onPermissionPromptOpened(({ request }) => {
+    setIsBusy(true);
+    setStatusMessage(`Awaiting approval for ${formatPermissionSummary(request)}...`);
+
+    if (!isSuspendedForPermission) {
+      renderer.suspend();
+      isSuspendedForPermission = true;
+    }
+  });
+
+  const unsubscribePermissionClosed = onPermissionPromptClosed(() => {
+    if (isSuspendedForPermission) {
+      renderer.resume();
+      renderer.requestRender();
+      isSuspendedForPermission = false;
+    }
+
+    if (isBusy()) {
+      setStatusMessage('Resuming turn...');
+    } else {
+      setStatusMessage(null);
+    }
+  });
+
   try {
     await render(
       () => (
@@ -194,6 +226,14 @@ export async function startOpenTuiInteractiveSession(
       renderer,
     );
   } finally {
+    unsubscribePermissionOpened();
+    unsubscribePermissionClosed();
+
+    if (isSuspendedForPermission) {
+      renderer.resume();
+      isSuspendedForPermission = false;
+    }
+
     if (!isDestroyed) {
       renderer.destroy();
     }
