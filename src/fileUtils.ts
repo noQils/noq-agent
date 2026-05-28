@@ -62,7 +62,7 @@ export function getProjectFilePaths(dirPath = '.'): string[] {
   const ignoredDirectories = new Set([
     'node_modules',
     '.git',
-    '.noq-agent',
+    '.noq',
     'dist',
     'build',
   ]);

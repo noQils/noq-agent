@@ -5,7 +5,7 @@ import path from 'node:path';
 import dotenv from 'dotenv';
 
 const workspaceEnvFileNames = [
-  path.join('.noq-agent', '.env'),
+  path.join('.noq', '.env'),
   'noq-agent.env',
 ];
 
@@ -29,7 +29,7 @@ export function getNoqHomeDirectory(): string {
     return path.resolve(override);
   }
 
-  return path.join(os.homedir(), '.noq-agent');
+  return path.join(os.homedir(), '.noq');
 }
 
 function getCandidateEnvFiles(): string[] {
@@ -85,7 +85,7 @@ export function getRequiredRuntimeEnvVar(name: string, label?: string): string {
     throw new Error(
       `${label ?? name} is not configured. ` +
       `Set it in your shell environment, ${path.join(getNoqHomeDirectory(), '.env')}, ` +
-      `or a workspace file like .noq-agent/.env.`,
+      `or a workspace file like .noq/.env.`,
     );
   }
 

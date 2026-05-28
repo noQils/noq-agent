@@ -10,7 +10,7 @@ import { buildSessionFileDiff } from './sessionDiff';
 import { type SessionFileChange } from './sessionChangeTracker';
 
 const sessionIdPattern = /^[A-Za-z0-9._-]+$/;
-const sessionsRootDirectory = '.noq-agent/sessions';
+const sessionsRootDirectory = '.noq/sessions';
 const maxVerbatimTurns = 6;
 const maxCompactedTurns = 12;
 const permissionScopes: PermissionScope[] = [

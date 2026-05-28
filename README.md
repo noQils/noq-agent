@@ -200,7 +200,7 @@ When you start or resume an interactive conversation with `noq` or `noq --sessio
 The interactive session UI is now rendered with OpenTUI. Popup terminal launch is currently implemented for Windows and falls back to the current terminal when a popup cannot be opened.
 The TUI uses the terminal's alternate screen buffer, so it behaves like a full-screen terminal app while active and restores your previous shell screen when you exit.
 
-All sessions are stored under `.noq-agent/sessions` in the current workspace and prior turns are replayed as compacted history in future runs.
+All sessions are stored under `.noq/sessions` in the current workspace and prior turns are replayed as compacted history in future runs.
 
 Session features:
 
@@ -320,8 +320,8 @@ npm install
 You can provide them in any of these places:
 
 - shell environment variables
-- `~/.noq-agent/.env` for user-wide defaults
-- `.noq-agent/.env` inside a workspace for project-specific overrides
+- `~/.noq/.env` for user-wide defaults
+- `.noq/.env` inside a workspace for project-specific overrides
 - `noq-agent.env` in the workspace root as an alternative local env file
 - the repo-local `.env` when you are running `noq-agent` from inside this repo during development
 
