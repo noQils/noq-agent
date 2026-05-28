@@ -4,10 +4,11 @@ import { type AgentMode } from '../agentMode';
 
 export type OpenTuiEntryRole = 'user' | 'assistant' | 'system';
 export type OpenTuiStatusTone = 'ready' | 'busy' | 'success' | 'warning' | 'danger';
+export const canvasColor = '#1f2126';
 
 export const openTuiTheme = {
   color: {
-    canvas: '#1f2126',
+    canvas: canvasColor,
     panelRaised: '#292c33',
     rail: '#181a1f',
     line: '#3a3f49',
@@ -37,22 +38,22 @@ export const openTuiTheme = {
     user: {
       label: 'You',
       accent: '#60c5ff',
-      border: '#3f7fa3',
+      border: '#2dd4bf',
       background: '#242d35',
       title: 'Prompt',
     },
     assistant: {
       label: 'Agent',
       accent: '#7ad1c3',
-      border: '#1f2126',
-      background: '#1f2126',
+      border: canvasColor,
+      background: canvasColor,
       title: 'Response',
     },
     system: {
       label: 'System',
       accent: '#f6c768',
       border: '#967342',
-      background: '#1f2126',
+      background: canvasColor,
       title: 'Notice',
     },
   },

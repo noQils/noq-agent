@@ -1,3 +1,6 @@
+import { canvasColor } from './openTuiTheme';
+
+
 const OSC = '\x1b]';
 const BEL = '\x07';
 
@@ -10,7 +13,7 @@ function writeTerminalControl(sequence: string): void {
 }
 
 export function applyOpenTuiTerminalBackground(): void {
-  writeTerminalControl(`${OSC}11;#1f2126${BEL}`);
+  writeTerminalControl(`${OSC}11;${canvasColor}${BEL}`);
 }
 
 export function resetOpenTuiTerminalBackground(): void {
