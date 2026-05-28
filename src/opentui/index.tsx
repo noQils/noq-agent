@@ -23,7 +23,7 @@ function resolveMode(rawMode: string | null): AgentMode {
 }
 
 async function main(): Promise<void> {
-  const sessionId = getArgumentValue('--session') ?? 'opentui-preview';
+  const sessionId = getArgumentValue('--session') ?? undefined;
   const mode = resolveMode(getArgumentValue('--mode'));
   await startOpenTuiInteractiveSession(sessionId, mode, {
     restoreStoredMode: hasFlag('--restore-mode'),

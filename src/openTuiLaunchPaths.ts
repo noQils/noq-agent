@@ -6,6 +6,7 @@ import { type AgentMode } from './agentMode';
 
 export interface OpenTuiLaunchOptions {
   restoreStoredMode?: boolean;
+  sessionId?: string;
 }
 
 const requireFromCurrentFile = createRequire(__filename);
@@ -47,7 +48,7 @@ function getOpenTuiSolidPreload(): string {
 }
 
 export function buildOpenTuiBunArgs(
-  sessionId: string,
+  sessionId: string | undefined,
   mode: AgentMode,
   options?: OpenTuiLaunchOptions,
 ): string[] {
@@ -56,11 +57,14 @@ export function buildOpenTuiBunArgs(
     '--preload',
     getOpenTuiSolidPreload(),
     getOpenTuiEntrypoint(),
-    '--session',
-    sessionId,
     '--mode',
     mode,
   ];
+
+  const resolvedSessionId = options?.sessionId ?? sessionId;
+  if (resolvedSessionId) {
+    args.push('--session', resolvedSessionId);
+  }
 
   if (options?.restoreStoredMode) {
     args.push('--restore-mode');

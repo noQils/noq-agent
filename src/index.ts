@@ -240,17 +240,19 @@ async function main() {
 
   try {
     if (userPrompt.length === 0) {
-      const activeSessionId = sessionId ?? createSessionWithGeneratedId().id;
-      loadOrCreateSession(activeSessionId);
+      const activeSessionId = sessionId;
+      if (activeSessionId) {
+        loadOrCreateSession(activeSessionId);
+      }
       setPermissionApprovalSession(activeSessionId);
 
       if (!directTui) {
         const launchMode = await selectInteractiveLaunchMode();
         if (launchMode === 'popup') {
           const launchResult = launchSessionWindow({
-            sessionId: activeSessionId,
             mode,
             restoreStoredMode: !modeExplicit,
+            ...(activeSessionId ? { sessionId: activeSessionId } : {}),
           });
 
           if (launchResult.launched) {

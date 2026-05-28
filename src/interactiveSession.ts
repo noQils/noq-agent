@@ -7,7 +7,7 @@ import { buildOpenTuiBunArgs, type OpenTuiLaunchOptions } from './openTuiLaunchP
 export type InteractiveSessionOptions = OpenTuiLaunchOptions;
 
 export async function startInteractiveSession(
-  sessionId: string,
+  sessionId: string | undefined,
   initialMode: AgentMode,
   options?: InteractiveSessionOptions,
 ): Promise<void> {

@@ -15,6 +15,7 @@ import {
 import { type PermissionRequest } from '../permissions/types';
 import {
   formatLatestSessionPlan,
+  generateUniqueSessionId,
   getLatestSessionDiff,
   loadSessionTuiState,
   saveSessionTuiEntries,
@@ -83,6 +84,10 @@ function printSessionContinuationHint(sessionId: string): void {
 `
   );
   console.log(`To continue this conversation use: noq --session ${sessionId}`);
+}
+
+function formatDraftCommandMessage(commandLabel: string): string {
+  return `No session history exists yet. Send a prompt first, then ${commandLabel} will be available.`;
 }
 
 function printModeChange(mode: AgentMode): string {
@@ -175,15 +180,19 @@ function SessionRoot(props: {
 }
 
 export async function startOpenTuiInteractiveSession(
-  sessionId: string,
+  sessionId: string | undefined,
   initialMode: AgentMode,
   options?: StartOpenTuiInteractiveSessionOptions,
 ): Promise<void> {
-  const initialTuiState = loadSessionTuiState(sessionId);
+  const initialTuiState = sessionId
+    ? loadSessionTuiState(sessionId)
+    : { mode: null, entries: [] };
   const resolvedInitialMode = options?.restoreStoredMode && initialTuiState.mode
     ? initialTuiState.mode
     : initialMode;
-  saveSessionTuiMode(sessionId, resolvedInitialMode);
+  if (sessionId) {
+    saveSessionTuiMode(sessionId, resolvedInitialMode);
+  }
 
   const renderer = await createOpenTuiRenderer();
   const waitForDestroy = new Promise<void>((resolve) => {
@@ -198,6 +207,7 @@ export async function startOpenTuiInteractiveSession(
   const [isBusy, setIsBusy] = createSignal(false);
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
   const [permissionRequest, setPermissionRequest] = createSignal<PermissionRequest | null>(null);
+  const [activeSessionId, setActiveSessionId] = createSignal<string | null>(sessionId ?? null);
 
   let shouldPrintHint = false;
   let isDestroyed = false;
@@ -209,12 +219,32 @@ export async function startOpenTuiInteractiveSession(
   ): void => {
     const nextEntries = appendEntry(entries(), kind, text);
     setEntries(nextEntries);
-    saveSessionTuiEntries(sessionId, nextEntries);
+    const resolvedSessionId = activeSessionId();
+    if (resolvedSessionId) {
+      saveSessionTuiEntries(resolvedSessionId, nextEntries);
+    }
   };
 
   const setActiveMode = (nextMode: AgentMode): void => {
     setMode(nextMode);
-    saveSessionTuiMode(sessionId, nextMode);
+    const resolvedSessionId = activeSessionId();
+    if (resolvedSessionId) {
+      saveSessionTuiMode(resolvedSessionId, nextMode);
+    }
+  };
+
+  const ensureActiveSessionId = (): string => {
+    const existingSessionId = activeSessionId();
+    if (existingSessionId) {
+      return existingSessionId;
+    }
+
+    const nextSessionId = generateUniqueSessionId();
+    setActiveSessionId(nextSessionId);
+    setPermissionApprovalSession(nextSessionId);
+    saveSessionTuiMode(nextSessionId, mode());
+
+    return nextSessionId;
   };
 
   const resolveActivePermissionPrompt = (
@@ -239,7 +269,7 @@ export async function startOpenTuiInteractiveSession(
   };
 
   const exitSession = (): void => {
-    shouldPrintHint = true;
+    shouldPrintHint = activeSessionId() !== null;
     if (isDestroyed) {
       return;
     }
@@ -249,7 +279,7 @@ export async function startOpenTuiInteractiveSession(
   };
 
   resetPermissionApprovalState();
-  setPermissionApprovalSession(sessionId);
+  setPermissionApprovalSession(activeSessionId() ?? undefined);
   setPermissionPromptHandler((request) => {
     if (resolvePermissionPrompt) {
       resolveActivePermissionPrompt('deny', false);
@@ -278,8 +308,12 @@ export async function startOpenTuiInteractiveSession(
         return true;
 
       case 'diff':
+        if (!activeSessionId()) {
+          appendTranscriptEntry('system', formatDraftCommandMessage('/diff'));
+          return true;
+        }
         try {
-          const result = getLatestSessionDiff(sessionId);
+          const result = getLatestSessionDiff(activeSessionId()!);
           appendTranscriptEntry('system', result);
         } catch (error) {
           appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
@@ -287,8 +321,12 @@ export async function startOpenTuiInteractiveSession(
         return true;
 
       case 'undo':
+        if (!activeSessionId()) {
+          appendTranscriptEntry('system', formatDraftCommandMessage('/undo'));
+          return true;
+        }
         try {
-          const result = undoLastSessionSnapshot(sessionId);
+          const result = undoLastSessionSnapshot(activeSessionId()!);
           appendTranscriptEntry('system', result);
         } catch (error) {
           appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
@@ -296,8 +334,12 @@ export async function startOpenTuiInteractiveSession(
         return true;
 
       case 'plan_show':
+        if (!activeSessionId()) {
+          appendTranscriptEntry('system', formatDraftCommandMessage('/plan show'));
+          return true;
+        }
         try {
-          const result = formatLatestSessionPlan(sessionId);
+          const result = formatLatestSessionPlan(activeSessionId()!);
           appendTranscriptEntry('system', result);
         } catch (error) {
           appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
@@ -360,7 +402,8 @@ export async function startOpenTuiInteractiveSession(
     setStatusMessage('Running turn...');
 
     try {
-      const { response } = await runSessionTurn(sessionId, rawInput, mode(), {
+      const resolvedSessionId = ensureActiveSessionId();
+      const { response } = await runSessionTurn(resolvedSessionId, rawInput, mode(), {
         onMutation: (event) => {
           appendTranscriptEntry('system', event.diff);
           renderer.requestRender();
@@ -382,7 +425,7 @@ export async function startOpenTuiInteractiveSession(
     await render(
       () => (
         <SessionRoot
-          sessionId={sessionId}
+          sessionId={activeSessionId() ?? 'new session'}
           mode={mode}
           entries={entries}
           inputValue={inputValue}
@@ -417,7 +460,8 @@ export async function startOpenTuiInteractiveSession(
     resetOpenTuiTerminalBackground();
   }
 
-  if (shouldPrintHint) {
-    printSessionContinuationHint(sessionId);
+  const resolvedSessionId = activeSessionId();
+  if (shouldPrintHint && resolvedSessionId) {
+    printSessionContinuationHint(resolvedSessionId);
   }
 }

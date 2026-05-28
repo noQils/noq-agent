@@ -4,7 +4,7 @@ import { type AgentMode } from './agentMode';
 import { buildOpenTuiBunArgs } from './openTuiLaunchPaths';
 
 export interface LaunchSessionWindowOptions {
-  sessionId: string;
+  sessionId?: string;
   mode: AgentMode;
   restoreStoredMode?: boolean;
   cwd?: string;
@@ -19,12 +19,15 @@ function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
   return buildOpenTuiBunArgs(
     options.sessionId,
     options.mode,
-    options.restoreStoredMode ? { restoreStoredMode: true } : undefined,
+    {
+      ...(options.restoreStoredMode ? { restoreStoredMode: true } : {}),
+      ...(options.sessionId ? { sessionId: options.sessionId } : {}),
+    },
   );
 }
 
-function formatWindowsTerminalTitle(sessionId: string): string {
-  return `noq /// ${sessionId}`;
+function formatWindowsTerminalTitle(sessionId?: string): string {
+  return sessionId ? `noq /// ${sessionId}` : 'noq /// new session';
 }
 
 function escapePowerShellSingleQuotedValue(value: string): string {
