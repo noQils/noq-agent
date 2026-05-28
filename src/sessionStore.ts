@@ -440,6 +440,16 @@ export function loadOrCreateSession(sessionId: string): AgentSession {
   return session;
 }
 
+export function loadExistingSession(sessionId: string): AgentSession {
+  assertValidSessionId(sessionId);
+  const existingSession = loadSessionFile(sessionId);
+  if (!existingSession) {
+    throw new Error(`Session not found: ${sessionId}`);
+  }
+
+  return existingSession;
+}
+
 export function generateUniqueSessionId(now: Date = new Date()): string {
   const baseSessionId = `session-${formatSessionTimestamp(now)}`;
   let sessionId = baseSessionId;

@@ -8,7 +8,7 @@ import { resetPermissionApprovalState, setPermissionApprovalSession } from './pe
 import {
   createSessionWithGeneratedId,
   getLatestSessionDiff,
-  loadOrCreateSession,
+  loadExistingSession,
   undoLastSessionSnapshot,
 } from './sessionStore';
 import { startInteractiveSession } from './interactiveSession';
@@ -224,6 +224,10 @@ async function main() {
     throw new Error(`--${action} requires --session <id>.`);
   }
 
+  if (sessionId) {
+    loadExistingSession(sessionId);
+  }
+
   if (action !== 'chat') {
     if (userPrompt.length > 0) {
       throw new Error(`--${action} does not accept a prompt.`);
@@ -241,9 +245,6 @@ async function main() {
   try {
     if (userPrompt.length === 0) {
       const activeSessionId = sessionId;
-      if (activeSessionId) {
-        loadOrCreateSession(activeSessionId);
-      }
       setPermissionApprovalSession(activeSessionId);
 
       if (!directTui) {

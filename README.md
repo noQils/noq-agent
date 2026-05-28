@@ -192,7 +192,7 @@ The agent supports persistent local sessions.
 
 Running `noq` starts a new interactive conversation and automatically creates a session id like `session-20260527-114600`. Running `noq "your prompt"` also creates a persistent session automatically, sends that prompt as the first turn, and prints a resume command afterward.
 
-When you start or resume an interactive conversation with `noq` or `noq --session <id>`, the CLI first asks whether to open the session TUI in:
+When you start a new interactive conversation with `noq`, or resume an existing conversation with `noq --session <id>`, the CLI first asks whether to open the session TUI in:
 
 - the current terminal
 - a popup terminal window
@@ -206,6 +206,7 @@ Session features:
 
 - persistent turn history
 - auto-generated session ids for new conversations
+- resuming existing sessions via `--session <id>`
 - latest snapshot diff via `--diff`
 - undo last agent-generated snapshot via `--undo`
 - tracking of agent-made file changes from edit tools and workspace changes caused by `run_command`
@@ -259,6 +260,8 @@ Resume a previous conversation:
 ```bash
 noq --session session-20260527-114600
 ```
+
+`--session <id>` only resumes an existing session. If the id is invalid or does not match a saved session, `noq` prints an error instead of creating a new one.
 
 Resuming a conversation uses the same launch choice flow and the same OpenTUI behavior.
 
