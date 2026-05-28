@@ -5,6 +5,6 @@
     "jsxImportSource": "@opentui/solid",
     "noEmit": true
   },
-  "include": ["src/opentui/**/*.ts", "src/opentui/**/*.tsx"],
+  "include": ["src/opentui/**/*.ts", "src/opentui/**/*.tsx", "src/opentui/**/*.d.ts"],
   "exclude": []
 }
