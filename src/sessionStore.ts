@@ -13,6 +13,16 @@ const sessionIdPattern = /^[A-Za-z0-9._-]+$/;
 const sessionsRootDirectory = '.noq-agent/sessions';
 const maxVerbatimTurns = 6;
 const maxCompactedTurns = 12;
+const permissionScopes: PermissionScope[] = [
+  'todo',
+  'read',
+  'edit',
+  'list',
+  'glob',
+  'grep',
+  'bash',
+  'external_directory',
+];
 
 export interface SessionTurn {
   timestamp: string;
@@ -108,6 +118,147 @@ function isTranscriptEntryKind(value: unknown): value is SessionTranscriptEntryK
   return value === 'user' || value === 'assistant' || value === 'system';
 }
 
+function isPermissionScope(value: unknown): value is PermissionScope {
+  return typeof value === 'string' && permissionScopes.includes(value as PermissionScope);
+}
+
+function readStoredString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function readStoredTimestamp(value: unknown): string {
+  return typeof value === 'string' && value.length > 0
+    ? value
+    : createTimestamp();
+}
+
+function normalizeStringArray(values: unknown): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values.filter((value): value is string => typeof value === 'string');
+}
+
+function normalizeSessionTurns(turns: unknown): SessionTurn[] {
+  if (!Array.isArray(turns)) {
+    return [];
+  }
+
+  return turns.flatMap((turn) => {
+    if (!isRecord(turn)) {
+      return [];
+    }
+
+    const userPrompt = readStoredString(turn.userPrompt);
+    const response = readStoredString(turn.response);
+    if (userPrompt.length === 0 && response.length === 0) {
+      return [];
+    }
+
+    return [{
+      timestamp: readStoredTimestamp(turn.timestamp),
+      mode: typeof turn.mode === 'string' && isAgentMode(turn.mode) ? turn.mode : 'build',
+      userPrompt,
+      response,
+    }];
+  });
+}
+
+function normalizeSessionFileChanges(fileChanges: unknown): SessionFileChange[] {
+  if (!Array.isArray(fileChanges)) {
+    return [];
+  }
+
+  return fileChanges.flatMap((change) => {
+    if (
+      !isRecord(change)
+      || typeof change.filePath !== 'string'
+      || change.filePath.length === 0
+      || typeof change.existedBefore !== 'boolean'
+      || typeof change.existedAfter !== 'boolean'
+    ) {
+      return [];
+    }
+
+    const normalizedChange: SessionFileChange = {
+      filePath: change.filePath,
+      existedBefore: change.existedBefore,
+      existedAfter: change.existedAfter,
+    };
+
+    if (typeof change.beforeContent === 'string') {
+      normalizedChange.beforeContent = change.beforeContent;
+    }
+
+    if (typeof change.afterContent === 'string') {
+      normalizedChange.afterContent = change.afterContent;
+    }
+
+    return [normalizedChange];
+  });
+}
+
+function normalizeSessionSnapshots(snapshots: unknown): SessionSnapshot[] {
+  if (!Array.isArray(snapshots)) {
+    return [];
+  }
+
+  return snapshots.flatMap((snapshot, index) => {
+    if (!isRecord(snapshot)) {
+      return [];
+    }
+
+    return [{
+      id: typeof snapshot.id === 'string' && snapshot.id.length > 0
+        ? snapshot.id
+        : `snapshot-${index + 1}`,
+      createdAt: readStoredTimestamp(snapshot.createdAt),
+      mode: typeof snapshot.mode === 'string' && isAgentMode(snapshot.mode) ? snapshot.mode : 'build',
+      userPrompt: readStoredString(snapshot.userPrompt),
+      response: readStoredString(snapshot.response),
+      fileChanges: normalizeSessionFileChanges(snapshot.fileChanges),
+      diff: readStoredString(snapshot.diff),
+    }];
+  });
+}
+
+function normalizePermissionApprovals(approvals: unknown): SessionPermissionApproval[] {
+  if (!Array.isArray(approvals)) {
+    return [];
+  }
+
+  return approvals.flatMap((approval) => {
+    if (
+      !isRecord(approval)
+      || !isPermissionScope(approval.scope)
+      || typeof approval.targetPattern !== 'string'
+    ) {
+      return [];
+    }
+
+    return [{
+      createdAt: readStoredTimestamp(approval.createdAt),
+      scope: approval.scope,
+      targetPattern: approval.targetPattern,
+    }];
+  });
+}
+
+function normalizeSessionPlanArtifact(artifact: unknown): SessionPlanArtifact | null {
+  if (!isRecord(artifact)) {
+    return null;
+  }
+
+  return {
+    createdAt: readStoredTimestamp(artifact.createdAt),
+    userPrompt: readStoredString(artifact.userPrompt),
+    response: readStoredString(artifact.response),
+    referencedPaths: normalizeStringArray(artifact.referencedPaths),
+    proposedPaths: normalizeStringArray(artifact.proposedPaths),
+  };
+}
+
 function normalizeTranscriptEntries(entries: unknown): SessionTranscriptEntry[] {
   if (!Array.isArray(entries)) {
     return [];
@@ -123,9 +274,7 @@ function normalizeTranscriptEntries(entries: unknown): SessionTranscriptEntry[] 
       id: typeof entry.id === 'string' && entry.id.length > 0
         ? entry.id
         : createEntryId('entry', index, entry.kind),
-      createdAt: typeof entry.createdAt === 'string' && entry.createdAt.length > 0
-        ? entry.createdAt
-        : createTimestamp(),
+      createdAt: readStoredTimestamp(entry.createdAt),
       kind: entry.kind,
       text,
     }];
@@ -239,16 +388,27 @@ function loadSessionFile(sessionId: string): AgentSession | null {
     return null;
   }
 
-  const session = JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8')) as Partial<AgentSession>;
+  let parsedSession: unknown;
+  try {
+    parsedSession = JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8'));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Session file "${sessionFilePath}" is not valid JSON: ${message}`);
+  }
+
+  const session = isRecord(parsedSession) ? parsedSession : {};
+  const createdAt = readStoredTimestamp(session.createdAt);
 
   return {
-    id: session.id ?? sessionId,
-    createdAt: session.createdAt ?? createTimestamp(),
-    updatedAt: session.updatedAt ?? session.createdAt ?? createTimestamp(),
-    turns: Array.isArray(session.turns) ? session.turns : [],
-    snapshots: Array.isArray(session.snapshots) ? session.snapshots : [],
-    permissionApprovals: Array.isArray(session.permissionApprovals) ? session.permissionApprovals : [],
-    latestPlanArtifact: session.latestPlanArtifact ?? null,
+    id: typeof session.id === 'string' && session.id.length > 0 ? session.id : sessionId,
+    createdAt,
+    updatedAt: typeof session.updatedAt === 'string' && session.updatedAt.length > 0
+      ? session.updatedAt
+      : createdAt,
+    turns: normalizeSessionTurns(session.turns),
+    snapshots: normalizeSessionSnapshots(session.snapshots),
+    permissionApprovals: normalizePermissionApprovals(session.permissionApprovals),
+    latestPlanArtifact: normalizeSessionPlanArtifact(session.latestPlanArtifact),
     tuiState: normalizeTuiState(session.tuiState),
   };
 }

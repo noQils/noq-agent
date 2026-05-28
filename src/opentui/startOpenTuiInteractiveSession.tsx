@@ -139,18 +139,18 @@ export async function startOpenTuiInteractiveSession(
   initialMode: AgentMode,
   options?: StartOpenTuiInteractiveSessionOptions,
 ): Promise<void> {
+  const initialTuiState = loadSessionTuiState(sessionId);
+  const resolvedInitialMode = options?.restoreStoredMode && initialTuiState.mode
+    ? initialTuiState.mode
+    : initialMode;
+  saveSessionTuiMode(sessionId, resolvedInitialMode);
+
   const renderer = await createOpenTuiRenderer();
   const waitForDestroy = new Promise<void>((resolve) => {
     renderer.once(CliRenderEvents.DESTROY, () => {
       resolve();
     });
   });
-
-  const initialTuiState = loadSessionTuiState(sessionId);
-  const resolvedInitialMode = options?.restoreStoredMode && initialTuiState.mode
-    ? initialTuiState.mode
-    : initialMode;
-  saveSessionTuiMode(sessionId, resolvedInitialMode);
 
   const [mode, setMode] = createSignal<AgentMode>(resolvedInitialMode);
   const [entries, setEntries] = createSignal<OpenTuiSessionEntry[]>(initialTuiState.entries);
