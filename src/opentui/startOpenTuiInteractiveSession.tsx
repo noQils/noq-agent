@@ -200,7 +200,12 @@ export async function startOpenTuiInteractiveSession(
     setStatusMessage('Running turn...');
 
     try {
-      const { response } = await runSessionTurn(sessionId, rawInput, mode());
+      const { response } = await runSessionTurn(sessionId, rawInput, mode(), {
+        onMutation: (event) => {
+          setEntries((currentEntries) => appendEntry(currentEntries, 'system', event.diff));
+          renderer.requestRender();
+        },
+      });
       setEntries((currentEntries) => appendEntry(currentEntries, 'assistant', response));
       setStatusMessage('Turn completed');
     } catch (error) {

@@ -265,7 +265,10 @@ export async function chat(
       const executionResult = await executeToolCall(
         toolCall.function.name,
         args,
-        options?.mode ? { mode: options.mode } : undefined,
+        {
+          ...(options?.mode ? { mode: options.mode } : {}),
+          ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+        },
       );
 
       completionMessages.push({

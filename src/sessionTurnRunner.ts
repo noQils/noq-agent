@@ -11,6 +11,7 @@ import {
   loadOrCreateSession,
   saveSessionPlanArtifact,
 } from './sessionStore';
+import { type ToolMutationCallback } from './providers/types';
 import { runAgentTurn } from './workflow';
 
 export interface SessionTurnResult {
@@ -19,10 +20,15 @@ export interface SessionTurnResult {
   fileChanges: SessionFileChange[];
 }
 
+export interface SessionTurnOptions {
+  onMutation?: ToolMutationCallback;
+}
+
 export async function runSessionTurn(
   sessionId: string,
   userPrompt: string,
   mode: AgentMode,
+  options?: SessionTurnOptions,
 ): Promise<SessionTurnResult> {
   const session = loadOrCreateSession(sessionId);
   const historyMessages = buildSessionHistoryMessages(session);
@@ -31,7 +37,10 @@ export async function runSessionTurn(
   let response: string;
 
   try {
-    response = await runAgentTurn(userPrompt, mode, { historyMessages });
+    response = await runAgentTurn(userPrompt, mode, {
+      historyMessages,
+      ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+    });
   } catch (error) {
     resetSessionChangeTracking();
     throw error;

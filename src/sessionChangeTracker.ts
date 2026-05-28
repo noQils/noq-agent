@@ -11,14 +11,19 @@ export interface SessionFileChange {
   afterContent?: string;
 }
 
-type FileState = {
+export type SessionFileState = {
   existed: boolean;
   content?: string;
 };
 
-type WorkspaceFileStates = Map<string, FileState>;
+export type WorkspaceFileStates = Map<string, SessionFileState>;
 
-let trackedBeforeStates: Map<string, FileState> | undefined;
+export interface MutationChangeTrackingSnapshot {
+  targetBeforeStates: Map<string, SessionFileState>;
+  workspaceBeforeStates: WorkspaceFileStates | null;
+}
+
+let trackedBeforeStates: Map<string, SessionFileState> | undefined;
 
 function normalizeTrackedFilePath(filePath: string): string {
   const absolutePath = path.resolve(process.cwd(), filePath);
@@ -31,7 +36,7 @@ function normalizeTrackedFilePath(filePath: string): string {
   return absolutePath.replaceAll('\\', '/');
 }
 
-function readFileState(filePath: string): FileState {
+function readFileState(filePath: string): SessionFileState {
   const resolvedPath = resolveProjectPath(filePath);
   if (!fs.existsSync(resolvedPath)) {
     return { existed: false };
@@ -54,8 +59,55 @@ function scanWorkspaceFileStates(): WorkspaceFileStates {
   return workspaceFileStates;
 }
 
-function fileStatesAreEqual(left: FileState, right: FileState): boolean {
+function fileStatesAreEqual(left: SessionFileState, right: SessionFileState): boolean {
   return left.existed === right.existed && left.content === right.content;
+}
+
+function buildFileChangesFromBeforeStates(
+  beforeStates: Map<string, SessionFileState>,
+): SessionFileChange[] {
+  const fileChanges: SessionFileChange[] = [];
+
+  for (const [filePath, beforeState] of beforeStates.entries()) {
+    const afterState = readFileState(filePath);
+    if (beforeState.existed === afterState.existed && beforeState.content === afterState.content) {
+      continue;
+    }
+
+    fileChanges.push({
+      filePath,
+      existedBefore: beforeState.existed,
+      ...(beforeState.existed ? { beforeContent: beforeState.content ?? '' } : {}),
+      existedAfter: afterState.existed,
+      ...(afterState.existed ? { afterContent: afterState.content ?? '' } : {}),
+    });
+  }
+
+  return fileChanges.sort((left, right) => left.filePath.localeCompare(right.filePath));
+}
+
+function collectWorkspaceChangedBeforeStates(
+  beforeWorkspaceStates: WorkspaceFileStates,
+): Map<string, SessionFileState> {
+  const afterWorkspaceStates = scanWorkspaceFileStates();
+  const changedBeforeStates = new Map<string, SessionFileState>();
+  const changedPaths = new Set<string>([
+    ...beforeWorkspaceStates.keys(),
+    ...afterWorkspaceStates.keys(),
+  ]);
+
+  for (const filePath of changedPaths) {
+    const beforeState = beforeWorkspaceStates.get(filePath) ?? { existed: false };
+    const afterState = afterWorkspaceStates.get(filePath) ?? { existed: false };
+
+    if (fileStatesAreEqual(beforeState, afterState)) {
+      continue;
+    }
+
+    changedBeforeStates.set(filePath, beforeState);
+  }
+
+  return changedBeforeStates;
 }
 
 export function beginSessionChangeTracking(): void {
@@ -85,6 +137,29 @@ export function recordMutationTargets(filePaths: string[]): void {
   }
 }
 
+export function beginMutationChangeTracking(
+  filePaths: string[],
+  workspaceBeforeStates: WorkspaceFileStates | null,
+): MutationChangeTrackingSnapshot {
+  const targetBeforeStates = new Map<string, SessionFileState>();
+
+  for (const filePath of filePaths) {
+    if (!filePath.trim()) {
+      continue;
+    }
+
+    const normalizedPath = normalizeTrackedFilePath(filePath);
+    if (!targetBeforeStates.has(normalizedPath)) {
+      targetBeforeStates.set(normalizedPath, readFileState(normalizedPath));
+    }
+  }
+
+  return {
+    targetBeforeStates,
+    workspaceBeforeStates,
+  };
+}
+
 export function beginWorkspaceMutationTracking(): WorkspaceFileStates | null {
   if (!trackedBeforeStates) {
     return null;
@@ -98,21 +173,8 @@ export function recordWorkspaceMutationChanges(beforeWorkspaceStates: WorkspaceF
     return;
   }
 
-  const afterWorkspaceStates = scanWorkspaceFileStates();
-  const changedPaths = new Set<string>([
-    ...beforeWorkspaceStates.keys(),
-    ...afterWorkspaceStates.keys(),
-  ]);
-
-  for (const filePath of changedPaths) {
+  for (const [filePath, beforeState] of collectWorkspaceChangedBeforeStates(beforeWorkspaceStates)) {
     if (trackedBeforeStates.has(filePath)) {
-      continue;
-    }
-
-    const beforeState = beforeWorkspaceStates.get(filePath) ?? { existed: false };
-    const afterState = afterWorkspaceStates.get(filePath) ?? { existed: false };
-
-    if (fileStatesAreEqual(beforeState, afterState)) {
       continue;
     }
 
@@ -120,28 +182,28 @@ export function recordWorkspaceMutationChanges(beforeWorkspaceStates: WorkspaceF
   }
 }
 
+export function finishMutationChangeTracking(
+  snapshot: MutationChangeTrackingSnapshot,
+): SessionFileChange[] {
+  const beforeStates = new Map(snapshot.targetBeforeStates);
+
+  if (snapshot.workspaceBeforeStates) {
+    for (const [filePath, beforeState] of collectWorkspaceChangedBeforeStates(snapshot.workspaceBeforeStates)) {
+      if (!beforeStates.has(filePath)) {
+        beforeStates.set(filePath, beforeState);
+      }
+    }
+  }
+
+  return buildFileChangesFromBeforeStates(beforeStates);
+}
+
 export function finishSessionChangeTracking(): SessionFileChange[] {
   if (!trackedBeforeStates) {
     return [];
   }
 
-  const fileChanges: SessionFileChange[] = [];
-
-  for (const [filePath, beforeState] of trackedBeforeStates.entries()) {
-    const afterState = readFileState(filePath);
-    if (beforeState.existed === afterState.existed && beforeState.content === afterState.content) {
-      continue;
-    }
-
-    fileChanges.push({
-      filePath,
-      existedBefore: beforeState.existed,
-      ...(beforeState.existed ? { beforeContent: beforeState.content ?? '' } : {}),
-      existedAfter: afterState.existed,
-      ...(afterState.existed ? { afterContent: afterState.content ?? '' } : {}),
-    });
-  }
-
+  const fileChanges = buildFileChangesFromBeforeStates(trackedBeforeStates);
   trackedBeforeStates = undefined;
-  return fileChanges.sort((left, right) => left.filePath.localeCompare(right.filePath));
+  return fileChanges;
 }

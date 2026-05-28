@@ -136,7 +136,10 @@ export async function chat(
       const executionResult = await executeToolCall(
         call.function.name,
         normalizedArgs.args,
-        options?.mode ? { mode: options.mode } : undefined,
+        {
+          ...(options?.mode ? { mode: options.mode } : {}),
+          ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+        },
       );
 
       ollamaMessages.push({

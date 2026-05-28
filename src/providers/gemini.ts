@@ -154,7 +154,7 @@ function collectCurrentRoundFunctionCalls(functionCalls: FunctionCall[]): ToolCa
 // Helper function to execute tool calls and return the responses
 async function executeFunctionCalls(
   functionCalls: FunctionCall[],
-  mode?: ChatOptions['mode'],
+  options?: ChatOptions,
 ): Promise<{
   toolResponses: FunctionResponse[],
   executedToolCalls: ExecutedToolCall[],
@@ -191,7 +191,10 @@ async function executeFunctionCalls(
     const executionResult = await executeToolCall(
       toolName,
       args,
-      mode ? { mode } : undefined,
+      {
+        ...(options?.mode ? { mode: options.mode } : {}),
+        ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+      },
     );
     const response: FunctionResponse = executionResult.executedToolCall.succeeded
       ? {
@@ -290,7 +293,7 @@ export async function chat(
 
     const functionCallResult = await executeFunctionCalls(
       functionCalls,
-      options?.mode,
+      options,
     );
 
     const {

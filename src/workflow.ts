@@ -6,6 +6,7 @@ import {
   type ChatMessage,
   type ChatResult,
   type ExecutedToolCall,
+  type ToolMutationCallback,
 } from './providers/types';
 import { getSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';
@@ -15,6 +16,7 @@ import { formatTodoItems, hasTodoItems, resetTodoState } from './todoState';
 
 export interface RunAgentTurnOptions {
     historyMessages?: ChatMessage[];
+    onMutation?: ToolMutationCallback;
 }
 
 // Function to get the file path argument
@@ -658,6 +660,7 @@ export async function runAgentTurn(
         response = await provider.chat(messagesForProvider, {
             mode,
             tools: availableTools,
+            ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
         });
         messages.push({ role: 'model' as const, content: response.text });
 

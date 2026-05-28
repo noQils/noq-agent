@@ -9,12 +9,16 @@ import { promptForPermission } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
 import { canonicalizeArgsValue } from '../providers/shared/toolFingerprint';
 import {
+  beginMutationChangeTracking,
   beginWorkspaceMutationTracking,
+  finishMutationChangeTracking,
   recordMutationTargets,
   recordWorkspaceMutationChanges,
+  type MutationChangeTrackingSnapshot,
 } from '../sessionChangeTracker';
+import { buildSessionFileDiff } from '../sessionDiff';
 import { getToolByName } from '../tools';
-import { type ExecutedToolCall } from '../providers/types';
+import { type ExecutedToolCall, type ToolMutationCallback } from '../providers/types';
 
 export interface ToolExecutionResult {
   output: string;
@@ -23,6 +27,7 @@ export interface ToolExecutionResult {
 
 export interface ToolExecutionOptions {
   mode?: AgentMode;
+  onMutation?: ToolMutationCallback;
 }
 
 const permissionDecisionCache = new Map<string, boolean>();
@@ -82,6 +87,40 @@ function shouldTrackWorkspaceChanges(
   toolName: string,
 ): boolean {
   return toolName === 'run_command';
+}
+
+async function notifyMutation(
+  toolName: string,
+  args: Record<string, unknown>,
+  executedToolCall: ExecutedToolCall,
+  snapshot: MutationChangeTrackingSnapshot | null,
+  onMutation: ToolMutationCallback | undefined,
+): Promise<void> {
+  if (!snapshot || !onMutation) {
+    return;
+  }
+
+  const fileChanges = finishMutationChangeTracking(snapshot);
+  if (fileChanges.length === 0) {
+    return;
+  }
+
+  const diff = buildSessionFileDiff(fileChanges);
+  if (diff.trim().length === 0) {
+    return;
+  }
+
+  try {
+    await onMutation({
+      toolName,
+      args,
+      executedToolCall,
+      fileChanges,
+      diff,
+    });
+  } catch {
+    // UI mutation notifications should never change tool execution semantics.
+  }
 }
 
 export async function executeToolCall(
@@ -202,34 +241,55 @@ export async function executeToolCall(
     }
   }
 
-  const workspaceMutationSnapshot = shouldTrackWorkspaceChanges(toolName)
+  const mutationTargets = getMutationTargets(toolName, args);
+  const shouldTrackWorkspace = shouldTrackWorkspaceChanges(toolName);
+  const workspaceMutationSnapshot = shouldTrackWorkspace
     ? beginWorkspaceMutationTracking()
+    : null;
+  const mutationSnapshot = options?.onMutation && (mutationTargets.length > 0 || shouldTrackWorkspace)
+    ? beginMutationChangeTracking(mutationTargets, workspaceMutationSnapshot)
     : null;
 
   try {
-    recordMutationTargets(getMutationTargets(toolName, args));
+    recordMutationTargets(mutationTargets);
     const result = await tool.execute(args);
     recordWorkspaceMutationChanges(workspaceMutationSnapshot);
+    const executedToolCall: ExecutedToolCall = {
+      toolName,
+      args,
+      succeeded: true,
+    };
+    await notifyMutation(
+      toolName,
+      args,
+      executedToolCall,
+      mutationSnapshot,
+      options?.onMutation,
+    );
     return {
       output: String(result),
-      executedToolCall: {
-        toolName,
-        args,
-        succeeded: true,
-      },
+      executedToolCall,
     };
   } catch (error) {
     recordWorkspaceMutationChanges(workspaceMutationSnapshot);
     const message = error instanceof Error ? error.message : String(error);
+    const executedToolCall: ExecutedToolCall = {
+      toolName,
+      args,
+      succeeded: false,
+      error: message,
+      failureKind: 'tool_error',
+    };
+    await notifyMutation(
+      toolName,
+      args,
+      executedToolCall,
+      mutationSnapshot,
+      options?.onMutation,
+    );
     return {
       output: message,
-      executedToolCall: {
-        toolName,
-        args,
-        succeeded: false,
-        error: message,
-        failureKind: 'tool_error',
-      },
+      executedToolCall,
     };
   }
 }
