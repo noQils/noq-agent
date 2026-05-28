@@ -6,7 +6,12 @@ import { render, useRenderer } from '@opentui/solid';
 import { CliRenderEvents } from '@opentui/core';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
-import { onPermissionPromptClosed, onPermissionPromptOpened } from '../permissions/promptEvents';
+import { resetPermissionApprovalState, setPermissionApprovalSession } from '../permissions/approvals';
+import {
+  resetPermissionPromptHandler,
+  setPermissionPromptHandler,
+  type PermissionPromptDecision,
+} from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
 import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
@@ -68,6 +73,24 @@ function isModeCommand(inputLine: string): boolean {
   return inputLine === '/mode' || inputLine.startsWith('/mode ');
 }
 
+function parsePermissionDecision(inputLine: string): PermissionPromptDecision | null {
+  const normalizedInput = inputLine.trim().toLowerCase();
+
+  if (normalizedInput === 'o' || normalizedInput === 'y') {
+    return 'allow_once';
+  }
+
+  if (normalizedInput === 'a') {
+    return 'allow_session';
+  }
+
+  if (normalizedInput === 'n') {
+    return 'deny';
+  }
+
+  return null;
+}
+
 function SessionRoot(props: {
   sessionId: string;
   mode: () => AgentMode;
@@ -75,9 +98,11 @@ function SessionRoot(props: {
   inputValue: () => string;
   isBusy: () => boolean;
   statusMessage: () => string | null;
+  permissionRequest: () => PermissionRequest | null;
   onInput: (value: string) => void;
   onSubmit: () => void;
   onExit: () => void;
+  onPermissionDecision: (decision: PermissionPromptDecision) => void;
 }) {
   useRenderer();
 
@@ -89,9 +114,11 @@ function SessionRoot(props: {
       inputValue={props.inputValue}
       isBusy={props.isBusy}
       statusMessage={props.statusMessage}
+      permissionRequest={props.permissionRequest}
       onInput={props.onInput}
       onSubmit={props.onSubmit}
       onExit={props.onExit}
+      onPermissionDecision={props.onPermissionDecision}
     />
   );
 }
@@ -112,10 +139,32 @@ export async function startOpenTuiInteractiveSession(
   const [inputValue, setInputValue] = createSignal('');
   const [isBusy, setIsBusy] = createSignal(false);
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
+  const [permissionRequest, setPermissionRequest] = createSignal<PermissionRequest | null>(null);
 
   let shouldPrintHint = false;
   let isDestroyed = false;
-  let isSuspendedForPermission = false;
+  let resolvePermissionPrompt: ((decision: PermissionPromptDecision) => void) | null = null;
+
+  const resolveActivePermissionPrompt = (
+    decision: PermissionPromptDecision,
+    shouldRequestRender = true,
+  ): void => {
+    const resolver = resolvePermissionPrompt;
+    resolvePermissionPrompt = null;
+    setPermissionRequest(null);
+
+    if (isBusy()) {
+      setStatusMessage('Resuming turn...');
+    }
+
+    if (resolver) {
+      resolver(decision);
+    }
+
+    if (shouldRequestRender) {
+      renderer.requestRender();
+    }
+  };
 
   const exitSession = (): void => {
     shouldPrintHint = true;
@@ -127,13 +176,49 @@ export async function startOpenTuiInteractiveSession(
     renderer.destroy();
   };
 
+  resetPermissionApprovalState();
+  setPermissionApprovalSession(sessionId);
+  setPermissionPromptHandler((request) => {
+    if (resolvePermissionPrompt) {
+      resolveActivePermissionPrompt('deny', false);
+    }
+
+    setIsBusy(true);
+    setPermissionRequest(request);
+    setStatusMessage(`Awaiting approval...`);
+    renderer.requestRender();
+
+    return new Promise<PermissionPromptDecision>((resolve) => {
+      resolvePermissionPrompt = resolve;
+    });
+  });
+
   const handleSubmit = async (): Promise<void> => {
+    const rawInput = inputValue();
+    const userInput = rawInput.trim();
+
+    if (permissionRequest()) {
+      const decision = parsePermissionDecision(userInput);
+
+      if (!decision) {
+        if (userInput.length > 0) {
+          setInputValue('');
+          setStatusMessage('Type o/y, a, or n and press Enter.');
+          renderer.requestRender();
+        }
+
+        return;
+      }
+
+      setInputValue('');
+      resolveActivePermissionPrompt(decision);
+      return;
+    }
+
     if (isBusy()) {
       return;
     }
 
-    const rawInput = inputValue();
-    const userInput = rawInput.trim();
     setInputValue('');
 
     if (userInput.length === 0) {
@@ -218,30 +303,6 @@ export async function startOpenTuiInteractiveSession(
     }
   };
 
-  const unsubscribePermissionOpened = onPermissionPromptOpened(({ request }) => {
-    setIsBusy(true);
-    setStatusMessage(`Awaiting approval for ${formatPermissionSummary(request)}...`);
-
-    if (!isSuspendedForPermission) {
-      renderer.suspend();
-      isSuspendedForPermission = true;
-    }
-  });
-
-  const unsubscribePermissionClosed = onPermissionPromptClosed(() => {
-    if (isSuspendedForPermission) {
-      renderer.resume();
-      renderer.requestRender();
-      isSuspendedForPermission = false;
-    }
-
-    if (isBusy()) {
-      setStatusMessage('Resuming turn...');
-    } else {
-      setStatusMessage(null);
-    }
-  });
-
   try {
     await render(
       () => (
@@ -252,11 +313,13 @@ export async function startOpenTuiInteractiveSession(
           inputValue={inputValue}
           isBusy={isBusy}
           statusMessage={statusMessage}
+          permissionRequest={permissionRequest}
           onInput={setInputValue}
           onSubmit={() => {
             void handleSubmit();
           }}
           onExit={exitSession}
+          onPermissionDecision={resolveActivePermissionPrompt}
         />
       ),
       renderer,
@@ -265,13 +328,12 @@ export async function startOpenTuiInteractiveSession(
     renderer.start();
     await waitForDestroy;
   } finally {
-    unsubscribePermissionOpened();
-    unsubscribePermissionClosed();
-
-    if (isSuspendedForPermission) {
-      renderer.resume();
-      isSuspendedForPermission = false;
+    if (resolvePermissionPrompt) {
+      resolveActivePermissionPrompt('deny', false);
     }
+
+    resetPermissionPromptHandler();
+    resetPermissionApprovalState();
 
     if (!isDestroyed) {
       renderer.destroy();

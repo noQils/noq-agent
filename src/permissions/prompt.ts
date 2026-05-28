@@ -10,6 +10,20 @@ export type PermissionPromptDecision =
   | 'allow_session'
   | 'deny';
 
+export type PermissionPromptHandler = (
+  request: PermissionRequest,
+) => Promise<PermissionPromptDecision>;
+
+let permissionPromptHandler: PermissionPromptHandler | null = null;
+
+export function setPermissionPromptHandler(handler: PermissionPromptHandler): void {
+  permissionPromptHandler = handler;
+}
+
+export function resetPermissionPromptHandler(): void {
+  permissionPromptHandler = null;
+}
+
 function buildPermissionPrompt(request: PermissionRequest): string {
   const persistentSessionLabel = hasPersistentPermissionSession()
     ? 'always for this named session'
@@ -25,6 +39,10 @@ function buildPermissionPrompt(request: PermissionRequest): string {
 }
 
 export async function promptForPermission(request: PermissionRequest): Promise<PermissionPromptDecision> {
+  if (permissionPromptHandler) {
+    return permissionPromptHandler(request);
+  }
+
   if (!input.isTTY || !output.isTTY) {
     return 'deny';
   }

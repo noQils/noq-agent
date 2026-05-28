@@ -1,11 +1,23 @@
 /** @jsxImportSource @opentui/solid */
 
+import { spawnSync } from 'node:child_process';
+
 import { createEffect, createSignal, For, onCleanup, type Accessor } from 'solid-js';
 
 import { DiffRenderable } from '@opentui/core';
-import { Dynamic, extend, useKeyboard, useTerminalDimensions } from '@opentui/solid';
+import {
+  Dynamic,
+  extend,
+  useKeyboard,
+  useRenderer,
+  useSelectionHandler,
+  useTerminalDimensions,
+} from '@opentui/solid';
 
 import { type AgentMode } from '../agentMode';
+import { hasPersistentPermissionSession } from '../permissions/approvals';
+import { type PermissionPromptDecision } from '../permissions/prompt';
+import { type PermissionRequest } from '../permissions/types';
 import {
   cappedEntries,
   compactLocalTime,
@@ -37,13 +49,16 @@ interface OpenTuiInteractiveSessionAppProps {
   inputValue: Accessor<string>;
   isBusy: Accessor<boolean>;
   statusMessage: Accessor<string | null>;
+  permissionRequest: Accessor<PermissionRequest | null>;
   onInput: (value: string) => void;
   onSubmit: () => void;
   onExit: () => void;
+  onPermissionDecision: (decision: PermissionPromptDecision) => void;
 }
 
 const maxRenderedEntries = 200;
 const diffComponent: any = 'diff';
+let copiedSelectionText = '';
 
 type AssistantContentBlock =
   | { type: 'heading'; text: string }
@@ -55,6 +70,52 @@ type AssistantContentBlock =
 interface CommandHint {
   key: string;
   value?: string;
+}
+
+function runClipboardWriter(command: string, args: string[], text: string): boolean {
+  try {
+    const result = spawnSync(command, args, {
+      input: text,
+      encoding: 'utf8',
+      stdio: ['pipe', 'ignore', 'ignore'],
+      windowsHide: true,
+    });
+
+    return result.error === undefined && result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function copyToSystemClipboard(text: string): boolean {
+  if (process.platform === 'win32') {
+    return (
+      runClipboardWriter(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new(); Set-Clipboard -Value ([Console]::In.ReadToEnd())',
+        ],
+        text,
+      ) || runClipboardWriter('clip.exe', [], text)
+    );
+  }
+
+  if (process.platform === 'darwin') {
+    return runClipboardWriter('pbcopy', [], text);
+  }
+
+  return (
+    runClipboardWriter('wl-copy', [], text)
+    || runClipboardWriter('xclip', ['-selection', 'clipboard'], text)
+    || runClipboardWriter('xsel', ['--clipboard', '--input'], text)
+  );
+}
+
+function sanitizeInputPaste(text: string): string {
+  return text.replace(/[\n\r]/g, '');
 }
 
 function commandHints(isCompact: boolean): CommandHint[] {
@@ -69,12 +130,6 @@ function commandHints(isCompact: boolean): CommandHint[] {
     { key: '/undo' },
     { key: '/exit' },
   ];
-}
-
-function diffBlockHeight(text: string, isCompact: boolean): number {
-  const lineCount = text.split(/\r?\n/).length;
-  const maxHeight = isCompact ? 6 : 8;
-  return Math.max(4, Math.min(maxHeight, lineCount));
 }
 
 function busySuffix(frame: number): string {
@@ -324,7 +379,6 @@ function TranscriptEntry(props: {
         <Dynamic
           component={diffComponent}
           diff={props.entry.text}
-          height={diffBlockHeight(props.entry.text, props.isCompact)}
           view="unified"
           fg={openTuiTheme.color.textSoft}
           syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
@@ -368,7 +422,7 @@ function EmptyTranscriptState(props: { isCompact: boolean }) {
       gap={props.isCompact ? 0 : 1}
     >
       <box flexDirection="row" gap={1}>
-        <text fg={openTuiTheme.color.teal}>
+        <text fg={openTuiTheme.color.teal} selectable={false}>
 {`
 ███╗   ██╗ ██████╗  ██████╗
 ████╗  ██║██╔═══██╗██╔═══██╗
@@ -381,15 +435,86 @@ function EmptyTranscriptState(props: { isCompact: boolean }) {
         </text>
       </box>
       {props.isCompact ? (
-        <text fg={openTuiTheme.color.textMuted}>Type a message to begin.</text>
+        <text
+          fg={openTuiTheme.color.textMuted}
+          selectable={true}
+          selectionBg={openTuiTheme.color.selectionBg}
+          selectionFg={openTuiTheme.color.selectionFg}
+        >
+          Type a message to begin.
+        </text>
       ) : (
         <>
-          <text fg={openTuiTheme.color.text}>What shall we build today?</text>
-          <text fg={openTuiTheme.color.textMuted} wrapMode="word">
+          <text
+            fg={openTuiTheme.color.text}
+            selectable={true}
+            selectionBg={openTuiTheme.color.selectionBg}
+            selectionFg={openTuiTheme.color.selectionFg}
+          >
+            What shall we build today?
+          </text>
+          <text
+            fg={openTuiTheme.color.textMuted}
+            wrapMode="word"
+            selectable={true}
+            selectionBg={openTuiTheme.color.selectionBg}
+            selectionFg={openTuiTheme.color.selectionFg}
+          >
             Send a prompt below, or use /diff, /plan show, /undo, and /exit.
           </text>
         </>
       )}
+    </box>
+  );
+}
+
+function PermissionPromptPanel(props: {
+  request: PermissionRequest;
+  isCompact: boolean;
+  targetMaxLength: number;
+}) {
+  const persistentSessionLabel = () => (
+    hasPersistentPermissionSession() ? 'always for this named session' : 'always for this run'
+  );
+  const target = () => props.request.target || '(no target)';
+  const targetLabel = () => truncateMiddle(target(), props.targetMaxLength);
+
+  return (
+    <box
+      border
+      borderStyle="rounded"
+      borderColor={openTuiTheme.color.amber}
+      focusedBorderColor={openTuiTheme.color.amber}
+      backgroundColor={openTuiTheme.role.system.background}
+      paddingX={1}
+      paddingY={0}
+      flexDirection="column"
+      gap={props.isCompact ? 0 : 1}
+    >
+      <box flexDirection="row" gap={1}>
+        <text fg={openTuiTheme.color.amber}>Permission required</text>
+        <text fg={openTuiTheme.color.textFaint} truncate>
+          {props.request.toolName}
+        </text>
+      </box>
+
+      <box flexDirection={props.isCompact ? 'column' : 'row'} gap={1}>
+        <text fg={openTuiTheme.color.textMuted} truncate>
+          {`scope ${props.request.scope}`}
+        </text>
+        <text fg={openTuiTheme.color.textSoft} truncate>
+          {`target ${targetLabel()}`}
+        </text>
+      </box>
+
+      <box flexDirection="row" gap={1}>
+        <text fg={openTuiTheme.color.green}>[o/y enter] allow once</text>
+        <text fg={openTuiTheme.color.teal} truncate>
+          {`[a enter] ${persistentSessionLabel()}`}
+        </text>
+        <text fg={openTuiTheme.color.red}>[n enter/esc] deny</text>
+      </box>
+      <box minHeight={1} />
     </box>
   );
 }
@@ -425,11 +550,79 @@ function CommandRail(props: { isCompact: boolean }) {
 }
 
 export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionAppProps) {
+  const renderer = useRenderer();
   const dimensions = useTerminalDimensions();
   const [busyFrame, setBusyFrame] = createSignal(0);
+  let cachedSelectionText = '';
+
+  useSelectionHandler((selection) => {
+    const selectedText = selection.getSelectedText();
+    if (selectedText.length > 0) {
+      cachedSelectionText = selectedText;
+    }
+  });
+
+  const copySelectionToClipboard = (): boolean => {
+    const liveSelectionText = renderer.getSelection()?.getSelectedText() ?? '';
+    const selectedText = liveSelectionText.length > 0 ? liveSelectionText : cachedSelectionText;
+    if (selectedText.length === 0) {
+      return false;
+    }
+
+    copiedSelectionText = selectedText;
+    copyToSystemClipboard(selectedText);
+    if (renderer.isOsc52Supported()) {
+      renderer.copyToClipboardOSC52(selectedText);
+    }
+
+    renderer.clearSelection();
+    cachedSelectionText = '';
+    renderer.requestRender();
+
+    return true;
+  };
+
+  const pasteCopiedSelectionIntoInput = (): boolean => {
+    if (props.isBusy() || props.permissionRequest() || copiedSelectionText.length === 0) {
+      return false;
+    }
+
+    const pastedText = sanitizeInputPaste(copiedSelectionText);
+    if (pastedText.length === 0) {
+      return false;
+    }
+
+    props.onInput(`${props.inputValue()}${pastedText}`);
+    renderer.requestRender();
+    return true;
+  };
 
   useKeyboard((key) => {
-    if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
+    const keyName = key.name.toLowerCase();
+
+    if (key.ctrl && keyName === 'c') {
+      copySelectionToClipboard();
+      key.preventDefault();
+      key.stopPropagation();
+      return;
+    }
+
+    if (key.ctrl && keyName === 'v' && pasteCopiedSelectionIntoInput()) {
+      key.preventDefault();
+      key.stopPropagation();
+      return;
+    }
+
+    if (props.permissionRequest()) {
+      if (keyName === 'escape') {
+        props.onPermissionDecision('deny');
+        return;
+      }
+
+      return;
+    }
+
+    if (keyName === 'escape') {
       props.onExit();
     }
   });
@@ -457,6 +650,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const hiddenEntryCount = () => Math.max(0, props.entries().length - visibleEntries().length);
   const resolvedStatusLabel = () => statusLabel(props.statusMessage(), props.isBusy());
   const resolvedStatusColor = () => statusColor(props.statusMessage(), props.isBusy());
+  const hasPermissionRequest = () => props.permissionRequest() !== null;
   const animatedStatus = () => (
     props.isBusy()
       ? `${resolvedStatusLabel()}${busySuffix(busyFrame())}`
@@ -469,6 +663,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal
   );
   const placeholder = () => {
+    if (hasPermissionRequest()) {
+      return isNarrow() ? 'o/y, a, n + Enter' : 'Type o/y, a, or n and press Enter';
+    }
+
     if (props.isBusy()) {
       return isNarrow() ? 'Waiting...' : 'Waiting for the current turn to finish...';
     }
@@ -496,10 +694,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         gap={1}
       >
         <box flexDirection="row" gap={1} flexShrink={1}>
-          <text fg={openTuiTheme.color.teal} truncate>
+          <text fg={openTuiTheme.color.teal} selectable={false} truncate>
             noq
           </text>
-          <text fg={openTuiTheme.color.lineStrong} truncate>
+          <text fg={openTuiTheme.color.lineStrong} selectable={false} truncate>
             {'///'}
           </text>
           <text fg={openTuiTheme.color.textMuted} truncate maxWidth={isNarrow() ? 18 : 32}>
@@ -515,6 +713,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           >
             <text
               fg={props.mode() === 'build' ? openTuiTheme.color.canvas : modeColor(props.mode())}
+              selectable={false}
               truncate
             >
               {props.mode().toUpperCase()}
@@ -523,7 +722,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         </box>
 
         <box flexDirection="row" flexShrink={0}>
-          <text fg={resolvedStatusColor()} truncate maxWidth={isNarrow() ? 16 : 34}>
+          <text fg={resolvedStatusColor()} selectable={false} truncate maxWidth={isNarrow() ? 16 : 34}>
             {animatedStatus()}
           </text>
         </box>
@@ -576,6 +775,14 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         </scrollbox>
       </box>
 
+      {props.permissionRequest() ? (
+        <PermissionPromptPanel
+          request={props.permissionRequest()!}
+          isCompact={isCompact()}
+          targetMaxLength={isNarrow() ? 36 : 76}
+        />
+      ) : null}
+
       <box
         border
         borderStyle="rounded"
@@ -588,13 +795,13 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         flexDirection="row"
         gap={1}
       >
-        <text fg={props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal}>
-          {':::'}
+        <text fg={props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal} selectable={false}>
+          {'>'}
         </text>
         <input
           value={props.inputValue()}
           placeholder={placeholder()}
-          focused={!props.isBusy()}
+          focused={!props.isBusy() || hasPermissionRequest()}
           flexGrow={1}
           textColor={openTuiTheme.color.text}
           focusedTextColor={openTuiTheme.color.text}
