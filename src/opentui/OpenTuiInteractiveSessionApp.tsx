@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { createEffect, createSignal, For, onCleanup, type Accessor } from 'solid-js';
 
 import { DiffRenderable } from '@opentui/core';
+import { parsePatch } from 'diff';
 import {
   Dynamic,
   extend,
@@ -116,6 +117,70 @@ function copyToSystemClipboard(text: string): boolean {
 
 function sanitizeInputPaste(text: string): string {
   return text.replace(/[\n\r]/g, '');
+}
+
+function healUnifiedDiffForRender(text: string): string {
+  const lines = text.replaceAll('\r\n', '\n').split('\n');
+  const healedLines: string[] = [];
+  let insideHunk = false;
+
+  for (const line of lines) {
+    if (line.startsWith('@@ ')) {
+      insideHunk = true;
+      healedLines.push(line);
+      continue;
+    }
+
+    if (
+      line.startsWith('diff --git ')
+      || line.startsWith('index ')
+      || line.startsWith('--- ')
+      || line.startsWith('+++ ')
+    ) {
+      insideHunk = false;
+      healedLines.push(line);
+      continue;
+    }
+
+    if (!insideHunk) {
+      healedLines.push(line);
+      continue;
+    }
+
+    if (line.length === 0) {
+      healedLines.push(' ');
+      continue;
+    }
+
+    const prefix = line[0];
+    if (prefix === ' ' || prefix === '+' || prefix === '-' || prefix === '\\') {
+      healedLines.push(line);
+      continue;
+    }
+
+    healedLines.push(` ${line}`);
+  }
+
+  return healedLines.join('\n');
+}
+
+function getRenderableUnifiedDiff(text: string): string | null {
+  if (!isUnifiedDiff(text)) {
+    return null;
+  }
+
+  try {
+    parsePatch(text);
+    return text;
+  } catch {
+    const healedDiff = healUnifiedDiffForRender(text);
+    try {
+      parsePatch(healedDiff);
+      return healedDiff;
+    } catch {
+      return null;
+    }
+  }
 }
 
 function commandHints(isCompact: boolean): CommandHint[] {
@@ -348,6 +413,9 @@ function TranscriptEntry(props: {
 }) {
   const role = () => openTuiTheme.role[props.entry.kind];
   const timestamp = () => compactLocalTime(props.entry.createdAt);
+  const renderableDiff = () => (
+    props.entry.kind === 'system' ? getRenderableUnifiedDiff(props.entry.text) : null
+  );
 
   return (
     <box
@@ -375,10 +443,10 @@ function TranscriptEntry(props: {
 
       {props.entry.kind === 'assistant' ? (
         <AssistantContent text={props.entry.text} isCompact={props.isCompact} />
-      ) : props.entry.kind === 'system' && isUnifiedDiff(props.entry.text) ? (
+      ) : renderableDiff() ? (
         <Dynamic
           component={diffComponent}
-          diff={props.entry.text}
+          diff={renderableDiff()!}
           view="unified"
           fg={openTuiTheme.color.textSoft}
           syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
@@ -525,7 +593,7 @@ function PermissionPromptPanel(props: {
 function CommandRail(props: { isCompact: boolean }) {
   return (
     <box
-      backgroundColor={openTuiTheme.color.rail}
+      backgroundColor={openTuiTheme.color.canvas}
       paddingX={1}
       paddingY={0}
       minHeight={1}
@@ -535,7 +603,7 @@ function CommandRail(props: { isCompact: boolean }) {
       <box flexDirection="row" gap={1} flexShrink={1}>
         <For each={commandHints(props.isCompact)}>
           {(hint) => (
-            <box flexDirection="row" gap={hint.value ? 1 : 0}>
+            <box flexDirection="row" gap={1}>
               <text fg={openTuiTheme.color.teal} truncate>
                 {hint.key}
               </text>
@@ -544,6 +612,7 @@ function CommandRail(props: { isCompact: boolean }) {
                   {hint.value}
                 </text>
               ) : null}
+              <text fg={openTuiTheme.color.textFaint}>•</text>
             </box>
           )}
         </For>
@@ -710,12 +779,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             backgroundColor={
               props.mode() === 'build'
                 ? openTuiTheme.color.teal
-                : openTuiTheme.color.panelRaised
+                : openTuiTheme.color.amber
             }
             paddingX={1}
           >
             <text
-              fg={props.mode() === 'build' ? openTuiTheme.color.canvas : modeColor(props.mode())}
+              fg={openTuiTheme.color.canvas}
               selectable={false}
               truncate
             >
@@ -793,7 +862,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         focusedBorderColor={composerFocusedBorderColor()}
         paddingX={1}
         paddingY={0}
-        backgroundColor={openTuiTheme.color.input}
         minHeight={3}
         flexDirection="row"
         gap={1}
