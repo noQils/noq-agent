@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { type AgentMode } from './agentMode';
+import { isAgentMode, type AgentMode } from './agentMode';
 import { ensureParentDirectory, resolveProjectPath, writeFileContent } from './fileUtils';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { type PermissionScope } from './permissions/types';
@@ -45,6 +45,20 @@ export interface SessionPlanArtifact {
   proposedPaths: string[];
 }
 
+export type SessionTranscriptEntryKind = 'user' | 'assistant' | 'system';
+
+export interface SessionTranscriptEntry {
+  id: string;
+  createdAt: string;
+  kind: SessionTranscriptEntryKind;
+  text: string;
+}
+
+export interface SessionTuiState {
+  mode: AgentMode | null;
+  entries: SessionTranscriptEntry[];
+}
+
 export interface AgentSession {
   id: string;
   createdAt: string;
@@ -53,6 +67,7 @@ export interface AgentSession {
   snapshots: SessionSnapshot[];
   permissionApprovals: SessionPermissionApproval[];
   latestPlanArtifact: SessionPlanArtifact | null;
+  tuiState: SessionTuiState;
 }
 
 function createTimestamp(): string {
@@ -74,6 +89,64 @@ function createSnapshotId(): string {
   return `snapshot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function createEntryId(prefix: string, index: number, role: SessionTranscriptEntryKind): string {
+  return `${prefix}-${index + 1}-${role}`;
+}
+
+function createEmptyTuiState(): SessionTuiState {
+  return {
+    mode: null,
+    entries: [],
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isTranscriptEntryKind(value: unknown): value is SessionTranscriptEntryKind {
+  return value === 'user' || value === 'assistant' || value === 'system';
+}
+
+function normalizeTranscriptEntries(entries: unknown): SessionTranscriptEntry[] {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries.flatMap((entry, index) => {
+    if (!isRecord(entry) || !isTranscriptEntryKind(entry.kind)) {
+      return [];
+    }
+
+    const text = typeof entry.text === 'string' ? entry.text : '';
+    return [{
+      id: typeof entry.id === 'string' && entry.id.length > 0
+        ? entry.id
+        : createEntryId('entry', index, entry.kind),
+      createdAt: typeof entry.createdAt === 'string' && entry.createdAt.length > 0
+        ? entry.createdAt
+        : createTimestamp(),
+      kind: entry.kind,
+      text,
+    }];
+  });
+}
+
+function normalizeTuiState(tuiState: unknown): SessionTuiState {
+  if (!isRecord(tuiState)) {
+    return createEmptyTuiState();
+  }
+
+  const mode = typeof tuiState.mode === 'string' && isAgentMode(tuiState.mode)
+    ? tuiState.mode
+    : null;
+
+  return {
+    mode,
+    entries: normalizeTranscriptEntries(tuiState.entries),
+  };
+}
+
 function assertValidSessionId(sessionId: string): void {
   if (!sessionIdPattern.test(sessionId)) {
     throw new Error('Session id may contain only letters, numbers, ".", "_" and "-".');
@@ -90,6 +163,7 @@ function createEmptySession(sessionId: string): AgentSession {
     snapshots: [],
     permissionApprovals: [],
     latestPlanArtifact: null,
+    tuiState: createEmptyTuiState(),
   };
 }
 
@@ -175,6 +249,7 @@ function loadSessionFile(sessionId: string): AgentSession | null {
     snapshots: Array.isArray(session.snapshots) ? session.snapshots : [],
     permissionApprovals: Array.isArray(session.permissionApprovals) ? session.permissionApprovals : [],
     latestPlanArtifact: session.latestPlanArtifact ?? null,
+    tuiState: normalizeTuiState(session.tuiState),
   };
 }
 
@@ -278,6 +353,35 @@ export function buildSessionHistoryMessages(session: AgentSession): ChatMessage[
   }
 
   return messages;
+}
+
+export function buildSessionTuiEntriesFromTurns(turns: SessionTurn[]): SessionTranscriptEntry[] {
+  return turns.flatMap((turn, index) => ([
+    {
+      id: createEntryId('turn', index, 'user'),
+      createdAt: turn.timestamp,
+      kind: 'user' as const,
+      text: turn.userPrompt,
+    },
+    {
+      id: createEntryId('turn', index, 'assistant'),
+      createdAt: turn.timestamp,
+      kind: 'assistant' as const,
+      text: turn.response,
+    },
+  ]));
+}
+
+export function loadSessionTuiState(sessionId: string): SessionTuiState {
+  const session = loadOrCreateSession(sessionId);
+  if (session.tuiState.entries.length > 0 || session.turns.length === 0) {
+    return session.tuiState;
+  }
+
+  return {
+    mode: session.tuiState.mode,
+    entries: buildSessionTuiEntriesFromTurns(session.turns),
+  };
 }
 
 export function appendSessionTurn(

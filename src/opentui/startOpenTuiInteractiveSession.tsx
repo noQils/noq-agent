@@ -13,7 +13,12 @@ import {
   type PermissionPromptDecision,
 } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
-import { formatLatestSessionPlan, getLatestSessionDiff, undoLastSessionSnapshot } from '../sessionStore';
+import {
+  formatLatestSessionPlan,
+  getLatestSessionDiff,
+  loadSessionTuiState,
+  undoLastSessionSnapshot,
+} from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
 import { createOpenTuiRenderer } from './createOpenTuiRenderer';
 import {
@@ -134,8 +139,9 @@ export async function startOpenTuiInteractiveSession(
     });
   });
 
+  const initialTuiState = loadSessionTuiState(sessionId);
   const [mode, setMode] = createSignal<AgentMode>(initialMode);
-  const [entries, setEntries] = createSignal<OpenTuiSessionEntry[]>([]);
+  const [entries, setEntries] = createSignal<OpenTuiSessionEntry[]>(initialTuiState.entries);
   const [inputValue, setInputValue] = createSignal('');
   const [isBusy, setIsBusy] = createSignal(false);
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
