@@ -6,6 +6,7 @@ import { type AgentMode } from './agentMode';
 export interface LaunchSessionWindowOptions {
   sessionId: string;
   mode: AgentMode;
+  restoreStoredMode?: boolean;
   cwd?: string;
 }
 
@@ -19,7 +20,7 @@ function getOpenTuiEntrypoint(): string {
 }
 
 function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
-  return [
+  const args = [
     'run',
     getOpenTuiEntrypoint(),
     '--session',
@@ -27,6 +28,12 @@ function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
     '--mode',
     options.mode,
   ];
+
+  if (options.restoreStoredMode) {
+    args.push('--restore-mode');
+  }
+
+  return args;
 }
 
 function canLaunchWindowsTerminal(): boolean {

@@ -10,6 +10,10 @@ function getArgumentValue(flag: string): string | null {
   return process.argv[flagIndex + 1] ?? null;
 }
 
+function hasFlag(flag: string): boolean {
+  return process.argv.includes(flag);
+}
+
 function resolveMode(rawMode: string | null): AgentMode {
   if (rawMode && isAgentMode(rawMode)) {
     return rawMode;
@@ -21,7 +25,9 @@ function resolveMode(rawMode: string | null): AgentMode {
 async function main(): Promise<void> {
   const sessionId = getArgumentValue('--session') ?? 'opentui-preview';
   const mode = resolveMode(getArgumentValue('--mode'));
-  await startOpenTuiInteractiveSession(sessionId, mode);
+  await startOpenTuiInteractiveSession(sessionId, mode, {
+    restoreStoredMode: hasFlag('--restore-mode'),
+  });
 }
 
 void main().catch((error) => {

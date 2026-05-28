@@ -398,6 +398,20 @@ export function saveSessionTuiEntries(
   return session;
 }
 
+export function saveSessionTuiMode(
+  sessionId: string,
+  mode: AgentMode,
+): AgentSession {
+  const session = loadOrCreateSession(sessionId);
+  session.tuiState = {
+    mode,
+    entries: session.tuiState.entries,
+  };
+  session.updatedAt = createTimestamp();
+  saveSession(session);
+  return session;
+}
+
 export function appendSessionTurn(
   sessionId: string,
   turn: SessionTurn,

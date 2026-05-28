@@ -104,6 +104,7 @@ type CliAction = 'chat' | 'diff' | 'undo';
 
 interface ParsedCliArgs {
   mode: AgentMode;
+  modeExplicit: boolean;
   promptParts: string[];
   sessionId?: string;
   action: CliAction;
@@ -113,6 +114,7 @@ interface ParsedCliArgs {
 function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
   const promptParts: string[] = [];
   let mode = defaultMode;
+  let modeExplicit = false;
   let sessionId: string | undefined;
   let action: CliAction = 'chat';
   let directTui = false;
@@ -125,6 +127,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
 
     if (arg === '--plan') {
       mode = 'plan';
+      modeExplicit = true;
       continue;
     }
 
@@ -170,6 +173,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
       }
 
       mode = value;
+      modeExplicit = true;
       index++;
       continue;
     }
@@ -181,6 +185,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
       }
 
       mode = value;
+      modeExplicit = true;
       continue;
     }
 
@@ -189,6 +194,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
 
   return {
     mode,
+    modeExplicit,
     promptParts,
     action,
     directTui,
@@ -211,7 +217,7 @@ async function main() {
   }
 
   const config = getConfig();
-  const { mode, promptParts, sessionId, action, directTui } = parseCliArgs(args, config.defaultMode);
+  const { mode, modeExplicit, promptParts, sessionId, action, directTui } = parseCliArgs(args, config.defaultMode);
   const userPrompt = promptParts.join(' ').trim();
 
   if ((action === 'diff' || action === 'undo') && !sessionId) {
@@ -244,6 +250,7 @@ async function main() {
           const launchResult = launchSessionWindow({
             sessionId: activeSessionId,
             mode,
+            restoreStoredMode: !modeExplicit,
           });
 
           if (launchResult.launched) {
@@ -256,7 +263,9 @@ async function main() {
         }
       }
 
-      await startInteractiveSession(activeSessionId, mode);
+      await startInteractiveSession(activeSessionId, mode, {
+        restoreStoredMode: !modeExplicit,
+      });
       return;
     }
 

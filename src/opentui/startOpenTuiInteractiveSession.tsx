@@ -18,6 +18,7 @@ import {
   getLatestSessionDiff,
   loadSessionTuiState,
   saveSessionTuiEntries,
+  saveSessionTuiMode,
   undoLastSessionSnapshot,
 } from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
@@ -26,6 +27,10 @@ import {
   OpenTuiInteractiveSessionApp,
   type OpenTuiSessionEntry,
 } from './OpenTuiInteractiveSessionApp';
+
+export interface StartOpenTuiInteractiveSessionOptions {
+  restoreStoredMode?: boolean;
+}
 
 function appendEntry(
   entries: OpenTuiSessionEntry[],
@@ -132,6 +137,7 @@ function SessionRoot(props: {
 export async function startOpenTuiInteractiveSession(
   sessionId: string,
   initialMode: AgentMode,
+  options?: StartOpenTuiInteractiveSessionOptions,
 ): Promise<void> {
   const renderer = await createOpenTuiRenderer();
   const waitForDestroy = new Promise<void>((resolve) => {
@@ -141,7 +147,12 @@ export async function startOpenTuiInteractiveSession(
   });
 
   const initialTuiState = loadSessionTuiState(sessionId);
-  const [mode, setMode] = createSignal<AgentMode>(initialMode);
+  const resolvedInitialMode = options?.restoreStoredMode && initialTuiState.mode
+    ? initialTuiState.mode
+    : initialMode;
+  saveSessionTuiMode(sessionId, resolvedInitialMode);
+
+  const [mode, setMode] = createSignal<AgentMode>(resolvedInitialMode);
   const [entries, setEntries] = createSignal<OpenTuiSessionEntry[]>(initialTuiState.entries);
   const [inputValue, setInputValue] = createSignal('');
   const [isBusy, setIsBusy] = createSignal(false);
@@ -159,6 +170,11 @@ export async function startOpenTuiInteractiveSession(
     const nextEntries = appendEntry(entries(), kind, text);
     setEntries(nextEntries);
     saveSessionTuiEntries(sessionId, nextEntries);
+  };
+
+  const setActiveMode = (nextMode: AgentMode): void => {
+    setMode(nextMode);
+    saveSessionTuiMode(sessionId, nextMode);
   };
 
   const resolveActivePermissionPrompt = (
@@ -286,7 +302,7 @@ export async function startOpenTuiInteractiveSession(
         return;
       }
 
-      setMode(requestedMode);
+      setActiveMode(requestedMode);
       appendTranscriptEntry('system', printModeChange(requestedMode));
       return;
     }

@@ -4,12 +4,20 @@ import { stdin as input, stdout as output } from 'node:process';
 
 import { type AgentMode } from './agentMode';
 
+export interface InteractiveSessionOptions {
+  restoreStoredMode?: boolean;
+}
+
 function getOpenTuiEntrypoint(): string {
   return path.join(process.cwd(), 'src', 'opentui', 'index.tsx');
 }
 
-function buildOpenTuiArgs(sessionId: string, mode: AgentMode): string[] {
-  return [
+function buildOpenTuiArgs(
+  sessionId: string,
+  mode: AgentMode,
+  options?: InteractiveSessionOptions,
+): string[] {
+  const args = [
     'run',
     getOpenTuiEntrypoint(),
     '--session',
@@ -17,11 +25,18 @@ function buildOpenTuiArgs(sessionId: string, mode: AgentMode): string[] {
     '--mode',
     mode,
   ];
+
+  if (options?.restoreStoredMode) {
+    args.push('--restore-mode');
+  }
+
+  return args;
 }
 
 export async function startInteractiveSession(
   sessionId: string,
   initialMode: AgentMode,
+  options?: InteractiveSessionOptions,
 ): Promise<void> {
   if (!input.isTTY || !output.isTTY) {
     throw new Error('Interactive session mode requires a TTY.');
@@ -30,7 +45,7 @@ export async function startInteractiveSession(
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
       'bun',
-      buildOpenTuiArgs(sessionId, initialMode),
+      buildOpenTuiArgs(sessionId, initialMode, options),
       {
         cwd: process.cwd(),
         stdio: 'inherit',
