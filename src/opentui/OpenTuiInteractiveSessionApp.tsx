@@ -318,7 +318,7 @@ function AssistantContent(props: { text: string; isCompact: boolean }) {
   const blocks = () => parseAssistantContent(props.text);
 
   return (
-    <box flexDirection="column" gap={props.isCompact ? 0 : 1}>
+    <box flexDirection="column" gap={1}>
       <For each={blocks()}>
         {(block) => {
           if (block.type === 'heading') {
@@ -421,7 +421,7 @@ function TranscriptEntry(props: {
     <box
       id={props.entry.id}
       flexDirection="column"
-      marginBottom={props.isCompact ? 0 : 1}
+      marginBottom={1}
       border={['left']}
       borderStyle="heavy"
       borderColor={role().border}
@@ -475,9 +475,9 @@ function EmptyTranscriptState(props: { isCompact: boolean }) {
       flexGrow={1}
       backgroundColor={openTuiTheme.color.canvas}
       paddingX={1}
-      paddingY={props.isCompact ? 0 : 1}
+      paddingY={1}
       flexDirection="column"
-      gap={props.isCompact ? 0 : 1}
+      gap={1}
       justifyContent="center"
       alignItems="center"
     >
@@ -549,7 +549,7 @@ function PermissionPromptPanel(props: {
       paddingX={1}
       paddingY={0}
       flexDirection="column"
-      gap={props.isCompact ? 0 : 1}
+      gap={1}
     >
       <box flexDirection="row" gap={1}>
         <text fg={openTuiTheme.color.amber}>Permission required</text>
@@ -740,7 +740,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     <box
       width="100%"
       height="100%"
-      padding={isShort() ? 0 : 1}
+      padding={1}
       flexDirection="column"
       gap={0}
       backgroundColor={openTuiTheme.color.canvas}
@@ -792,7 +792,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       <box
         backgroundColor={openTuiTheme.color.canvas}
         paddingX={1}
-        paddingY={isCompact() ? 0 : 1}
+        paddingY={1}
         flexDirection="column"
         flexGrow={1}
         minHeight={isShort() ? 3 : 8}
