@@ -34,12 +34,12 @@ export interface StartOpenTuiInteractiveSessionOptions {
 
 type SlashCommand =
   | { type: 'none' }
+  | { type: 'invalid' }
   | { type: 'exit' }
   | { type: 'diff' }
   | { type: 'undo' }
   | { type: 'plan_show' }
-  | { type: 'mode'; mode: AgentMode }
-  | { type: 'mode_error' };
+  | { type: 'mode'; mode: AgentMode };
 
 function appendEntry(
   entries: OpenTuiSessionEntry[],
@@ -85,10 +85,6 @@ function printModeChange(mode: AgentMode): string {
   return `Switched to ${mode} mode.`;
 }
 
-function printModeCommandError(): string {
-  return 'Usage: /mode plan or /mode build';
-}
-
 function isModeCommand(inputLine: string): boolean {
   return inputLine === '/mode' || inputLine.startsWith('/mode ');
 }
@@ -116,10 +112,12 @@ function parseSlashCommand(inputLine: string): SlashCommand {
       return { type: 'mode', mode: requestedMode };
     }
 
-    return { type: 'mode_error' };
+    return { type: 'invalid' };
   }
 
-  return { type: 'none' };
+  return inputLine.startsWith('/')
+    ? { type: 'invalid' }
+    : { type: 'none' };
 }
 
 function parsePermissionDecision(inputLine: string): PermissionPromptDecision | null {
@@ -268,6 +266,9 @@ export async function startOpenTuiInteractiveSession(
       case 'none':
         return false;
 
+      case 'invalid':
+        return true;
+
       case 'exit':
         exitSession();
         return true;
@@ -303,10 +304,6 @@ export async function startOpenTuiInteractiveSession(
         setActiveMode(command.mode);
         appendTranscriptEntry('system', printModeChange(command.mode));
         return true;
-
-      case 'mode_error':
-        appendTranscriptEntry('system', printModeCommandError());
-        return true;
     }
   };
 
@@ -336,15 +333,19 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
-    setInputValue('');
-
     if (userInput.length === 0) {
+      setInputValue('');
       return;
     }
 
+    const slashCommand = parseSlashCommand(userInput);
+    if (slashCommand.type === 'invalid') {
+      return;
+    }
+
+    setInputValue('');
     setStatusMessage(null);
 
-    const slashCommand = parseSlashCommand(userInput);
     if (handleSlashCommand(slashCommand)) {
       return;
     }
