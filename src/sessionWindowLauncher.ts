@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import path from 'node:path';
 
 import { type AgentMode } from './agentMode';
+import { buildOpenTuiBunArgs } from './openTuiLaunchPaths';
 
 export interface LaunchSessionWindowOptions {
   sessionId: string;
@@ -15,25 +15,12 @@ export interface LaunchSessionWindowResult {
   message?: string;
 }
 
-function getOpenTuiEntrypoint(): string {
-  return path.join(process.cwd(), 'src', 'opentui', 'index.tsx');
-}
-
 function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
-  const args = [
-    'run',
-    getOpenTuiEntrypoint(),
-    '--session',
+  return buildOpenTuiBunArgs(
     options.sessionId,
-    '--mode',
     options.mode,
-  ];
-
-  if (options.restoreStoredMode) {
-    args.push('--restore-mode');
-  }
-
-  return args;
+    options.restoreStoredMode ? { restoreStoredMode: true } : undefined,
+  );
 }
 
 function formatWindowsTerminalTitle(sessionId: string): string {

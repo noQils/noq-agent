@@ -1,37 +1,10 @@
 import { spawn } from 'node:child_process';
-import path from 'node:path';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { type AgentMode } from './agentMode';
+import { buildOpenTuiBunArgs, type OpenTuiLaunchOptions } from './openTuiLaunchPaths';
 
-export interface InteractiveSessionOptions {
-  restoreStoredMode?: boolean;
-}
-
-function getOpenTuiEntrypoint(): string {
-  return path.join(process.cwd(), 'src', 'opentui', 'index.tsx');
-}
-
-function buildOpenTuiArgs(
-  sessionId: string,
-  mode: AgentMode,
-  options?: InteractiveSessionOptions,
-): string[] {
-  const args = [
-    'run',
-    getOpenTuiEntrypoint(),
-    '--session',
-    sessionId,
-    '--mode',
-    mode,
-  ];
-
-  if (options?.restoreStoredMode) {
-    args.push('--restore-mode');
-  }
-
-  return args;
-}
+export type InteractiveSessionOptions = OpenTuiLaunchOptions;
 
 export async function startInteractiveSession(
   sessionId: string,
@@ -45,7 +18,7 @@ export async function startInteractiveSession(
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
       'bun',
-      buildOpenTuiArgs(sessionId, initialMode, options),
+      buildOpenTuiBunArgs(sessionId, initialMode, options),
       {
         cwd: process.cwd(),
         stdio: 'inherit',
