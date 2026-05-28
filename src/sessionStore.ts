@@ -384,6 +384,20 @@ export function loadSessionTuiState(sessionId: string): SessionTuiState {
   };
 }
 
+export function saveSessionTuiEntries(
+  sessionId: string,
+  entries: SessionTranscriptEntry[],
+): AgentSession {
+  const session = loadOrCreateSession(sessionId);
+  session.tuiState = {
+    mode: session.tuiState.mode,
+    entries: normalizeTranscriptEntries(entries),
+  };
+  session.updatedAt = createTimestamp();
+  saveSession(session);
+  return session;
+}
+
 export function appendSessionTurn(
   sessionId: string,
   turn: SessionTurn,

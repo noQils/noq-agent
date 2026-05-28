@@ -17,6 +17,7 @@ import {
   formatLatestSessionPlan,
   getLatestSessionDiff,
   loadSessionTuiState,
+  saveSessionTuiEntries,
   undoLastSessionSnapshot,
 } from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
@@ -151,6 +152,15 @@ export async function startOpenTuiInteractiveSession(
   let isDestroyed = false;
   let resolvePermissionPrompt: ((decision: PermissionPromptDecision) => void) | null = null;
 
+  const appendTranscriptEntry = (
+    kind: OpenTuiSessionEntry['kind'],
+    text: string,
+  ): void => {
+    const nextEntries = appendEntry(entries(), kind, text);
+    setEntries(nextEntries);
+    saveSessionTuiEntries(sessionId, nextEntries);
+  };
+
   const resolveActivePermissionPrompt = (
     decision: PermissionPromptDecision,
     shouldRequestRender = true,
@@ -231,7 +241,7 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
-    setEntries((currentEntries) => appendEntry(currentEntries, 'user', rawInput));
+    appendTranscriptEntry('user', rawInput);
     setStatusMessage(null);
 
     if (userInput === '/exit' || userInput === '/quit') {
@@ -242,11 +252,9 @@ export async function startOpenTuiInteractiveSession(
     if (userInput === '/diff') {
       try {
         const result = getLatestSessionDiff(sessionId);
-        setEntries((currentEntries) => appendEntry(currentEntries, 'system', result));
+        appendTranscriptEntry('system', result);
       } catch (error) {
-        setEntries((currentEntries) => (
-          appendEntry(currentEntries, 'system', `Command failed: ${formatErrorMessage(error)}`)
-        ));
+        appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
       }
       return;
     }
@@ -254,11 +262,9 @@ export async function startOpenTuiInteractiveSession(
     if (userInput === '/undo') {
       try {
         const result = undoLastSessionSnapshot(sessionId);
-        setEntries((currentEntries) => appendEntry(currentEntries, 'system', result));
+        appendTranscriptEntry('system', result);
       } catch (error) {
-        setEntries((currentEntries) => (
-          appendEntry(currentEntries, 'system', `Command failed: ${formatErrorMessage(error)}`)
-        ));
+        appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
       }
       return;
     }
@@ -266,11 +272,9 @@ export async function startOpenTuiInteractiveSession(
     if (userInput === '/plan show') {
       try {
         const result = formatLatestSessionPlan(sessionId);
-        setEntries((currentEntries) => appendEntry(currentEntries, 'system', result));
+        appendTranscriptEntry('system', result);
       } catch (error) {
-        setEntries((currentEntries) => (
-          appendEntry(currentEntries, 'system', `Command failed: ${formatErrorMessage(error)}`)
-        ));
+        appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
       }
       return;
     }
@@ -278,12 +282,12 @@ export async function startOpenTuiInteractiveSession(
     if (isModeCommand(userInput)) {
       const requestedMode = userInput.slice('/mode'.length).trim();
       if (!isAgentMode(requestedMode)) {
-        setEntries((currentEntries) => appendEntry(currentEntries, 'system', printModeCommandError()));
+        appendTranscriptEntry('system', printModeCommandError());
         return;
       }
 
       setMode(requestedMode);
-      setEntries((currentEntries) => appendEntry(currentEntries, 'system', printModeChange(requestedMode)));
+      appendTranscriptEntry('system', printModeChange(requestedMode));
       return;
     }
 
@@ -293,16 +297,14 @@ export async function startOpenTuiInteractiveSession(
     try {
       const { response } = await runSessionTurn(sessionId, rawInput, mode(), {
         onMutation: (event) => {
-          setEntries((currentEntries) => appendEntry(currentEntries, 'system', event.diff));
+          appendTranscriptEntry('system', event.diff);
           renderer.requestRender();
         },
       });
-      setEntries((currentEntries) => appendEntry(currentEntries, 'assistant', response));
+      appendTranscriptEntry('assistant', response);
       setStatusMessage('Turn completed');
     } catch (error) {
-      setEntries((currentEntries) => (
-        appendEntry(currentEntries, 'system', `Turn failed: ${formatErrorMessage(error)}`)
-      ));
+      appendTranscriptEntry('system', `Turn failed: ${formatErrorMessage(error)}`);
       setStatusMessage('Turn failed');
     } finally {
       setIsBusy(false);
