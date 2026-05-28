@@ -270,6 +270,10 @@ function normalizeTranscriptEntries(entries: unknown): SessionTranscriptEntry[] 
     }
 
     const text = typeof entry.text === 'string' ? entry.text : '';
+    if (entry.kind === 'user' && text.trim().startsWith('/')) {
+      return [];
+    }
+
     return [{
       id: typeof entry.id === 'string' && entry.id.length > 0
         ? entry.id
