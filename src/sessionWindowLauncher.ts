@@ -36,30 +36,54 @@ function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
   return args;
 }
 
-function canLaunchWindowsTerminal(): boolean {
-  const result = spawnSync('wt.exe', ['--version'], {
-    encoding: 'utf-8',
-    windowsHide: true,
-  });
+function formatWindowsTerminalTitle(sessionId: string): string {
+  return `noq /// ${sessionId}`;
+}
 
-  return !result.error && result.status === 0;
+function escapePowerShellSingleQuotedValue(value: string): string {
+  return value.replaceAll("'", "''");
+}
+
+function buildPowerShellBunCommand(options: LaunchSessionWindowOptions): string {
+  const argumentList = buildChildArgs(options)
+    .map((value) => `'${escapePowerShellSingleQuotedValue(value)}'`)
+    .join(', ');
+
+  return [
+    `& 'bun' @(${argumentList})`,
+    '$noqExitCode = if ($LASTEXITCODE -is [int]) { $LASTEXITCODE } else { 0 }',
+    `if ($noqExitCode -ne 0) { Write-Host ''; Write-Host "noq exited with code $noqExitCode."; Read-Host 'Press Enter to close'; exit $noqExitCode }`,
+  ].join('; ');
+}
+
+function encodePowerShellCommand(command: string): string {
+  return Buffer.from(command, 'utf16le').toString('base64');
 }
 
 function tryLaunchWithWindowsTerminal(options: LaunchSessionWindowOptions): LaunchSessionWindowResult {
   const workingDirectory = options.cwd ?? process.cwd();
-  const childArgs = buildChildArgs(options);
   const result = spawnSync(
     'wt.exe',
     [
+      '-w',
+      '-1',
       'new-tab',
+      '--tabColor',
+      '#1f2126',
+      '--title',
+      formatWindowsTerminalTitle(options.sessionId),
+      '--suppressApplicationTitle',
       '-d',
       workingDirectory,
-      'bun',
-      ...childArgs,
+      'powershell.exe',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-EncodedCommand',
+      encodePowerShellCommand(buildPowerShellBunCommand(options)),
     ],
     {
       encoding: 'utf-8',
-      windowsHide: true,
     },
   );
 
@@ -73,21 +97,21 @@ function tryLaunchWithWindowsTerminal(options: LaunchSessionWindowOptions): Laun
   };
 }
 
-function escapePowerShellSingleQuotedValue(value: string): string {
-  return value.replaceAll("'", "''");
-}
-
 function tryLaunchWithPowerShell(options: LaunchSessionWindowOptions): LaunchSessionWindowResult {
   const workingDirectory = options.cwd ?? process.cwd();
-  const childArgs = buildChildArgs(options);
-  const argumentList = childArgs
+  const childCommand = [
+    `Set-Location -LiteralPath '${escapePowerShellSingleQuotedValue(workingDirectory)}'`,
+    buildPowerShellBunCommand(options),
+  ].join('; ');
+  const argumentList = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-EncodedCommand',
+    encodePowerShellCommand(childCommand),
+  ]
     .map((value) => `'${escapePowerShellSingleQuotedValue(value)}'`)
     .join(', ');
-
-  const command = [
-    `Set-Location -LiteralPath '${escapePowerShellSingleQuotedValue(workingDirectory)}'`,
-    `Start-Process -FilePath 'bun' -ArgumentList @(${argumentList}) -WorkingDirectory '${escapePowerShellSingleQuotedValue(workingDirectory)}'`,
-  ].join('; ');
 
   const result = spawnSync(
     'powershell.exe',
@@ -96,7 +120,7 @@ function tryLaunchWithPowerShell(options: LaunchSessionWindowOptions): LaunchSes
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
-      command,
+      `Start-Process -FilePath 'powershell.exe' -ArgumentList @(${argumentList}) -WorkingDirectory '${escapePowerShellSingleQuotedValue(workingDirectory)}' -WindowStyle Normal`,
     ],
     {
       encoding: 'utf-8',
@@ -122,25 +146,18 @@ export function launchSessionWindow(options: LaunchSessionWindowOptions): Launch
     };
   }
 
+  const wtResult = tryLaunchWithWindowsTerminal(options);
+  if (wtResult.launched) {
+    return wtResult;
+  }
+
   const powershellResult = tryLaunchWithPowerShell(options);
   if (powershellResult.launched) {
     return powershellResult;
   }
 
-  if (canLaunchWindowsTerminal()) {
-    const wtResult = tryLaunchWithWindowsTerminal(options);
-    if (wtResult.launched) {
-      return wtResult;
-    }
-
-    return {
-      launched: false,
-      message: wtResult.message ?? powershellResult.message ?? 'Failed to open a popup terminal window.',
-    };
-  }
-
   return {
     launched: false,
-    message: powershellResult.message ?? 'Failed to open a popup terminal window.',
+    message: wtResult.message ?? powershellResult.message ?? 'Failed to open a popup terminal window.',
   };
 }

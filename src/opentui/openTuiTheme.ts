@@ -43,9 +43,9 @@ export const openTuiTheme = {
     },
     assistant: {
       label: 'Agent',
-      accent: '#7ad17f',
-      border: '#4d8155',
-      background: '#243028',
+      accent: '#7ad1c3',
+      border: '#7ad1c3',
+      background: '#292c33',
       title: 'Response',
     },
     system: {

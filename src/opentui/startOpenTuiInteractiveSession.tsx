@@ -24,6 +24,10 @@ import {
 import { runSessionTurn } from '../sessionTurnRunner';
 import { createOpenTuiRenderer } from './createOpenTuiRenderer';
 import {
+  applyOpenTuiTerminalBackground,
+  resetOpenTuiTerminalBackground,
+} from './openTuiTerminalAppearance';
+import {
   OpenTuiInteractiveSessionApp,
   type OpenTuiSessionEntry,
 } from './OpenTuiInteractiveSessionApp';
@@ -373,6 +377,8 @@ export async function startOpenTuiInteractiveSession(
   };
 
   try {
+    applyOpenTuiTerminalBackground();
+
     await render(
       () => (
         <SessionRoot
@@ -407,6 +413,8 @@ export async function startOpenTuiInteractiveSession(
     if (!isDestroyed) {
       renderer.destroy();
     }
+
+    resetOpenTuiTerminalBackground();
   }
 
   if (shouldPrintHint) {
