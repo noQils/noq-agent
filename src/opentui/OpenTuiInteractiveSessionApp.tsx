@@ -309,11 +309,6 @@ function parseAssistantContent(text: string): AssistantContentBlock[] {
   return blocks;
 }
 
-function codeBlockHeight(content: string, isCompact: boolean): number {
-  const lineCount = content.length === 0 ? 1 : content.split(/\r?\n/).length;
-  return Math.max(2, Math.min(isCompact ? 6 : 10, lineCount));
-}
-
 function AssistantContent(props: { text: string; isCompact: boolean }) {
   const blocks = () => parseAssistantContent(props.text);
 
@@ -361,7 +356,6 @@ function AssistantContent(props: { text: string; isCompact: boolean }) {
                   content={block.content}
                   filetype={block.language}
                   syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
-                  height={codeBlockHeight(block.content, props.isCompact)}
                   width="100%"
                   fg={openTuiTheme.color.textSoft}
                   bg={openTuiTheme.color.panelRaised}
