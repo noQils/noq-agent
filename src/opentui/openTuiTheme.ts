@@ -44,15 +44,15 @@ export const openTuiTheme = {
     assistant: {
       label: 'Agent',
       accent: '#7ad1c3',
-      border: '#7ad1c3',
-      background: '#292c33',
+      border: '#1f2126',
+      background: '#1f2126',
       title: 'Response',
     },
     system: {
       label: 'System',
       accent: '#f6c768',
       border: '#967342',
-      background: '#332d23',
+      background: '#1f2126',
       title: 'Notice',
     },
   },

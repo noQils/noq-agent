@@ -423,24 +423,13 @@ function TranscriptEntry(props: {
       flexDirection="column"
       marginBottom={props.isCompact ? 0 : 1}
       border={['left']}
-      borderStyle="single"
+      borderStyle="heavy"
       borderColor={role().border}
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
       paddingX={1}
       paddingY={0}
     >
-      <box flexDirection="row" justifyContent="space-between" gap={1}>
-        <text fg={role().accent} truncate>
-          {role().label}
-        </text>
-        {props.showTime ? (
-          <text fg={openTuiTheme.color.textFaint} truncate>
-            {timestamp()}
-          </text>
-        ) : null}
-      </box>
-
       {props.entry.kind === 'assistant' ? (
         <AssistantContent text={props.entry.text} isCompact={props.isCompact} />
       ) : renderableDiff() ? (
@@ -753,7 +742,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       height="100%"
       padding={isShort() ? 0 : 1}
       flexDirection="column"
-      gap={isShort() ? 0 : 1}
+      gap={0}
       backgroundColor={openTuiTheme.color.canvas}
     >
       <box
@@ -822,8 +811,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           }}
           scrollbarOptions={{
             trackOptions: {
-              backgroundColor: openTuiTheme.color.panelRaised,
-              foregroundColor: openTuiTheme.color.teal,
+              backgroundColor: openTuiTheme.color.canvas,
+              foregroundColor: openTuiTheme.color.panelRaised,
             },
           }}
         >
