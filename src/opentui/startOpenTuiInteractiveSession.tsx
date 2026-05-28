@@ -32,6 +32,15 @@ export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
 }
 
+type SlashCommand =
+  | { type: 'none' }
+  | { type: 'exit' }
+  | { type: 'diff' }
+  | { type: 'undo' }
+  | { type: 'plan_show' }
+  | { type: 'mode'; mode: AgentMode }
+  | { type: 'mode_error' };
+
 function appendEntry(
   entries: OpenTuiSessionEntry[],
   kind: OpenTuiSessionEntry['kind'],
@@ -82,6 +91,35 @@ function printModeCommandError(): string {
 
 function isModeCommand(inputLine: string): boolean {
   return inputLine === '/mode' || inputLine.startsWith('/mode ');
+}
+
+function parseSlashCommand(inputLine: string): SlashCommand {
+  if (inputLine === '/exit' || inputLine === '/quit') {
+    return { type: 'exit' };
+  }
+
+  if (inputLine === '/diff') {
+    return { type: 'diff' };
+  }
+
+  if (inputLine === '/undo') {
+    return { type: 'undo' };
+  }
+
+  if (inputLine === '/plan show') {
+    return { type: 'plan_show' };
+  }
+
+  if (isModeCommand(inputLine)) {
+    const requestedMode = inputLine.slice('/mode'.length).trim();
+    if (isAgentMode(requestedMode)) {
+      return { type: 'mode', mode: requestedMode };
+    }
+
+    return { type: 'mode_error' };
+  }
+
+  return { type: 'none' };
 }
 
 function parsePermissionDecision(inputLine: string): PermissionPromptDecision | null {
@@ -225,6 +263,53 @@ export async function startOpenTuiInteractiveSession(
     });
   });
 
+  const handleSlashCommand = (command: SlashCommand): boolean => {
+    switch (command.type) {
+      case 'none':
+        return false;
+
+      case 'exit':
+        exitSession();
+        return true;
+
+      case 'diff':
+        try {
+          const result = getLatestSessionDiff(sessionId);
+          appendTranscriptEntry('system', result);
+        } catch (error) {
+          appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
+        }
+        return true;
+
+      case 'undo':
+        try {
+          const result = undoLastSessionSnapshot(sessionId);
+          appendTranscriptEntry('system', result);
+        } catch (error) {
+          appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
+        }
+        return true;
+
+      case 'plan_show':
+        try {
+          const result = formatLatestSessionPlan(sessionId);
+          appendTranscriptEntry('system', result);
+        } catch (error) {
+          appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
+        }
+        return true;
+
+      case 'mode':
+        setActiveMode(command.mode);
+        appendTranscriptEntry('system', printModeChange(command.mode));
+        return true;
+
+      case 'mode_error':
+        appendTranscriptEntry('system', printModeCommandError());
+        return true;
+    }
+  };
+
   const handleSubmit = async (): Promise<void> => {
     const rawInput = inputValue();
     const userInput = rawInput.trim();
@@ -257,55 +342,14 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
-    appendTranscriptEntry('user', rawInput);
     setStatusMessage(null);
 
-    if (userInput === '/exit' || userInput === '/quit') {
-      exitSession();
+    const slashCommand = parseSlashCommand(userInput);
+    if (handleSlashCommand(slashCommand)) {
       return;
     }
 
-    if (userInput === '/diff') {
-      try {
-        const result = getLatestSessionDiff(sessionId);
-        appendTranscriptEntry('system', result);
-      } catch (error) {
-        appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
-      }
-      return;
-    }
-
-    if (userInput === '/undo') {
-      try {
-        const result = undoLastSessionSnapshot(sessionId);
-        appendTranscriptEntry('system', result);
-      } catch (error) {
-        appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
-      }
-      return;
-    }
-
-    if (userInput === '/plan show') {
-      try {
-        const result = formatLatestSessionPlan(sessionId);
-        appendTranscriptEntry('system', result);
-      } catch (error) {
-        appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
-      }
-      return;
-    }
-
-    if (isModeCommand(userInput)) {
-      const requestedMode = userInput.slice('/mode'.length).trim();
-      if (!isAgentMode(requestedMode)) {
-        appendTranscriptEntry('system', printModeCommandError());
-        return;
-      }
-
-      setActiveMode(requestedMode);
-      appendTranscriptEntry('system', printModeChange(requestedMode));
-      return;
-    }
+    appendTranscriptEntry('user', rawInput);
 
     setIsBusy(true);
     setStatusMessage('Running turn...');
