@@ -511,11 +511,11 @@ function PermissionPromptPanel(props: {
       </box>
 
       <box flexDirection="row" gap={1}>
-        <text fg={openTuiTheme.color.green}>[o/y enter] allow once</text>
+        <text fg={openTuiTheme.color.green}>[o/y] allow once</text>
         <text fg={openTuiTheme.color.teal} truncate>
-          {`[a enter] ${persistentSessionLabel()}`}
+          {`[a] ${persistentSessionLabel()}`}
         </text>
-        <text fg={openTuiTheme.color.red}>[n enter/esc] deny</text>
+        <text fg={openTuiTheme.color.red}>[n/esc] deny</text>
       </box>
       <box minHeight={1} />
     </box>
