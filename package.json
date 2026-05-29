@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "dev": "ts-node src/index.ts",
     "dev:tui:opentui": "bun run src/opentui/index.tsx --session opentui-preview --mode build",
-    "check:tui:opentui": "bun x tsc -p tsconfig.opentui.json --noEmit",
+    "check:tui:opentui": "tsc -p tsconfig.opentui.json --noEmit",
     "test": "node --test --require ts-node/register \"tests/**/*.test.ts\"",
     "verify": "npm run typecheck && npm run check:tui:opentui && npm test"
   },
