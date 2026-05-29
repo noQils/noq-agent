@@ -335,18 +335,12 @@ export function getSessionFilePath(sessionId: string): string {
   return path.join(getSessionDirectoryPath(sessionId), sessionFileName);
 }
 
-function getLegacySessionFilePath(sessionId: string): string {
-  assertValidSessionId(sessionId);
-  return path.join(getSessionsDirectoryPath(), `${sessionId}.json`);
-}
-
 export function getSessionDebugLogPath(sessionId: string): string {
   return path.join(getSessionDirectoryPath(sessionId), sessionDebugLogFileName);
 }
 
 function doesSessionExist(sessionId: string): boolean {
-  return fs.existsSync(getSessionDirectoryPath(sessionId))
-    || fs.existsSync(getLegacySessionFilePath(sessionId));
+  return fs.existsSync(getSessionDirectoryPath(sessionId));
 }
 
 function truncateText(text: string, maxLength: number): string {
@@ -403,9 +397,7 @@ function saveSession(session: AgentSession): void {
 }
 
 function loadSessionFile(sessionId: string): AgentSession | null {
-  const sessionFilePath = fs.existsSync(getSessionFilePath(sessionId))
-    ? getSessionFilePath(sessionId)
-    : getLegacySessionFilePath(sessionId);
+  const sessionFilePath = getSessionFilePath(sessionId);
 
   if (!fs.existsSync(sessionFilePath)) {
     return null;

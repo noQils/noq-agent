@@ -10,7 +10,6 @@ import {
   getSessionDebugLogPath,
   getSessionFilePath,
   getSessionPermissionApprovals,
-  loadExistingSession,
   loadOrCreateSession,
   undoLastSessionSnapshot,
 } from '../src/sessionStore';
@@ -56,45 +55,10 @@ test('new sessions are stored in a per-session directory', async () => {
   });
 });
 
-test('legacy flat session files still load and later saves use the session directory', async () => {
+test('generated session ids avoid existing session directories', async () => {
   await withTempWorkspace((workspace) => {
     workspace.writeFile(
-      '.noq/sessions/legacy-session.json',
-      JSON.stringify({
-        id: 'legacy-session',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
-        turns: [{
-          timestamp: '2026-01-01T00:00:00.000Z',
-          mode: 'build',
-          userPrompt: 'old prompt',
-          response: 'old response',
-        }],
-      }),
-    );
-
-    assert.equal(loadExistingSession('legacy-session').turns.length, 1);
-
-    appendSessionTurn(
-      'legacy-session',
-      {
-        timestamp: '2026-01-01T00:00:01.000Z',
-        mode: 'build',
-        userPrompt: 'new prompt',
-        response: 'new response',
-      },
-      [],
-    );
-
-    assert.equal(fs.existsSync(getSessionFilePath('legacy-session')), true);
-    assert.equal(loadExistingSession('legacy-session').turns.length, 2);
-  });
-});
-
-test('generated session ids avoid legacy flat sessions and session directories', async () => {
-  await withTempWorkspace((workspace) => {
-    workspace.writeFile(
-      '.noq/sessions/session-20260101-000000.json',
+      '.noq/sessions/session-20260101-000000/session.json',
       JSON.stringify({ id: 'session-20260101-000000' }),
     );
     workspace.writeFile(
