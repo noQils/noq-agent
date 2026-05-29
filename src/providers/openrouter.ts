@@ -29,6 +29,7 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
+import { debugLog } from '../runtimeSettings';
 
 function getApiKey(): string {
   return getRequiredRuntimeEnvVar('OPENROUTER_API_KEY');
@@ -239,7 +240,7 @@ export async function chat(
       };
     }
 
-    console.log(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
+    debugLog(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
 
     for (const toolCall of toolCalls) {
       const normalizedArgs = parseAndNormalizeToolArgsJson(toolCall.function.arguments);
@@ -260,7 +261,7 @@ export async function chat(
       }
 
       const args = normalizedArgs.args;
-      console.log('Tool call', toolCall.function.name, 'with args:', args);
+      debugLog('Tool call', toolCall.function.name, 'with args:', args);
 
       const executionResult = await executeToolCall(
         toolCall.function.name,
@@ -280,6 +281,6 @@ export async function chat(
     }
 
     toolRoundCount++;
-    console.log('\n');
+    debugLog('');
   }
 }

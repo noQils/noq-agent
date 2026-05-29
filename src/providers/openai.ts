@@ -25,6 +25,7 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
+import { debugLog } from '../runtimeSettings';
 
 // Helper function to retrieve the API key from environment variables
 function getApiKey(): string {
@@ -184,7 +185,7 @@ export async function chat(
     }
 
     previousRoundCalls = currentRoundCalls;
-    console.log(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
+    debugLog(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
 
     for (const item of functionCalls) {
       const normalizedArgs = parseAndNormalizeToolArgsJson(item.arguments);
@@ -207,7 +208,7 @@ export async function chat(
 
       const args = normalizedArgs.args;
       
-      console.log('Tool call', item.name, 'with args:', args);
+      debugLog('Tool call', item.name, 'with args:', args);
 
       const executionResult = await executeToolCall(
         item.name,
@@ -251,6 +252,6 @@ export async function chat(
     });
 
     toolRoundCount++;
-    console.log('\n');
+    debugLog('');
   }
 }

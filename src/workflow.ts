@@ -12,6 +12,7 @@ import {
 import { getSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
+import { debugLog } from './runtimeSettings';
 import { getToolsForMode } from './tools';
 import { formatTodoItems, hasTodoItems, resetTodoState } from './todoState';
 
@@ -650,7 +651,7 @@ export async function runAgentTurn(
     
     while (workflowState.flowRoundCount < maxFlowRounds) {
         workflowState.flowRoundCount++;
-        console.log(`Flow round ${workflowState.flowRoundCount}`)
+        debugLog(`Flow round ${workflowState.flowRoundCount}`);
 
         const messagesForProvider = hasTodoItems()
             ? [
