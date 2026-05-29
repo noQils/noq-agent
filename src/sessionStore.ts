@@ -11,6 +11,8 @@ import { type SessionFileChange } from './sessionChangeTracker';
 
 const sessionIdPattern = /^[A-Za-z0-9._-]+$/;
 const sessionsRootDirectory = '.noq/sessions';
+const sessionFileName = 'session.json';
+const sessionDebugLogFileName = 'debug.log';
 const maxVerbatimTurns = 6;
 const maxCompactedTurns = 12;
 const permissionScopes: PermissionScope[] = [
@@ -301,8 +303,8 @@ function normalizeTuiState(tuiState: unknown): SessionTuiState {
 }
 
 function assertValidSessionId(sessionId: string): void {
-  if (!sessionIdPattern.test(sessionId)) {
-    throw new Error('Session id may contain only letters, numbers, ".", "_" and "-".');
+  if (!sessionIdPattern.test(sessionId) || sessionId === '.' || sessionId === '..') {
+    throw new Error('Session id may contain only letters, numbers, ".", "_" and "-", and cannot be "." or "..".');
   }
 }
 
@@ -320,17 +322,31 @@ function createEmptySession(sessionId: string): AgentSession {
   };
 }
 
-function getSessionsDirectoryPath(): string {
+export function getSessionsDirectoryPath(): string {
   return resolveProjectPath(sessionsRootDirectory);
 }
 
-function getSessionFilePath(sessionId: string): string {
+export function getSessionDirectoryPath(sessionId: string): string {
+  assertValidSessionId(sessionId);
+  return path.join(getSessionsDirectoryPath(), sessionId);
+}
+
+export function getSessionFilePath(sessionId: string): string {
+  return path.join(getSessionDirectoryPath(sessionId), sessionFileName);
+}
+
+function getLegacySessionFilePath(sessionId: string): string {
   assertValidSessionId(sessionId);
   return path.join(getSessionsDirectoryPath(), `${sessionId}.json`);
 }
 
+export function getSessionDebugLogPath(sessionId: string): string {
+  return path.join(getSessionDirectoryPath(sessionId), sessionDebugLogFileName);
+}
+
 function doesSessionExist(sessionId: string): boolean {
-  return fs.existsSync(getSessionFilePath(sessionId));
+  return fs.existsSync(getSessionDirectoryPath(sessionId))
+    || fs.existsSync(getLegacySessionFilePath(sessionId));
 }
 
 function truncateText(text: string, maxLength: number): string {
@@ -382,12 +398,15 @@ function ensureSessionsDirectory(): void {
 function saveSession(session: AgentSession): void {
   ensureSessionsDirectory();
   const sessionFilePath = getSessionFilePath(session.id);
-  ensureParentDirectory(path.relative(process.cwd(), sessionFilePath));
+  fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
   fs.writeFileSync(sessionFilePath, JSON.stringify(session, null, 2), 'utf-8');
 }
 
 function loadSessionFile(sessionId: string): AgentSession | null {
-  const sessionFilePath = getSessionFilePath(sessionId);
+  const sessionFilePath = fs.existsSync(getSessionFilePath(sessionId))
+    ? getSessionFilePath(sessionId)
+    : getLegacySessionFilePath(sessionId);
+
   if (!fs.existsSync(sessionFilePath)) {
     return null;
   }

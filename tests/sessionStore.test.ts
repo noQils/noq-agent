@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
 import {
   appendSessionTurn,
   buildSessionHistoryMessages,
+  generateUniqueSessionId,
   getLatestSessionDiff,
+  getSessionDebugLogPath,
+  getSessionFilePath,
   getSessionPermissionApprovals,
+  loadExistingSession,
   loadOrCreateSession,
   undoLastSessionSnapshot,
 } from '../src/sessionStore';
@@ -22,6 +27,84 @@ test('session ids reject path traversal characters', async () => {
     assert.throws(
       () => loadOrCreateSession('../outside'),
       /Session id may contain only letters/,
+    );
+    assert.throws(
+      () => loadOrCreateSession('.'),
+      /Session id may contain only letters/,
+    );
+    assert.throws(
+      () => loadOrCreateSession('..'),
+      /Session id may contain only letters/,
+    );
+  });
+});
+
+test('new sessions are stored in a per-session directory', async () => {
+  await withTempWorkspace((workspace) => {
+    const session = loadOrCreateSession('folder-session');
+
+    assert.equal(session.id, 'folder-session');
+    assert.equal(
+      getSessionFilePath('folder-session'),
+      workspace.path('.noq', 'sessions', 'folder-session', 'session.json'),
+    );
+    assert.equal(
+      getSessionDebugLogPath('folder-session'),
+      workspace.path('.noq', 'sessions', 'folder-session', 'debug.log'),
+    );
+    assert.equal(fs.existsSync(getSessionFilePath('folder-session')), true);
+  });
+});
+
+test('legacy flat session files still load and later saves use the session directory', async () => {
+  await withTempWorkspace((workspace) => {
+    workspace.writeFile(
+      '.noq/sessions/legacy-session.json',
+      JSON.stringify({
+        id: 'legacy-session',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        turns: [{
+          timestamp: '2026-01-01T00:00:00.000Z',
+          mode: 'build',
+          userPrompt: 'old prompt',
+          response: 'old response',
+        }],
+      }),
+    );
+
+    assert.equal(loadExistingSession('legacy-session').turns.length, 1);
+
+    appendSessionTurn(
+      'legacy-session',
+      {
+        timestamp: '2026-01-01T00:00:01.000Z',
+        mode: 'build',
+        userPrompt: 'new prompt',
+        response: 'new response',
+      },
+      [],
+    );
+
+    assert.equal(fs.existsSync(getSessionFilePath('legacy-session')), true);
+    assert.equal(loadExistingSession('legacy-session').turns.length, 2);
+  });
+});
+
+test('generated session ids avoid legacy flat sessions and session directories', async () => {
+  await withTempWorkspace((workspace) => {
+    workspace.writeFile(
+      '.noq/sessions/session-20260101-000000.json',
+      JSON.stringify({ id: 'session-20260101-000000' }),
+    );
+    workspace.writeFile(
+      '.noq/sessions/session-20260101-000000-2/session.json',
+      JSON.stringify({ id: 'session-20260101-000000-2' }),
+    );
+
+    assert.equal(
+      generateUniqueSessionId(new Date(2026, 0, 1, 0, 0, 0)),
+      'session-20260101-000000-3',
     );
   });
 });
