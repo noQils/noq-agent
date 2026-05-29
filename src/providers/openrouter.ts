@@ -316,6 +316,5 @@ export async function chat(
     }
 
     toolRoundCount++;
-    debugLog('');
   }
 }

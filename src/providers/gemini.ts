@@ -346,6 +346,5 @@ export async function chat(
     executedToolCalls.push(...roundExecutedToolCalls);
 
     toolRoundCount++;
-    debugLog('');
   }
 }
