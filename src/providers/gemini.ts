@@ -27,7 +27,7 @@ import { normalizeToolArgs } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
-import { debugLog } from '../runtimeSettings';
+import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
@@ -249,11 +249,13 @@ export async function chat(
   const functionDeclarations = toGeminiFunctionDeclaration(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const gemini = getGeminiClient();
+  const maxToolRounds = getProviderMaxToolRounds();
   debugLog('Gemini chat start:', {
     model,
     mode: options?.mode,
     messageCount: messages.length,
     toolCount: functionDeclarations.length,
+    maxToolRounds,
   });
 
   let toolRoundCount = 0;
@@ -307,9 +309,10 @@ export async function chat(
       };
     }
 
-    if (toolRoundCount >= 10) {
+    if (toolRoundCount >= maxToolRounds) {
       debugLog('Gemini chat stopped: tool round limit reached.', {
         toolRoundCount,
+        maxToolRounds,
         executedToolCallCount: executedToolCalls.length,
       });
       return {

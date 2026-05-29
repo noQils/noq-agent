@@ -19,7 +19,7 @@ import { normalizeToolArgs } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRuntimeEnvVar } from '../runtimeEnv';
-import { debugLog } from '../runtimeSettings';
+import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {
@@ -72,11 +72,13 @@ export async function chat(
   }));
   const selectedTools = options?.tools ?? (options?.mode ? getToolsForMode(options.mode) : allTools);
   const ollamaTools = toOllamaTool(selectedTools);
+  const maxToolRounds = getProviderMaxToolRounds();
   debugLog('Ollama chat start:', {
     model,
     mode: options?.mode,
     messageCount: messages.length,
     toolCount: ollamaTools.length,
+    maxToolRounds,
   });
 
   const executedToolCalls: ExecutedToolCall[] = [];
@@ -124,9 +126,10 @@ export async function chat(
       };
     }
 
-    if (toolRoundCount >= 10) {
+    if (toolRoundCount >= maxToolRounds) {
       debugLog('Ollama chat stopped: tool round limit reached.', {
         toolRoundCount,
+        maxToolRounds,
         executedToolCallCount: executedToolCalls.length,
       });
       return {

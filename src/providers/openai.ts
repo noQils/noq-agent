@@ -26,7 +26,7 @@ import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
-import { debugLog } from '../runtimeSettings';
+import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 // Helper function to retrieve the API key from environment variables
 function getApiKey(): string {
@@ -161,11 +161,13 @@ export async function chat(
   const functionDeclarations = toOpenAIFunctionTool(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const openai = getOpenAIClient();
+  const maxToolRounds = getProviderMaxToolRounds();
   debugLog('OpenAI chat start:', {
     model,
     mode: options?.mode,
     messageCount: messages.length,
     toolCount: functionDeclarations.length,
+    maxToolRounds,
   });
 
   let response = await runProviderRequest('OpenAI', 'responses.create', () =>
@@ -264,9 +266,10 @@ export async function chat(
       };
     }
 
-    if (toolRoundCount >= 10) {
+    if (toolRoundCount >= maxToolRounds) {
       debugLog('OpenAI chat stopped: tool round limit reached.', {
         toolRoundCount,
+        maxToolRounds,
         executedToolCallCount: executedToolCalls.length,
       });
       return {

@@ -30,7 +30,7 @@ import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
-import { debugLog } from '../runtimeSettings';
+import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 function getApiKey(): string {
   return getRequiredRuntimeEnvVar('OPENROUTER_API_KEY');
@@ -198,11 +198,13 @@ export async function chat(
   const completionMessages = toOpenRouterHistory(messages);
   const executedToolCalls: ExecutedToolCall[] = [];
   const openrouter = getOpenRouterClient();
+  const maxToolRounds = getProviderMaxToolRounds();
   debugLog('OpenRouter chat start:', {
     model,
     mode: options?.mode,
     messageCount: messages.length,
     toolCount: openRouterTools.length,
+    maxToolRounds,
   });
 
   let toolRoundCount = 0;
@@ -250,9 +252,10 @@ export async function chat(
       };
     }
 
-    if (toolRoundCount >= 10) {
+    if (toolRoundCount >= maxToolRounds) {
       debugLog('OpenRouter chat stopped: tool round limit reached.', {
         toolRoundCount,
+        maxToolRounds,
         executedToolCallCount: executedToolCalls.length,
       });
       return {
