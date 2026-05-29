@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { resetConfigCache } from '../../src/config';
+import { resetPermissionApprovalState } from '../../src/permissions/approvals';
 
 export interface TempWorkspace {
   root: string;
@@ -31,10 +32,12 @@ export async function withTempWorkspace<T>(
   try {
     process.chdir(root);
     resetConfigCache();
+    resetPermissionApprovalState();
     return await callback(workspace);
   } finally {
     process.chdir(previousCwd);
     resetConfigCache();
+    resetPermissionApprovalState();
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
