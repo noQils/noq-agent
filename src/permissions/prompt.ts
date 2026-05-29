@@ -34,7 +34,7 @@ function buildPermissionPrompt(request: PermissionRequest): string {
     `Permission required for ${request.toolName}`,
     `Scope: ${request.scope}`,
     `Target: ${request.target || '(no target)'}`,
-    `Choose: allow once [o], ${persistentSessionLabel} [a], or deny [n] (default): `,
+    `Choose: allow once [o], ${persistentSessionLabel} [s], or deny [d] (default): `,
   ].join('\n');
 }
 
@@ -54,7 +54,7 @@ export async function promptForPermission(request: PermissionRequest): Promise<P
     const answer = await rl.question(buildPermissionPrompt(request));
     const normalizedAnswer = answer.trim().toLowerCase();
     if (
-      normalizedAnswer === 'a'
+      normalizedAnswer === 's'
       || normalizedAnswer === 'always'
       || normalizedAnswer === 'session'
     ) {
@@ -64,7 +64,6 @@ export async function promptForPermission(request: PermissionRequest): Promise<P
     if (
       normalizedAnswer === 'o'
       || normalizedAnswer === 'once'
-      || normalizedAnswer === 'y'
       || normalizedAnswer === 'yes'
     ) {
       return 'allow_once';

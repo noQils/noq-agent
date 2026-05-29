@@ -132,15 +132,15 @@ function parseSlashCommand(inputLine: string): SlashCommand {
 function parsePermissionDecision(inputLine: string): PermissionPromptDecision | null {
   const normalizedInput = inputLine.trim().toLowerCase();
 
-  if (normalizedInput === 'o' || normalizedInput === 'y') {
+  if (normalizedInput === 'o') {
     return 'allow_once';
   }
 
-  if (normalizedInput === 'a') {
+  if (normalizedInput === 's') {
     return 'allow_session';
   }
 
-  if (normalizedInput === 'n') {
+  if (normalizedInput === 'd') {
     return 'deny';
   }
 
@@ -363,7 +363,7 @@ export async function startOpenTuiInteractiveSession(
       if (!decision) {
         if (userInput.length > 0) {
           setInputValue('');
-          setStatusMessage('Type o/y, a, or n and press Enter.');
+          setStatusMessage('Choose permission with O, S, or D.');
           renderer.requestRender();
         }
 
