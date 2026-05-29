@@ -197,6 +197,12 @@ export async function chat(
   const completionMessages = toOpenRouterHistory(messages);
   const executedToolCalls: ExecutedToolCall[] = [];
   const openrouter = getOpenRouterClient();
+  debugLog('OpenRouter chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: openRouterTools.length,
+  });
 
   let toolRoundCount = 0;
   let previousRoundCalls: ToolCallFingerprint[] = [];
@@ -214,6 +220,10 @@ export async function chat(
     const currentRoundCalls = collectCurrentRoundFunctionCalls(toolCalls);
 
     if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('OpenRouter chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: getAssistantText(assistantMessage),
         executedToolCalls,
@@ -225,6 +235,11 @@ export async function chat(
     completionMessages.push(assistantMessage);
 
     if (toolCalls.length === 0) {
+      debugLog('OpenRouter chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: getAssistantText(assistantMessage).length,
+      });
       return {
         text: getAssistantText(assistantMessage),
         executedToolCalls,
@@ -233,6 +248,10 @@ export async function chat(
     }
 
     if (toolRoundCount >= 10) {
+      debugLog('OpenRouter chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: getAssistantText(assistantMessage),
         executedToolCalls,
@@ -257,6 +276,10 @@ export async function chat(
           content: invalidArgsFailure.output,
         } satisfies ChatCompletionToolMessageParam);
         executedToolCalls.push(invalidArgsFailure.executedToolCall);
+        debugLog('OpenRouter tool call rejected: invalid arguments.', {
+          toolName: toolCall.function.name,
+          error: normalizedArgs.error,
+        });
         continue;
       }
 
@@ -278,6 +301,12 @@ export async function chat(
         content: executionResult.output,
       } satisfies ChatCompletionToolMessageParam);
       executedToolCalls.push(executionResult.executedToolCall);
+      debugLog('OpenRouter tool call result:', {
+        toolName: toolCall.function.name,
+        succeeded: executionResult.executedToolCall.succeeded,
+        failureKind: executionResult.executedToolCall.failureKind,
+        outputLength: executionResult.output.length,
+      });
     }
 
     toolRoundCount++;

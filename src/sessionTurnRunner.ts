@@ -12,6 +12,7 @@ import {
   saveSessionPlanArtifact,
 } from './sessionStore';
 import { type ToolMutationCallback } from './providers/types';
+import { debugLog } from './runtimeSettings';
 import { runAgentTurn } from './workflow';
 
 export interface SessionTurnResult {
@@ -32,6 +33,13 @@ export async function runSessionTurn(
 ): Promise<SessionTurnResult> {
   const session = loadOrCreateSession(sessionId);
   const historyMessages = buildSessionHistoryMessages(session);
+  debugLog('Session turn start:', {
+    sessionId,
+    mode,
+    turnCount: session.turns.length,
+    historyMessageCount: historyMessages.length,
+    promptLength: userPrompt.length,
+  });
 
   beginSessionChangeTracking();
   let response: string;
@@ -43,10 +51,20 @@ export async function runSessionTurn(
     });
   } catch (error) {
     resetSessionChangeTracking();
+    debugLog('Session turn failed:', {
+      sessionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 
   const fileChanges = finishSessionChangeTracking();
+  debugLog('Session turn completed:', {
+    sessionId,
+    mode,
+    responseLength: response.length,
+    fileChangeCount: fileChanges.length,
+  });
   appendSessionTurn(
     sessionId,
     {

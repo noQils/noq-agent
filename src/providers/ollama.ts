@@ -18,6 +18,7 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRuntimeEnvVar } from '../runtimeEnv';
+import { debugLog } from '../runtimeSettings';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {
@@ -70,6 +71,12 @@ export async function chat(
   }));
   const selectedTools = options?.tools ?? (options?.mode ? getToolsForMode(options.mode) : allTools);
   const ollamaTools = toOllamaTool(selectedTools);
+  debugLog('Ollama chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: ollamaTools.length,
+  });
 
   const executedToolCalls: ExecutedToolCall[] = [];
 
@@ -87,8 +94,13 @@ export async function chat(
 
     const toolCalls = response.message.tool_calls ?? [];
     const currentRoundCalls = collectCurrentRoundToolCalls(toolCalls);
+    debugLog(`Ollama round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
 
     if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('Ollama chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.message.content,
         executedToolCalls,
@@ -99,6 +111,11 @@ export async function chat(
     previousRoundCalls = currentRoundCalls;
 
     if (toolCalls.length === 0) {
+      debugLog('Ollama chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: response.message.content.length,
+      });
       return {
         text: response.message.content,
         executedToolCalls: executedToolCalls,
@@ -107,6 +124,10 @@ export async function chat(
     }
 
     if (toolRoundCount >= 10) {
+      debugLog('Ollama chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.message.content,
         executedToolCalls: executedToolCalls,
@@ -116,6 +137,7 @@ export async function chat(
 
     for (const call of toolCalls) {
       const normalizedArgs = normalizeToolArgs(call.function.arguments);
+      debugLog('Ollama tool call', call.function.name, 'with args:', normalizedArgs.ok ? normalizedArgs.args : call.function.arguments);
 
       if (!normalizedArgs.ok) {
         const invalidArgsFailure = buildInvalidToolArgsFailure(
@@ -130,6 +152,10 @@ export async function chat(
         });
 
         executedToolCalls.push(invalidArgsFailure.executedToolCall);
+        debugLog('Ollama tool call rejected: invalid arguments.', {
+          toolName: call.function.name,
+          error: normalizedArgs.error,
+        });
         continue;
       }
 
@@ -151,6 +177,12 @@ export async function chat(
       });
 
       executedToolCalls.push(executionResult.executedToolCall);
+      debugLog('Ollama tool call result:', {
+        toolName: call.function.name,
+        succeeded: executionResult.executedToolCall.succeeded,
+        failureKind: executionResult.executedToolCall.failureKind,
+        outputLength: executionResult.output.length,
+      });
     }
 
     toolRoundCount++;

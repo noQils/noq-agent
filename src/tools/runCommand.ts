@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 
 import { isHardBlockedCommand, normalizeCommand } from '../commandPolicy';
 import { checkIsDirectory } from '../fileUtils';
+import { debugLog } from '../runtimeSettings';
 import { InternalTool } from './index';
 
 const maxOutputLength = 6000;
@@ -77,6 +78,7 @@ export const runCommandTool: InternalTool = {
 };
 
 export async function runCommand(command: string, cwd?: string): Promise<string> {
+  const startedAt = Date.now();
   const trimmedCommand = command.trim();
   const normalizedCommand = normalizeCommand(command);
   if (!trimmedCommand) {
@@ -84,6 +86,7 @@ export async function runCommand(command: string, cwd?: string): Promise<string>
   }
 
   if (isHardBlockedCommand(normalizedCommand)) {
+    debugLog('Command blocked by hard safety policy:', { command: trimmedCommand });
     throw new Error(`Dangerous command is not allowed: ${trimmedCommand}`);
   }
 
@@ -92,6 +95,11 @@ export async function runCommand(command: string, cwd?: string): Promise<string>
   }
 
   return new Promise<string>((resolve, reject) => {
+    debugLog('Command starting:', {
+      command: trimmedCommand,
+      cwd: cwd ?? process.cwd(),
+      timeoutMs: commandTimeoutMs,
+    });
     const child = spawn(trimmedCommand, [], {
       cwd: cwd ?? process.cwd(),
       env: process.env,
@@ -107,6 +115,10 @@ export async function runCommand(command: string, cwd?: string): Promise<string>
 
     const timeout = setTimeout(() => {
       timedOut = true;
+      debugLog('Command timeout reached; killing child process:', {
+        command: trimmedCommand,
+        timeoutMs: commandTimeoutMs,
+      });
       child.kill();
     }, commandTimeoutMs);
 
@@ -130,6 +142,13 @@ export async function runCommand(command: string, cwd?: string): Promise<string>
 
     child.on('error', (error) => {
       finish(() => {
+        debugLog('Command process error:', {
+          command: trimmedCommand,
+          durationMs: Date.now() - startedAt,
+          error: error.message,
+          stdoutLength: stdout.length,
+          stderrLength: stderr.length,
+        });
         reject(new Error(
           `Command ${trimmedCommand} failed:\n${buildCommandFailureDetails({
             message: error.message,
@@ -143,6 +162,14 @@ export async function runCommand(command: string, cwd?: string): Promise<string>
     child.on('close', (code, signal) => {
       finish(() => {
         if (timedOut) {
+          debugLog('Command failed after timeout:', {
+            command: trimmedCommand,
+            durationMs: Date.now() - startedAt,
+            code,
+            signal,
+            stdoutLength: stdout.length,
+            stderrLength: stderr.length,
+          });
           reject(new Error(
             `Command ${trimmedCommand} failed:\n${buildCommandFailureDetails({
               message: `Timed out after ${commandTimeoutMs}ms.`,
@@ -156,6 +183,14 @@ export async function runCommand(command: string, cwd?: string): Promise<string>
         }
 
         if (code !== 0) {
+          debugLog('Command failed:', {
+            command: trimmedCommand,
+            durationMs: Date.now() - startedAt,
+            code,
+            signal,
+            stdoutLength: stdout.length,
+            stderrLength: stderr.length,
+          });
           reject(new Error(
             `Command ${trimmedCommand} failed:\n${buildCommandFailureDetails({
               code,
@@ -170,7 +205,15 @@ export async function runCommand(command: string, cwd?: string): Promise<string>
         const combinedOutput = [stdout.trimEnd(), stderr.trimEnd()]
           .filter(Boolean)
           .join('\n');
-        resolve(truncateOutput(combinedOutput));
+        const output = truncateOutput(combinedOutput);
+        debugLog('Command completed:', {
+          command: trimmedCommand,
+          durationMs: Date.now() - startedAt,
+          stdoutLength: stdout.length,
+          stderrLength: stderr.length,
+          outputLength: output.length,
+        });
+        resolve(output);
       });
     });
   });

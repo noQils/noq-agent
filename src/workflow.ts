@@ -602,6 +602,12 @@ export async function runAgentTurn(
     }
     messages.push({ role: 'user' as const, content: userPrompt });
     const availableTools = getToolsForMode(mode);
+    debugLog('Agent turn start:', {
+        mode,
+        promptLength: userPrompt.length,
+        historyMessageCount: options?.historyMessages?.length ?? 0,
+        availableToolCount: availableTools.length,
+    });
 
     const referencedPathGroups = buildReferencedPathGroups(userPrompt);
     let projectFiles: string[] | undefined;
@@ -616,6 +622,9 @@ export async function runAgentTurn(
                         content: buildExistingPathMessage(candidatePath),
                     });
                     hintedPaths.add(candidatePath);
+                    debugLog('Path hint added: referenced path exists.', {
+                        candidatePath,
+                    });
                 }
                 break;
             }
@@ -629,6 +638,10 @@ export async function runAgentTurn(
             messages.push({
                 role: 'system',
                 content: buildClosestPathMessage(candidatePath, match.candidate),
+            });
+            debugLog('Path hint added: closest file match.', {
+                requestedPath: candidatePath,
+                matchedPath: match.candidate,
             });
             break;
         }
@@ -665,6 +678,12 @@ export async function runAgentTurn(
             tools: availableTools,
             ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
         });
+        debugLog('Provider response received:', {
+            flowRound: workflowState.flowRoundCount,
+            stopReason: response.stopReason,
+            textLength: response.text?.length ?? 0,
+            executedToolCallCount: response.executedToolCalls?.length ?? 0,
+        });
         messages.push({ role: 'model' as const, content: response.text });
 
         const executedToolCalls = response.executedToolCalls ?? [];
@@ -673,9 +692,15 @@ export async function runAgentTurn(
 
         if (turnState.blockedActionCalls.length > 0) {
             if (response.text?.trim()) {
+                debugLog('Agent turn returning after blocked action with provider text.', {
+                    blockedActionCount: turnState.blockedActionCalls.length,
+                });
                 return response.text;
             }
 
+            debugLog('Workflow continuing after blocked action.', {
+                blockedActionCount: turnState.blockedActionCalls.length,
+            });
             messages.push({
                 role: 'user' as const,
                 content: buildBlockedActionMessage(turnState.blockedActionCalls),
@@ -685,6 +710,9 @@ export async function runAgentTurn(
 
         const repeatedFailedEditFiles = countRepeatedFailedMutationAttempts(turnState.failedMutationCounts);
         if (repeatedFailedEditFiles.length > 0) {
+            debugLog('Workflow continuing after repeated failed mutations.', {
+                filePaths: repeatedFailedEditFiles,
+            });
             messages.push({
                 role: 'user' as const,
                 content: buildRepeatedFailedEditMessage(repeatedFailedEditFiles),
@@ -694,6 +722,9 @@ export async function runAgentTurn(
 
         const failedMutationFiles = Array.from(turnState.failedMutationCounts.keys());
         if (failedMutationFiles.length > 0 && turnState.mutatedFiles.size === 0) {
+            debugLog('Workflow continuing after failed mutation attempt.', {
+                filePaths: failedMutationFiles,
+            });
             messages.push({
                 role: 'user' as const,
                 content: buildFailedMutationRetryMessage(failedMutationFiles),
@@ -707,9 +738,18 @@ export async function runAgentTurn(
 
         if (completionAction) {
             if (completionAction.type === 'return') {
+                debugLog('Agent turn returning final response.', {
+                    flowRound: workflowState.flowRoundCount,
+                    responseLength: completionAction.text.length,
+                });
                 return completionAction.text;
             }
 
+            debugLog('Workflow continuing with reminder.', {
+                flowRound: workflowState.flowRoundCount,
+                reminderLength: completionAction.reminder.length,
+                fastForwardToFinalRound: completionAction.fastForwardToFinalRound ?? false,
+            });
             messages.push({
                 role: 'user' as const,
                 content: completionAction.reminder,
@@ -724,6 +764,7 @@ export async function runAgentTurn(
 
         if (shouldPromptForTodoTracking(mode, executedToolCalls, workflowState, response.stopReason)) {
             workflowState.todoReminderIssued = true;
+            debugLog('Workflow continuing with todo tracking reminder.');
             messages.push({
                 role: 'user' as const,
                 content: buildTodoTrackingReminderMessage(),
@@ -732,9 +773,19 @@ export async function runAgentTurn(
         }
 
         if (executedToolCalls.length === 0 || response.stopReason === 'no_tool_calls') {
+            debugLog('Agent turn returning provider response without more tool work.', {
+                flowRound: workflowState.flowRoundCount,
+                stopReason: response.stopReason,
+                responseLength: response.text.length,
+            });
             return response.text;
         }
 
+        debugLog('Workflow continuing after tool calls.', {
+            flowRound: workflowState.flowRoundCount,
+            mutatedFileCount: turnState.mutatedFiles.size,
+            executedToolCallCount: executedToolCalls.length,
+        });
         messages.push({
             role: 'user' as const,
             content: buildContinueMessage(Array.from(turnState.mutatedFiles)),
@@ -744,6 +795,10 @@ export async function runAgentTurn(
     if (!stopMessage) {
         stopMessage = 'Stopped because the workflow reached its maximum number of rounds before the task fully converged.';
     }
+    debugLog('Agent turn stopped at max workflow rounds.', {
+        maxFlowRounds,
+        latestResponseLength: response.text?.length ?? 0,
+    });
     
     return response.text
         ? `${stopMessage}\n\nLatest response:\n${response.text}`

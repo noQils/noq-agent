@@ -160,6 +160,12 @@ export async function chat(
   const functionDeclarations = toOpenAIFunctionTool(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const openai = getOpenAIClient();
+  debugLog('OpenAI chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: functionDeclarations.length,
+  });
 
   let response = await openai.responses.create({
     model: model,
@@ -177,6 +183,10 @@ export async function chat(
     const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
 
     if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('OpenAI chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.output_text?.trim(),
         executedToolCalls,
@@ -202,6 +212,10 @@ export async function chat(
         });
 
         executedToolCalls.push(invalidArgsFailure.executedToolCall);
+        debugLog('OpenAI tool call rejected: invalid arguments.', {
+          toolName: item.name,
+          error: normalizedArgs.error,
+        });
 
         continue;
       }
@@ -226,9 +240,20 @@ export async function chat(
       });
 
       executedToolCalls.push(executionResult.executedToolCall);
+      debugLog('OpenAI tool call result:', {
+        toolName: item.name,
+        succeeded: executionResult.executedToolCall.succeeded,
+        failureKind: executionResult.executedToolCall.failureKind,
+        outputLength: executionResult.output.length,
+      });
     }
 
     if (toolOutputs.length === 0) {
+      debugLog('OpenAI chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: response.output_text?.trim().length ?? 0,
+      });
       return {
         text: response.output_text?.trim(),
         executedToolCalls: executedToolCalls,
@@ -237,6 +262,10 @@ export async function chat(
     }
 
     if (toolRoundCount >= 10) {
+      debugLog('OpenAI chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.output_text?.trim(),
         executedToolCalls: executedToolCalls,

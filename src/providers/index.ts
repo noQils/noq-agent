@@ -1,5 +1,6 @@
 import { getConfig } from '../config';
 import { getLoadedEnvFiles, getRuntimeEnvVar, initializeRuntimeEnvironment } from '../runtimeEnv';
+import { debugLog } from '../runtimeSettings';
 import { chat as geminiChat } from './gemini';
 import { chat as ollamaChat } from './ollama';
 import { chat as openAIChat } from './openai';
@@ -37,6 +38,7 @@ function getConfiguredProviderNames(): ProviderName[] {
     configuredProviders.push('ollama');
   }
 
+  debugLog('Provider auto-detection candidates:', configuredProviders);
   return configuredProviders;
 }
 
@@ -71,6 +73,7 @@ function buildAmbiguousProviderError(configuredProviders: ProviderName[]): strin
 
 export function resolveProviderName(): ProviderName {
   initializeRuntimeEnvironment();
+  debugLog('Provider environment files loaded:', getLoadedEnvFiles());
 
   const explicitProviderName = getRuntimeEnvVar('AI_PROVIDER') ?? getConfig().defaultProvider;
   if (explicitProviderName) {
@@ -80,6 +83,7 @@ export function resolveProviderName(): ProviderName {
       );
     }
 
+    debugLog('Provider selected explicitly:', explicitProviderName);
     return explicitProviderName;
   }
 
@@ -92,10 +96,13 @@ export function resolveProviderName(): ProviderName {
     throw new Error(buildAmbiguousProviderError(configuredProviders));
   }
 
-  return configuredProviders[0]!;
+  const providerName = configuredProviders[0]!;
+  debugLog('Provider selected automatically:', providerName);
+  return providerName;
 }
 
 export function getProvider(): Provider {
   const providerName = resolveProviderName();
+  debugLog('Using provider:', providerName);
   return providerMap[providerName];
 }

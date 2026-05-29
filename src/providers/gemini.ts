@@ -183,6 +183,10 @@ async function executeFunctionCalls(
 
       toolResponses.push(response);
       executedToolCalls.push(invalidArgsFailure.executedToolCall);
+      debugLog('Gemini tool call rejected: invalid arguments.', {
+        toolName,
+        error: normalizedArgs.error,
+      });
       continue;
     }
 
@@ -215,6 +219,12 @@ async function executeFunctionCalls(
 
     toolResponses.push(response);
     executedToolCalls.push(executionResult.executedToolCall);
+    debugLog('Gemini tool call result:', {
+      toolName,
+      succeeded: executionResult.executedToolCall.succeeded,
+      failureKind: executionResult.executedToolCall.failureKind,
+      outputLength: executionResult.output.length,
+    });
   }
 
   return { 
@@ -238,6 +248,12 @@ export async function chat(
   const functionDeclarations = toGeminiFunctionDeclaration(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const gemini = getGeminiClient();
+  debugLog('Gemini chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: functionDeclarations.length,
+  });
 
   let toolRoundCount = 0;
   let previousRoundCalls: ToolCallFingerprint[] = [];
@@ -262,6 +278,10 @@ export async function chat(
     const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
 
     if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('Gemini chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.text ?? '',
         executedToolCalls,
@@ -272,6 +292,11 @@ export async function chat(
     previousRoundCalls = currentRoundCalls;
 
     if (functionCalls.length === 0) {
+      debugLog('Gemini chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: response.text?.length ?? 0,
+      });
       return {
         text: response.text ?? '',
         executedToolCalls,
@@ -280,6 +305,10 @@ export async function chat(
     }
 
     if (toolRoundCount >= 10) {
+      debugLog('Gemini chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.text ?? '',
         executedToolCalls,
