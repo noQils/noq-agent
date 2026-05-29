@@ -1287,6 +1287,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const isNarrow = () => dimensions().width < 72;
   const isCompact = () => dimensions().width < 72 || dimensions().height < 22;
   const isShort = () => dimensions().height < 22;
+  const isMediumTall = () => dimensions().height >= 32 && dimensions().height < 48;
+  const isVeryTall = () => dimensions().height >= 48;
   const showEntryTime = () => dimensions().width >= 58;
   const visibleEntries = () => cappedEntries(props.entries(), maxRenderedEntries);
   const hiddenEntryCount = () => Math.max(0, props.entries().length - visibleEntries().length);
@@ -1319,7 +1321,15 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const composerTextWidth = () => Math.max(12, dimensions().width - 8);
   const composerLineCount = () => estimateWrappedLineCount(props.inputValue(), composerTextWidth());
   const composerMaxVisibleLines = () => (isCompact() ? 4 : 8);
-  const composerVisibleLines = () => Math.min(composerMaxVisibleLines(), composerLineCount());
+  const composerVisibleLines = () => {
+    if (isVeryTall()) {
+      return Math.min(composerMaxVisibleLines(), Math.max(3, composerLineCount()))
+    }
+    if (isMediumTall()) {
+      return Math.min(composerMaxVisibleLines(), Math.max(2, composerLineCount()))
+    }
+    return Math.min(composerMaxVisibleLines(), Math.max(1, composerLineCount()));
+  }
   const composerFrameHeight = () => Math.max(3, composerVisibleLines() + 2);
   const permissionPreviewMaxLength = () => {
     const widthRatio = isCompact() ? 0.82 : 0.72;
