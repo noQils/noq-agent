@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import util from 'node:util';
+
 import { getRuntimeEnvVar } from './runtimeEnv';
 
 export const defaultProviderTimeoutMs = 180_000;
@@ -10,6 +14,8 @@ export interface RuntimeSettings {
   providerTimeoutMs: number;
   providerMaxToolRounds: number;
 }
+
+let debugLogFilePath: string | null = null;
 
 function parseBooleanFlag(value: string | undefined): boolean {
   if (!value) {
@@ -61,10 +67,54 @@ export function getRuntimeSettings(): RuntimeSettings {
   };
 }
 
+export function setDebugLogFilePath(filePath: string | null): void {
+  debugLogFilePath = filePath;
+}
+
+export function getDebugLogFilePath(): string | null {
+  return debugLogFilePath;
+}
+
+function formatDebugLogArg(arg: unknown): string {
+  if (typeof arg === 'string') {
+    return arg;
+  }
+
+  if (arg instanceof Error) {
+    return arg.stack ?? arg.message;
+  }
+
+  return util.inspect(arg, {
+    breakLength: Number.POSITIVE_INFINITY,
+    colors: false,
+    compact: true,
+    depth: 8,
+  });
+}
+
+function formatDebugLogLine(args: unknown[]): string {
+  return `[${new Date().toISOString()}] ${args.map(formatDebugLogArg).join(' ')}`;
+}
+
 export function debugLog(...args: unknown[]): void {
   if (!isDebugLoggingEnabled()) {
     return;
   }
 
-  console.error(...args);
+  if (debugLogFilePath) {
+    try {
+      fs.mkdirSync(path.dirname(debugLogFilePath), { recursive: true });
+      fs.appendFileSync(debugLogFilePath, `${formatDebugLogLine(args)}\n`, 'utf-8');
+    } catch {
+      // Debug logging must never break agent execution or corrupt the TUI.
+    }
+
+    return;
+  }
+
+  try {
+    console.error(...args);
+  } catch {
+    // Ignore logging failures.
+  }
 }

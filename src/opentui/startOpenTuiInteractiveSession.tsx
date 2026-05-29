@@ -17,12 +17,14 @@ import {
   formatLatestSessionPlan,
   generateUniqueSessionId,
   getLatestSessionDiff,
+  getSessionDebugLogPath,
   loadSessionTuiState,
   saveSessionTuiEntries,
   saveSessionTuiMode,
   undoLastSessionSnapshot,
 } from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
+import { setDebugLogFilePath } from '../runtimeSettings';
 import { createOpenTuiRenderer } from './createOpenTuiRenderer';
 import {
   applyOpenTuiTerminalBackground,
@@ -184,6 +186,10 @@ export async function startOpenTuiInteractiveSession(
   initialMode: AgentMode,
   options?: StartOpenTuiInteractiveSessionOptions,
 ): Promise<void> {
+  if (sessionId) {
+    setDebugLogFilePath(getSessionDebugLogPath(sessionId));
+  }
+
   const initialTuiState = sessionId
     ? loadSessionTuiState(sessionId)
     : { mode: null, entries: [] };
@@ -241,6 +247,7 @@ export async function startOpenTuiInteractiveSession(
 
     const nextSessionId = generateUniqueSessionId();
     setActiveSessionId(nextSessionId);
+    setDebugLogFilePath(getSessionDebugLogPath(nextSessionId));
     setPermissionApprovalSession(nextSessionId);
     saveSessionTuiMode(nextSessionId, mode());
 
@@ -458,6 +465,7 @@ export async function startOpenTuiInteractiveSession(
     }
 
     resetOpenTuiTerminalBackground();
+    setDebugLogFilePath(null);
   }
 
   const resolvedSessionId = activeSessionId();

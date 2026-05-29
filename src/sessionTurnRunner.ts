@@ -8,11 +8,12 @@ import {
 import {
   appendSessionTurn,
   buildSessionHistoryMessages,
+  getSessionDebugLogPath,
   loadOrCreateSession,
   saveSessionPlanArtifact,
 } from './sessionStore';
 import { type ToolMutationCallback } from './providers/types';
-import { debugLog } from './runtimeSettings';
+import { debugLog, getDebugLogFilePath, setDebugLogFilePath } from './runtimeSettings';
 import { runAgentTurn } from './workflow';
 
 export interface SessionTurnResult {
@@ -31,61 +32,68 @@ export async function runSessionTurn(
   mode: AgentMode,
   options?: SessionTurnOptions,
 ): Promise<SessionTurnResult> {
-  const session = loadOrCreateSession(sessionId);
-  const historyMessages = buildSessionHistoryMessages(session);
-  debugLog('Session turn start:', {
-    sessionId,
-    mode,
-    turnCount: session.turns.length,
-    historyMessageCount: historyMessages.length,
-    promptLength: userPrompt.length,
-  });
-
-  beginSessionChangeTracking();
-  let response: string;
+  const previousDebugLogFilePath = getDebugLogFilePath();
+  setDebugLogFilePath(getSessionDebugLogPath(sessionId));
 
   try {
-    response = await runAgentTurn(userPrompt, mode, {
-      historyMessages,
-      ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
-    });
-  } catch (error) {
-    resetSessionChangeTracking();
-    debugLog('Session turn failed:', {
+    const session = loadOrCreateSession(sessionId);
+    const historyMessages = buildSessionHistoryMessages(session);
+    debugLog('Session turn start:', {
       sessionId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw error;
-  }
-
-  const fileChanges = finishSessionChangeTracking();
-  debugLog('Session turn completed:', {
-    sessionId,
-    mode,
-    responseLength: response.length,
-    fileChangeCount: fileChanges.length,
-  });
-  appendSessionTurn(
-    sessionId,
-    {
-      timestamp: new Date().toISOString(),
       mode,
-      userPrompt,
-      response,
-    },
-    fileChanges,
-  );
-
-  if (mode === 'plan') {
-    saveSessionPlanArtifact(sessionId, {
-      userPrompt,
-      response,
+      turnCount: session.turns.length,
+      historyMessageCount: historyMessages.length,
+      promptLength: userPrompt.length,
     });
-  }
 
-  return {
-    sessionId,
-    response,
-    fileChanges,
-  };
+    beginSessionChangeTracking();
+    let response: string;
+
+    try {
+      response = await runAgentTurn(userPrompt, mode, {
+        historyMessages,
+        ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+      });
+    } catch (error) {
+      resetSessionChangeTracking();
+      debugLog('Session turn failed:', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+
+    const fileChanges = finishSessionChangeTracking();
+    debugLog('Session turn completed:', {
+      sessionId,
+      mode,
+      responseLength: response.length,
+      fileChangeCount: fileChanges.length,
+    });
+    appendSessionTurn(
+      sessionId,
+      {
+        timestamp: new Date().toISOString(),
+        mode,
+        userPrompt,
+        response,
+      },
+      fileChanges,
+    );
+
+    if (mode === 'plan') {
+      saveSessionPlanArtifact(sessionId, {
+        userPrompt,
+        response,
+      });
+    }
+
+    return {
+      sessionId,
+      response,
+      fileChanges,
+    };
+  } finally {
+    setDebugLogFilePath(previousDebugLogFilePath);
+  }
 }
