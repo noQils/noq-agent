@@ -200,7 +200,7 @@ When you start a new interactive conversation with `noq`, or resume an existing 
 The interactive session UI is now rendered with OpenTUI. Popup terminal launch is currently implemented for Windows and falls back to the current terminal when a popup cannot be opened.
 The TUI uses the terminal's alternate screen buffer, so it behaves like a full-screen terminal app while active and restores your previous shell screen when you exit.
 
-All sessions are stored under `.noq/sessions` in the current workspace and prior turns are replayed as compacted history in future runs.
+All sessions are stored under `.noq/sessions/<session-id>/session.json` in the current workspace and prior turns are replayed as compacted history in future runs. When debug logging is enabled, session debug logs are written next to the session file at `.noq/sessions/<session-id>/debug.log`.
 
 Session features:
 
@@ -356,7 +356,9 @@ If `AI_PROVIDER` is not set, `noq-agent` will:
 Optional runtime controls:
 
 ```env
-# Print provider, workflow, tool, permission, and session debug logs to stderr.
+# Print provider, workflow, tool, permission, and session debug logs.
+# During named sessions, logs append to .noq/sessions/<session-id>/debug.log.
+# Outside a session, logs fall back to stderr.
 NOQ_DEBUG=true
 
 # Provider request timeout in milliseconds. Default: 180000.
