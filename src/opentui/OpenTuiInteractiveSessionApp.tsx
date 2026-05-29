@@ -185,7 +185,10 @@ function getRenderableUnifiedDiff(text: string): string | null {
 
 function commandHints(isCompact: boolean): CommandHint[] {
   if (isCompact) {
-    return [{ key: '/mode' }, { key: '/exit' },];
+    return [
+      { key: '/mode' }, 
+      { key: '/exit' }, 
+      { key: 'Ctrl+O', value: 'newline'},];
   }
 
   return [
@@ -194,6 +197,7 @@ function commandHints(isCompact: boolean): CommandHint[] {
     { key: '/diff' },
     { key: '/undo' },
     { key: '/exit' },
+    { key: 'Ctrl+O', value: 'newline'},
   ];
 }
 
@@ -450,7 +454,7 @@ function TranscriptEntry(props: {
         />
       ) : (
         <text
-          fg={props.entry.kind === 'system' ? openTuiTheme.color.textSoft : openTuiTheme.color.text}
+          fg={props.entry.kind === 'system' ? openTuiTheme.color.textFaint : openTuiTheme.color.text}
           bg={role().background}
           wrapMode="word"
           selectionBg={openTuiTheme.color.selectionBg}
@@ -1309,12 +1313,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return isNarrow() ? 'Waiting...' : 'Waiting for the current turn to finish...';
     }
 
-    return isNarrow() ? 'Message + Enter' : 'Type a message and press Enter';
+    return isNarrow() ? 'Message + Enter' : 'Type a message and press Enter (Ctrl+O for newline)';
   };
   const sessionLabel = () => truncateMiddle(props.sessionId, isNarrow() ? 18 : 32);
   const composerTextWidth = () => Math.max(12, dimensions().width - 8);
   const composerLineCount = () => estimateWrappedLineCount(props.inputValue(), composerTextWidth());
-  const composerMaxVisibleLines = () => (isCompact() ? 5 : 10);
+  const composerMaxVisibleLines = () => (isCompact() ? 4 : 8);
   const composerVisibleLines = () => Math.min(composerMaxVisibleLines(), composerLineCount());
   const composerFrameHeight = () => Math.max(3, composerVisibleLines() + 2);
   const permissionPreviewMaxLength = () => {
@@ -1506,7 +1510,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             { name: 'linefeed', action: 'submit' },
             { name: 'return', shift: true, action: 'newline' },
             { name: 'kpenter', shift: true, action: 'newline' },
-            { name: 'linefeed', shift: true, action: 'newline' },
+            { name: 'o', ctrl: true, action: 'newline' },
           ]}
           onContentChange={() => {
             if (!hasPermissionRequest()) {

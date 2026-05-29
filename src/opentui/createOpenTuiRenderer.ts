@@ -12,6 +12,8 @@ export async function createOpenTuiRenderer(): Promise<CliRenderer> {
     useKittyKeyboard: {
       disambiguate: true,
       alternateKeys: true,
+      allKeysAsEscapes: true,
+      reportText: true,
     },
     backgroundColor: openTuiTheme.color.canvas,
   });
