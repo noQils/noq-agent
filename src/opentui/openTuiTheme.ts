@@ -4,7 +4,7 @@ import { type AgentMode } from '../agentMode';
 
 export type OpenTuiEntryRole = 'user' | 'assistant' | 'system';
 export type OpenTuiStatusTone = 'ready' | 'busy' | 'success' | 'warning' | 'danger';
-export const canvasColor = '#1a1c20';
+export const canvasColor = '#1f2126';
 
 export const openTuiTheme = {
   color: {
