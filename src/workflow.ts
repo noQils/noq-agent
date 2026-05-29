@@ -6,6 +6,7 @@ import {
   type ChatMessage,
   type ChatResult,
   type ExecutedToolCall,
+  type Provider,
   type ToolMutationCallback,
 } from './providers/types';
 import { getSystemPrompt } from './systemPrompt';
@@ -17,6 +18,7 @@ import { formatTodoItems, hasTodoItems, resetTodoState } from './todoState';
 export interface RunAgentTurnOptions {
     historyMessages?: ChatMessage[];
     onMutation?: ToolMutationCallback;
+    provider?: Provider;
 }
 
 // Function to get the file path argument
@@ -588,7 +590,7 @@ export async function runAgentTurn(
     mode: AgentMode,
     options?: RunAgentTurnOptions,
 ): Promise<string> {
-    const provider = getProvider();
+    const provider = options?.provider ?? getProvider();
 
     resetPermissionDecisionCache();
     resetTodoState();
