@@ -544,6 +544,8 @@ function PermissionPromptPanel(props: {
       paddingY={0}
       flexDirection="column"
       gap={1}
+      justifyContent="center"
+      alignItems="center"
     >
       <box flexDirection="row" gap={1}>
         <text fg={openTuiTheme.color.amber}>Permission required</text>
@@ -552,7 +554,7 @@ function PermissionPromptPanel(props: {
         </text>
       </box>
 
-      <box flexDirection={props.isCompact ? 'column' : 'row'} gap={1}>
+      <box flexDirection="column" gap={1}>
         <text fg={openTuiTheme.color.textMuted} truncate>
           {`scope ${props.request.scope}`}
         </text>
@@ -831,11 +833,22 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       </box>
 
       {props.permissionRequest() ? (
-        <PermissionPromptPanel
-          request={props.permissionRequest()!}
-          isCompact={isCompact()}
-          targetMaxLength={isNarrow() ? 36 : 76}
-        />
+        <box
+          position="absolute"
+          top={0}
+          left={0}
+          width="100%"
+          height="100%"
+          justifyContent="center"
+          alignItems="center"
+          zIndex={1}
+        >
+          <PermissionPromptPanel
+            request={props.permissionRequest()!}
+            isCompact={isCompact()}
+            targetMaxLength={isNarrow() ? 36 : 76}
+          />
+        </box>
       ) : null}
 
       <box
