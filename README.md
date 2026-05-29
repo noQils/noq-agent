@@ -353,6 +353,19 @@ If `AI_PROVIDER` is not set, `noq-agent` will:
 2. otherwise auto-select a provider only when exactly one backend is fully configured
 3. otherwise fail clearly and ask you to choose explicitly by setting `AI_PROVIDER`
 
+Optional runtime controls:
+
+```env
+# Print provider, workflow, tool, permission, and session debug logs to stderr.
+NOQ_DEBUG=true
+
+# Provider request timeout in milliseconds. Default: 180000.
+NOQ_PROVIDER_TIMEOUT_MS=180000
+
+# Maximum provider tool-loop rounds before returning tool_round_limit_reached. Default: 10.
+NOQ_PROVIDER_MAX_TOOL_ROUNDS=10
+```
+
 3. Optionally create `noq-agent.json` in the workspace root to set a default mode, default provider, and permission policy.
 
 Example:
@@ -407,7 +420,7 @@ This project uses lightweight safeguards rather than a full sandbox.
 - `plan` mode for read-only planning
 - exact-text verification for `edit_file`
 - read-back verification after mutations
-- bounded provider and workflow loops
+- bounded provider and workflow loops with configurable provider request timeouts
 - policy-driven command execution with a hard danger floor
 - session undo based on stored before-state snapshots
 
