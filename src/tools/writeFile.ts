@@ -1,5 +1,7 @@
 import { InternalTool } from './index';
-import { checkPathExists, writeFileContent, ensureParentDirectory } from '../fileUtils';
+import { checkPathExists, writeFileContent, ensureParentDirectory, resolveProjectPath } from '../fileUtils';
+import { debugLog } from '../runtimeSettings';
+import path from 'node:path';
 
 // Define the write_file tool
 export const writeFileTool: InternalTool = {
@@ -38,6 +40,14 @@ export function writeFile(filePath: string, content: string) {
     if (checkPathExists(filePath)) {
         throw new Error(`File already exists: ${filePath}`);
     }
+
+    const resolvedPath = resolveProjectPath(filePath);
+    debugLog('write_file preparing to create file.', {
+        filePath,
+        workspaceRoot: process.cwd(),
+        resolvedPath,
+        parentDirectoryPath: path.dirname(resolvedPath),
+    });
 
     ensureParentDirectory(filePath);
     writeFileContent(filePath, content);

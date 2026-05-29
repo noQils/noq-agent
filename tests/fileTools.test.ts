@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import { applyPatch } from '../src/tools/applyPatch';
@@ -32,6 +34,15 @@ test('writeFile creates nested files and rejects existing files', async () => {
       () => writeFile('src/generated.txt', 'again\n'),
       /File already exists: src\/generated\.txt/,
     );
+  });
+});
+
+test('writeFile succeeds when the parent directory already exists', async () => {
+  await withTempWorkspace((workspace) => {
+    fs.mkdirSync(path.join(workspace.root, 'src'), { recursive: true });
+
+    assert.equal(writeFile('src/already-parented.txt', 'hello\n'), 'Created file: src/already-parented.txt');
+    assert.equal(workspace.readFile('src/already-parented.txt'), 'hello\n');
   });
 });
 
