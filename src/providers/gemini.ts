@@ -24,6 +24,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
 import { debugLog } from '../runtimeSettings';
@@ -259,19 +260,21 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const response = await gemini.models.generateContent({
-      model: model,
-      contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
-      config: {
-        ...(systemInstruction ? { systemInstruction } : {}),
-        tools: [{functionDeclarations}],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO,
+    const response = await runProviderRequest('Gemini', 'models.generateContent', () =>
+      gemini.models.generateContent({
+        model: model,
+        contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
+        config: {
+          ...(systemInstruction ? { systemInstruction } : {}),
+          tools: [{functionDeclarations}],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: FunctionCallingConfigMode.AUTO,
+            }
           }
-        }
-      },
-    });
+        },
+      })
+    );
     debugLog('Round', toolRoundCount, 'tool calls', response.functionCalls);
 
     const functionCalls = response.functionCalls ?? [];

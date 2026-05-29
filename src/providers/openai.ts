@@ -23,6 +23,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
 import { debugLog } from '../runtimeSettings';
@@ -167,12 +168,14 @@ export async function chat(
     toolCount: functionDeclarations.length,
   });
 
-  let response = await openai.responses.create({
-    model: model,
-    instructions: instructions ?? null,
-    input: input,
-    tools: functionDeclarations,
-  });
+  let response = await runProviderRequest('OpenAI', 'responses.create', () =>
+    openai.responses.create({
+      model: model,
+      instructions: instructions ?? null,
+      input: input,
+      tools: functionDeclarations,
+    })
+  );
   
   let toolRoundCount = 0;
   let previousRoundCalls: ToolCallFingerprint[] = [];
@@ -273,12 +276,14 @@ export async function chat(
       };
     }
 
-    response = await openai.responses.create({
-      model,
-      previous_response_id: response.id,
-      input: toolOutputs,
-      tools: functionDeclarations,
-    });
+    response = await runProviderRequest('OpenAI', 'responses.create', () =>
+      openai.responses.create({
+        model,
+        previous_response_id: response.id,
+        input: toolOutputs,
+        tools: functionDeclarations,
+      })
+    );
 
     toolRoundCount++;
     debugLog('');

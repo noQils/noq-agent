@@ -16,6 +16,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRuntimeEnvVar } from '../runtimeEnv';
 import { debugLog } from '../runtimeSettings';
@@ -84,11 +85,11 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const response = await ollama.chat({
+    const response = await runProviderRequest('Ollama', 'chat', () => ollama.chat({
         model,
         messages: ollamaMessages,
         tools: ollamaTools,
-    });
+    }));
 
     ollamaMessages.push(response.message);
 

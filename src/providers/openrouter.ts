@@ -27,6 +27,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
 import { debugLog } from '../runtimeSettings';
@@ -208,12 +209,14 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const completion = await openrouter.chat.completions.create({
-      model,
-      messages: completionMessages,
-      tools: openRouterTools,
-      tool_choice: 'auto',
-    });
+    const completion = await runProviderRequest('OpenRouter', 'chat.completions.create', () =>
+      openrouter.chat.completions.create({
+        model,
+        messages: completionMessages,
+        tools: openRouterTools,
+        tool_choice: 'auto',
+      })
+    );
 
     const assistantMessage = toAssistantMessage(completion);
     const toolCalls = (assistantMessage.tool_calls ?? []).filter(isFunctionToolCall);
