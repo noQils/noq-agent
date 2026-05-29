@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { createEffect, createSignal, For, onCleanup, type Accessor } from 'solid-js';
 
-import { DiffRenderable, type ScrollBoxRenderable } from '@opentui/core';
+import { DiffRenderable, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
 import { parsePatch } from 'diff';
 import {
   Dynamic,
@@ -185,7 +185,7 @@ function getRenderableUnifiedDiff(text: string): string | null {
 
 function commandHints(isCompact: boolean): CommandHint[] {
   if (isCompact) {
-    return [{ key: '/mode' }, { key: '/diff' }, { key: '/exit' }];
+    return [{ key: '/mode' }, { key: '/exit' },];
   }
 
   return [
@@ -535,7 +535,7 @@ function addPreviewLineNumbers(lines: string[]): string[] {
   return lines.map((line, index) => `${String(index + 1).padStart(gutterWidth, ' ')} | ${line}`);
 }
 
-function permissionPreviewLineBg(preview: PermissionPreview, rawLine: string): string | undefined {
+function permissionPreviewLineBg(preview: PermissionPreview, rawLine: string): string {
   if (preview.kind === 'write') {
     return openTuiTheme.color.diffAddedContentBg;
   }
@@ -592,6 +592,16 @@ function getStringArg(args: Record<string, unknown>, key: string): string | null
 
 function splitPreviewLines(value: string): string[] {
   return value.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
+}
+
+function estimateWrappedLineCount(value: string, availableWidth: number): number {
+  const normalizedWidth = Math.max(1, availableWidth);
+  const lines = value.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
+
+  return lines.reduce((count, line) => {
+    const lineLength = Math.max(1, line.length);
+    return count + Math.max(1, Math.ceil(lineLength / normalizedWidth));
+  }, 0);
 }
 
 function truncatePreviewLine(line: string, maxLength: number): string {
@@ -973,7 +983,7 @@ function PermissionPromptPanel(props: {
                 {(line, index) => (
                   <box
                     width="100%"
-                    backgroundColor={permissionPreviewLineBg(preview(), preview().rawLines[index()])}
+                    backgroundColor={permissionPreviewLineBg(preview(), preview().rawLines[index()] ?? '')}
                   >
                     <text
                       fg={openTuiTheme.color.textSoft}
@@ -1034,17 +1044,17 @@ function PermissionPromptPanel(props: {
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
           <text fg={openTuiTheme.color.cyan}>←/→</text>
           <text fg={openTuiTheme.color.textMuted}>choose</text>
-          <text fg={openTuiTheme.color.ghost}>•</text>
+          <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
           <text fg={openTuiTheme.color.cyan}>enter</text>
           <text fg={openTuiTheme.color.textMuted}>confirm</text>
-          <text fg={openTuiTheme.color.ghost}>•</text>
+          <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
           <text fg={openTuiTheme.color.cyan}>esc</text>
           <text fg={openTuiTheme.color.textMuted}>deny</text>
-          <text fg={openTuiTheme.color.ghost}>•</text>
+          <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0}>
           <text fg={openTuiTheme.color.cyan}>shift+↑/↓</text>
@@ -1078,7 +1088,7 @@ function CommandRail(props: { isCompact: boolean }) {
                 </text>
               ) : null}
               {index() < commandHints(props.isCompact).length - 1 ? (
-                <text fg={openTuiTheme.color.ghost}>•</text>
+                <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
               ) : null}
             </box>
           )}
@@ -1095,6 +1105,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const [selectedPermissionAction, setSelectedPermissionAction] = createSignal<PermissionActionId>('allow_once');
   let cachedSelectionText = '';
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
+  let composerTextarea: TextareaRenderable | null = null;
 
   useSelectionHandler((selection) => {
     const selectedText = selection.getSelectedText();
@@ -1247,6 +1258,14 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   });
 
   createEffect(() => {
+    const currentValue = props.inputValue();
+
+    if (composerTextarea && composerTextarea.plainText !== currentValue) {
+      composerTextarea.setText(currentValue);
+    }
+  });
+
+  createEffect(() => {
     if (!props.isBusy()) {
       setBusyFrame(0);
       return;
@@ -1293,6 +1312,11 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     return isNarrow() ? 'Message + Enter' : 'Type a message and press Enter';
   };
   const sessionLabel = () => truncateMiddle(props.sessionId, isNarrow() ? 18 : 32);
+  const composerTextWidth = () => Math.max(12, dimensions().width - 8);
+  const composerLineCount = () => estimateWrappedLineCount(props.inputValue(), composerTextWidth());
+  const composerMaxVisibleLines = () => (isCompact() ? 5 : 10);
+  const composerVisibleLines = () => Math.min(composerMaxVisibleLines(), composerLineCount());
+  const composerFrameHeight = () => Math.max(3, composerVisibleLines() + 2);
   const permissionPreviewMaxLength = () => {
     const widthRatio = isCompact() ? 0.82 : 0.72;
     const maxLength = isCompact() ? 70 : 96;
@@ -1443,20 +1467,32 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         borderStyle="rounded"
         borderColor={composerBorderColor()}
         focusedBorderColor={composerFocusedBorderColor()}
-        paddingX={1}
+        paddingLeft={1}
+        paddingRight={3}
         paddingY={0}
-        minHeight={3}
+        minHeight={composerFrameHeight()}
+        height={composerFrameHeight()}
         flexDirection="row"
-        gap={1}
+        alignItems="flex-start"
       >
-        <text fg={props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal} selectable={false}>
-          {'>'}
-        </text>
-        <input
-          value={props.inputValue()}
+        <box width={2} flexShrink={0} paddingTop={0}>
+          <text fg={props.isBusy() ? openTuiTheme.color.amber : openTuiTheme.color.teal} selectable={false}>
+            {'>'}
+          </text>
+        </box>
+        <textarea
+          ref={(textarea) => {
+            composerTextarea = textarea;
+            if (composerTextarea) {
+              composerTextarea.setText(props.inputValue());
+            }
+          }}
+          initialValue={props.inputValue()}
           placeholder={placeholder()}
           focused={!props.isBusy() && !hasPermissionRequest()}
           flexGrow={1}
+          height={composerVisibleLines()}
+          wrapMode="word"
           textColor={openTuiTheme.color.text}
           focusedTextColor={openTuiTheme.color.text}
           placeholderColor={openTuiTheme.color.textFaint}
@@ -1464,9 +1500,17 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           focusedBackgroundColor="transparent"
           selectionBg={openTuiTheme.color.selectionBg}
           selectionFg={openTuiTheme.color.selectionFg}
-          onInput={(value) => {
+          keyBindings={[
+            { name: 'return', action: 'submit' },
+            { name: 'kpenter', action: 'submit' },
+            { name: 'linefeed', action: 'submit' },
+            { name: 'return', shift: true, action: 'newline' },
+            { name: 'kpenter', shift: true, action: 'newline' },
+            { name: 'linefeed', shift: true, action: 'newline' },
+          ]}
+          onContentChange={() => {
             if (!hasPermissionRequest()) {
-              props.onInput(value);
+              props.onInput(composerTextarea?.plainText ?? '');
             }
           }}
           onSubmit={() => {

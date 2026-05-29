@@ -9,6 +9,10 @@ export async function createOpenTuiRenderer(): Promise<CliRenderer> {
     targetFps: 30,
     maxFps: 60,
     useMouse: true,
+    useKittyKeyboard: {
+      disambiguate: true,
+      alternateKeys: true,
+    },
     backgroundColor: openTuiTheme.color.canvas,
   });
 }
