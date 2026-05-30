@@ -187,12 +187,16 @@ function commandHints(isCompact: boolean): CommandHint[] {
   if (isCompact) {
     return [
       { key: '/mode' }, 
+      { key: '/connect' },
+      { key: '/models' },
       { key: '/exit' }, 
       { key: 'Ctrl+O', value: 'newline'},];
   }
 
   return [
     { key: '/mode', value: 'plan|build' },
+    { key: '/connect' },
+    { key: '/models' },
     { key: '/plan', value: 'show' },
     { key: '/diff' },
     { key: '/undo' },
@@ -518,7 +522,7 @@ function EmptyTranscriptState(props: { isCompact: boolean }) {
             selectionBg={openTuiTheme.color.selectionBg}
             selectionFg={openTuiTheme.color.selectionFg}
           >
-            Send a prompt below, or use /diff, /plan show, /undo, and /exit.
+            Send a prompt below, or use /connect, /models, /diff, /plan show, /undo, and /exit.
           </text>
         </>
       )}

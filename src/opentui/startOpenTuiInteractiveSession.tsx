@@ -6,6 +6,7 @@ import { render, useRenderer } from '@opentui/solid';
 import { CliRenderEvents } from '@opentui/core';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
+import { resetConfigCache } from '../config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from '../permissions/approvals';
 import {
   resetPermissionPromptHandler,
@@ -24,6 +25,17 @@ import {
   undoLastSessionSnapshot,
 } from '../sessionStore';
 import { runSessionTurn } from '../sessionTurnRunner';
+import {
+  connectProviderChoices,
+  getModelChoices,
+  formatModelChoiceList,
+  formatProviderChoiceList,
+  getModelProviderChoices,
+  parseModelChoice,
+  parseProviderChoice,
+  saveGlobalModelSelection,
+  saveProviderConnection,
+} from '../setupCommands';
 import { setDebugLogFilePath } from '../runtimeSettings';
 import { createOpenTuiRenderer } from './createOpenTuiRenderer';
 import {
@@ -42,11 +54,39 @@ export interface StartOpenTuiInteractiveSessionOptions {
 type SlashCommand =
   | { type: 'none' }
   | { type: 'invalid' }
+  | { type: 'connect' }
+  | { type: 'models' }
   | { type: 'exit' }
   | { type: 'diff' }
   | { type: 'undo' }
   | { type: 'plan_show' }
   | { type: 'mode'; mode: AgentMode };
+
+type SetupFlow =
+  | {
+      type: 'connect_provider';
+      providers: typeof connectProviderChoices;
+    }
+  | {
+      type: 'connect_api_key';
+      provider: 'openai' | 'openrouter' | 'gemini';
+    }
+  | {
+      type: 'models_provider';
+      providers: ProviderName[];
+    }
+  | {
+      type: 'models_choice';
+      provider: ProviderName;
+      models: string[];
+      source: 'live' | 'fallback';
+    }
+  | {
+      type: 'models_custom';
+      provider: ProviderName;
+    };
+
+type ProviderName = typeof connectProviderChoices[number];
 
 function appendEntry(
   entries: OpenTuiSessionEntry[],
@@ -101,6 +141,14 @@ function isModeCommand(inputLine: string): boolean {
 }
 
 function parseSlashCommand(inputLine: string): SlashCommand {
+  if (inputLine === '/connect') {
+    return { type: 'connect' };
+  }
+
+  if (inputLine === '/models') {
+    return { type: 'models' };
+  }
+
   if (inputLine === '/exit' || inputLine === '/quit') {
     return { type: 'exit' };
   }
@@ -147,6 +195,58 @@ function parsePermissionDecision(inputLine: string): PermissionPromptDecision | 
   }
 
   return null;
+}
+
+function formatConnectPrompt(providers: ProviderName[]): string {
+  return [
+    'Connect a provider.',
+    '',
+    formatProviderChoiceList(providers),
+    '',
+    'Choose a provider by number or name. Type /cancel to stop.',
+  ].join('\n');
+}
+
+function formatConnectApiKeyPrompt(provider: 'openai' | 'openrouter' | 'gemini'): string {
+  return [
+    `Enter the API key for ${provider}.`,
+    `It will be saved to your global auth store at setup time.`,
+    'Type /cancel to stop.',
+  ].join('\n');
+}
+
+function formatModelsPrompt(providers: ProviderName[]): string {
+  return [
+    'Choose which provider should own the global default model.',
+    '',
+    formatProviderChoiceList(providers),
+    '',
+    'Configured providers are listed first. Choose by number or name. Type /cancel to stop.',
+  ].join('\n');
+}
+
+function formatModelPresetPrompt(
+  provider: ProviderName,
+  models: string[],
+  source: 'live' | 'fallback',
+): string {
+  return [
+    `Choose a default model for ${provider}.`,
+    source === 'live'
+      ? 'Live models fetched from the provider.'
+      : 'Using fallback presets because live model discovery was unavailable.',
+    '',
+    formatModelChoiceList(models),
+    '',
+    'Choose by number, or type "custom" to enter a model id. Type /cancel to stop.',
+  ].join('\n');
+}
+
+function formatCustomModelPrompt(provider: ProviderName): string {
+  return [
+    `Enter a custom model id for ${provider}.`,
+    'Type /cancel to stop.',
+  ].join('\n');
 }
 
 function SessionRoot(props: {
@@ -214,6 +314,7 @@ export async function startOpenTuiInteractiveSession(
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
   const [permissionRequest, setPermissionRequest] = createSignal<PermissionRequest | null>(null);
   const [activeSessionId, setActiveSessionId] = createSignal<string | null>(sessionId ?? null);
+  const [setupFlow, setSetupFlow] = createSignal<SetupFlow | null>(null);
 
   let shouldPrintHint = false;
   let isDestroyed = false;
@@ -308,7 +409,28 @@ export async function startOpenTuiInteractiveSession(
         return false;
 
       case 'invalid':
+        appendTranscriptEntry('system', 'Unknown command.');
         return true;
+
+      case 'connect':
+        setSetupFlow({
+          type: 'connect_provider',
+          providers: connectProviderChoices,
+        });
+        appendTranscriptEntry('system', formatConnectPrompt(connectProviderChoices));
+        setStatusMessage('Setup: connect provider');
+        return true;
+
+      case 'models': {
+        const providers = getModelProviderChoices();
+        setSetupFlow({
+          type: 'models_provider',
+          providers,
+        });
+        appendTranscriptEntry('system', formatModelsPrompt(providers));
+        setStatusMessage('Setup: choose model provider');
+        return true;
+      }
 
       case 'exit':
         exitSession();
@@ -360,6 +482,148 @@ export async function startOpenTuiInteractiveSession(
     }
   };
 
+  const handleSetupFlowInput = async (rawInputValue: string, userInputValue: string): Promise<boolean> => {
+    const activeSetupFlow = setupFlow();
+    if (!activeSetupFlow) {
+      return false;
+    }
+
+    if (userInputValue === '/cancel') {
+      appendTranscriptEntry('system', 'Setup cancelled.');
+      setSetupFlow(null);
+      setStatusMessage('Ready');
+      return true;
+    }
+
+    appendTranscriptEntry('user', rawInputValue);
+
+    switch (activeSetupFlow.type) {
+      case 'connect_provider': {
+        const providerName = parseProviderChoice(userInputValue, activeSetupFlow.providers);
+        if (!providerName) {
+          appendTranscriptEntry('system', 'Choose a valid provider by number or name, or type /cancel.');
+          return true;
+        }
+
+        if (providerName === 'ollama') {
+          appendTranscriptEntry(
+            'system',
+            'Ollama does not need an API key. Run /models to choose a default Ollama model.',
+          );
+          setSetupFlow(null);
+          setStatusMessage('Setup completed');
+          return true;
+        }
+
+        setSetupFlow({
+          type: 'connect_api_key',
+          provider: providerName,
+        });
+        appendTranscriptEntry('system', formatConnectApiKeyPrompt(providerName));
+        setStatusMessage(`Setup: ${providerName} API key`);
+        return true;
+      }
+
+      case 'connect_api_key': {
+        if (userInputValue.length === 0) {
+          appendTranscriptEntry('system', 'API key cannot be empty. Type /cancel to stop.');
+          return true;
+        }
+
+        const authStorePath = saveProviderConnection(activeSetupFlow.provider, {
+          apiKey: userInputValue,
+        });
+        resetConfigCache();
+        appendTranscriptEntry(
+          'system',
+          `Saved ${activeSetupFlow.provider} credentials to ${authStorePath}. Run /models to choose a default model.`,
+        );
+        setSetupFlow(null);
+        setStatusMessage('Setup completed');
+        return true;
+      }
+
+      case 'models_provider': {
+        const providerName = parseProviderChoice(userInputValue, activeSetupFlow.providers);
+        if (!providerName) {
+          appendTranscriptEntry('system', 'Choose a valid provider by number or name, or type /cancel.');
+          return true;
+        }
+
+        setIsBusy(true);
+        setStatusMessage(`Loading ${providerName} models...`);
+        renderer.requestRender();
+
+        const modelChoices = await getModelChoices(providerName);
+
+        setSetupFlow({
+          type: 'models_choice',
+          provider: providerName,
+          models: modelChoices.models,
+          source: modelChoices.source,
+        });
+        appendTranscriptEntry(
+          'system',
+          formatModelPresetPrompt(providerName, modelChoices.models, modelChoices.source),
+        );
+        setIsBusy(false);
+        setStatusMessage(
+          modelChoices.source === 'live'
+            ? `Setup: ${providerName} models loaded`
+            : `Setup: ${providerName} using fallback models`,
+        );
+        return true;
+      }
+
+      case 'models_choice': {
+        const parsedChoice = parseModelChoice(
+          userInputValue,
+          activeSetupFlow.models.length,
+        );
+        if (parsedChoice === null) {
+          appendTranscriptEntry('system', 'Choose a valid model option by number, or type custom / /cancel.');
+          return true;
+        }
+
+        if (parsedChoice === 'custom') {
+          setSetupFlow({
+            type: 'models_custom',
+            provider: activeSetupFlow.provider,
+          });
+          appendTranscriptEntry('system', formatCustomModelPrompt(activeSetupFlow.provider));
+          setStatusMessage(`Setup: custom ${activeSetupFlow.provider} model`);
+          return true;
+        }
+
+        const model = activeSetupFlow.models[parsedChoice];
+        const configPath = saveGlobalModelSelection(activeSetupFlow.provider, model!);
+        appendTranscriptEntry(
+          'system',
+          `Saved global default provider "${activeSetupFlow.provider}" and model "${model}" to ${configPath}.`,
+        );
+        setSetupFlow(null);
+        setStatusMessage('Setup completed');
+        return true;
+      }
+
+      case 'models_custom': {
+        if (userInputValue.length === 0) {
+          appendTranscriptEntry('system', 'Model id cannot be empty. Type /cancel to stop.');
+          return true;
+        }
+
+        const configPath = saveGlobalModelSelection(activeSetupFlow.provider, userInputValue);
+        appendTranscriptEntry(
+          'system',
+          `Saved global default provider "${activeSetupFlow.provider}" and model "${userInputValue}" to ${configPath}.`,
+        );
+        setSetupFlow(null);
+        setStatusMessage('Setup completed');
+        return true;
+      }
+    }
+  };
+
   const handleSubmit = async (): Promise<void> => {
     const rawInput = inputValue();
     const userInput = rawInput.trim();
@@ -391,15 +655,38 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
-    const slashCommand = parseSlashCommand(userInput);
-    if (slashCommand.type === 'invalid') {
-      return;
-    }
-
     setInputValue('');
     setStatusMessage(null);
 
+    if (setupFlow()) {
+      try {
+        if (await handleSetupFlowInput(rawInput, userInput)) {
+          renderer.requestRender();
+          return;
+        }
+      } catch (error) {
+        appendTranscriptEntry('system', `Setup failed: ${formatErrorMessage(error)}`);
+        setSetupFlow(null);
+        setIsBusy(false);
+        setStatusMessage('Setup failed');
+        renderer.requestRender();
+        return;
+      } finally {
+        if (setupFlow()?.type !== 'models_provider') {
+          setIsBusy(false);
+        }
+      }
+    }
+
+    const slashCommand = parseSlashCommand(userInput);
+    if (slashCommand.type === 'invalid') {
+      handleSlashCommand(slashCommand);
+      renderer.requestRender();
+      return;
+    }
+
     if (handleSlashCommand(slashCommand)) {
+      renderer.requestRender();
       return;
     }
 
