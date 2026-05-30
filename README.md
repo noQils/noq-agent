@@ -223,7 +223,7 @@ noq --session session-20260527-114600 --undo
 
 ## CLI Usage
 
-After building and linking the CLI locally, you can run:
+For local development after building the Node CLI, you can run:
 
 ```bash
 noq
@@ -395,7 +395,7 @@ Example:
 }
 ```
 
-4. Build the CLI:
+4. Build the development CLI:
 
 ```bash
 npm run build
@@ -412,6 +412,36 @@ npm link
 ```bash
 noq
 ```
+
+## npm Packaging
+
+The production packaging flow now targets an npm-installed wrapper plus platform runtime packages.
+
+Public install shape:
+
+```bash
+npm install -g noq-agent
+noq --help
+```
+
+Repo build commands for that packaging flow:
+
+```bash
+npm run sync:package-versions
+npm run build:runtime:current
+npm run pack:smoke
+```
+
+Available runtime build targets:
+
+- `npm run build:runtime:windows-x64`
+- `npm run build:runtime:darwin-arm64`
+- `npm run build:runtime:darwin-x64`
+- `npm run build:runtime:linux-x64`
+- `npm run build:runtime:linux-arm64`
+
+The wrapper package lives in `packages/noq-agent/` and the platform runtime packages live under `packages/noq-agent-*`.
+The standalone runtime is built from `src/runtimeExecutable.ts` with Bun's compile pipeline and the `@opentui/solid` Bun plugin, so end users do not need Bun installed.
 
 ## Current Safety Model
 
