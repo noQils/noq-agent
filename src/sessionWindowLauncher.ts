@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 import { type AgentMode } from './agentMode';
-import { buildOpenTuiBunArgs } from './openTuiLaunchPaths';
+import { buildInternalOpenTuiArgs, resolveRuntimeLaunchSpec } from './runtimeLaunch';
 
 export interface LaunchSessionWindowOptions {
   sessionId?: string;
@@ -16,14 +16,13 @@ export interface LaunchSessionWindowResult {
 }
 
 function buildChildArgs(options: LaunchSessionWindowOptions): string[] {
-  return buildOpenTuiBunArgs(
-    options.sessionId,
-    options.mode,
-    {
+  const runtimeLaunch = resolveRuntimeLaunchSpec();
+  return [
+    ...runtimeLaunch.args,
+    ...buildInternalOpenTuiArgs(options.sessionId, options.mode, {
       ...(options.restoreStoredMode ? { restoreStoredMode: true } : {}),
-      ...(options.sessionId ? { sessionId: options.sessionId } : {}),
-    },
-  );
+    }),
+  ];
 }
 
 function formatWindowsTerminalTitle(sessionId?: string): string {
@@ -34,13 +33,14 @@ function escapePowerShellSingleQuotedValue(value: string): string {
   return value.replaceAll("'", "''");
 }
 
-function buildPowerShellBunCommand(options: LaunchSessionWindowOptions): string {
+function buildPowerShellRuntimeCommand(options: LaunchSessionWindowOptions): string {
+  const runtimeLaunch = resolveRuntimeLaunchSpec();
   const argumentList = buildChildArgs(options)
     .map((value) => `'${escapePowerShellSingleQuotedValue(value)}'`)
     .join(', ');
 
   return [
-    `& 'bun' @(${argumentList})`,
+    `& '${escapePowerShellSingleQuotedValue(runtimeLaunch.command)}' @(${argumentList})`,
     '$noqExitCode = if ($LASTEXITCODE -is [int]) { $LASTEXITCODE } else { 0 }',
     `if ($noqExitCode -ne 0) { Write-Host ''; Write-Host "noq exited with code $noqExitCode."; Read-Host 'Press Enter to close'; exit $noqExitCode }`,
   ].join('; ');
@@ -70,7 +70,7 @@ function tryLaunchWithWindowsTerminal(options: LaunchSessionWindowOptions): Laun
       '-ExecutionPolicy',
       'Bypass',
       '-EncodedCommand',
-      encodePowerShellCommand(buildPowerShellBunCommand(options)),
+      encodePowerShellCommand(buildPowerShellRuntimeCommand(options)),
     ],
     {
       encoding: 'utf-8',
@@ -91,7 +91,7 @@ function tryLaunchWithPowerShell(options: LaunchSessionWindowOptions): LaunchSes
   const workingDirectory = options.cwd ?? process.cwd();
   const childCommand = [
     `Set-Location -LiteralPath '${escapePowerShellSingleQuotedValue(workingDirectory)}'`,
-    buildPowerShellBunCommand(options),
+    buildPowerShellRuntimeCommand(options),
   ].join('; ');
   const argumentList = [
     '-NoProfile',

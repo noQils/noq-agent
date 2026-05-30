@@ -1,11 +1,11 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { runCli } from './cli';
-import { startInteractiveSession } from './interactiveSession';
 import { launchSessionWindow } from './sessionWindowLauncher';
+import { startOpenTuiInteractiveSession } from './opentui/startOpenTuiInteractiveSession';
 
 async function main(): Promise<void> {
   await runCli(process.argv.slice(2), {
-    startInteractiveSession,
+    startInteractiveSession: startOpenTuiInteractiveSession,
     launchSessionWindow,
   });
 }

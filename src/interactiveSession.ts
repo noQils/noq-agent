@@ -2,9 +2,11 @@ import { spawn } from 'node:child_process';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { type AgentMode } from './agentMode';
-import { buildOpenTuiBunArgs, type OpenTuiLaunchOptions } from './openTuiLaunchPaths';
+import { buildInternalOpenTuiArgs, resolveRuntimeLaunchSpec } from './runtimeLaunch';
 
-export type InteractiveSessionOptions = OpenTuiLaunchOptions;
+export interface InteractiveSessionOptions {
+  restoreStoredMode?: boolean;
+}
 
 export async function startInteractiveSession(
   sessionId: string | undefined,
@@ -15,10 +17,15 @@ export async function startInteractiveSession(
     throw new Error('Interactive session mode requires a TTY.');
   }
 
+  const runtimeLaunch = resolveRuntimeLaunchSpec();
+
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
-      'bun',
-      buildOpenTuiBunArgs(sessionId, initialMode, options),
+      runtimeLaunch.command,
+      [
+        ...runtimeLaunch.args,
+        ...buildInternalOpenTuiArgs(sessionId, initialMode, options),
+      ],
       {
         cwd: process.cwd(),
         stdio: 'inherit',
@@ -27,7 +34,7 @@ export async function startInteractiveSession(
     );
 
     child.once('error', (error) => {
-      reject(new Error(`Failed to launch the OpenTUI session with Bun: ${error.message}`));
+      reject(new Error(`Failed to launch the OpenTUI session: ${error.message}`));
     });
 
     child.once('exit', (code, signal) => {
