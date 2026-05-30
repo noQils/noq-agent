@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isAgentMode, type AgentMode } from './agentMode';
-import { ensureParentDirectory, resolveProjectPath, writeFileContent } from './fileUtils';
+import { getGlobalSessionsDirectoryPath } from './noqHome';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { type PermissionScope } from './permissions/types';
 import { type ChatMessage } from './providers/types';
@@ -10,7 +10,6 @@ import { buildSessionFileDiff } from './sessionDiff';
 import { type SessionFileChange } from './sessionChangeTracker';
 
 const sessionIdPattern = /^[A-Za-z0-9._-]+$/;
-const sessionsRootDirectory = '.noq/sessions';
 const sessionFileName = 'session.json';
 const sessionDebugLogFileName = 'debug.log';
 const maxVerbatimTurns = 6;
@@ -73,6 +72,7 @@ export interface SessionTuiState {
 
 export interface AgentSession {
   id: string;
+  workspaceRoot: string;
   createdAt: string;
   updatedAt: string;
   turns: SessionTurn[];
@@ -308,10 +308,11 @@ function assertValidSessionId(sessionId: string): void {
   }
 }
 
-function createEmptySession(sessionId: string): AgentSession {
+function createEmptySession(sessionId: string, workspaceRoot = process.cwd()): AgentSession {
   const timestamp = createTimestamp();
   return {
     id: sessionId,
+    workspaceRoot: path.resolve(workspaceRoot),
     createdAt: timestamp,
     updatedAt: timestamp,
     turns: [],
@@ -323,7 +324,7 @@ function createEmptySession(sessionId: string): AgentSession {
 }
 
 export function getSessionsDirectoryPath(): string {
-  return resolveProjectPath(sessionsRootDirectory);
+  return getGlobalSessionsDirectoryPath();
 }
 
 export function getSessionDirectoryPath(sessionId: string): string {
@@ -396,13 +397,7 @@ function saveSession(session: AgentSession): void {
   fs.writeFileSync(sessionFilePath, JSON.stringify(session, null, 2), 'utf-8');
 }
 
-function loadSessionFile(sessionId: string): AgentSession | null {
-  const sessionFilePath = getSessionFilePath(sessionId);
-
-  if (!fs.existsSync(sessionFilePath)) {
-    return null;
-  }
-
+function parseSessionFile(sessionId: string, sessionFilePath: string): AgentSession {
   let parsedSession: unknown;
   try {
     parsedSession = JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8'));
@@ -413,9 +408,13 @@ function loadSessionFile(sessionId: string): AgentSession | null {
 
   const session = isRecord(parsedSession) ? parsedSession : {};
   const createdAt = readStoredTimestamp(session.createdAt);
+  const storedWorkspaceRoot = typeof session.workspaceRoot === 'string' && session.workspaceRoot.trim().length > 0
+    ? path.resolve(session.workspaceRoot)
+    : path.resolve(path.dirname(path.dirname(sessionFilePath)));
 
   return {
     id: typeof session.id === 'string' && session.id.length > 0 ? session.id : sessionId,
+    workspaceRoot: storedWorkspaceRoot,
     createdAt,
     updatedAt: typeof session.updatedAt === 'string' && session.updatedAt.length > 0
       ? session.updatedAt
@@ -428,16 +427,25 @@ function loadSessionFile(sessionId: string): AgentSession | null {
   };
 }
 
-function restoreBeforeState(change: SessionFileChange): void {
-  const resolvedPath = resolveProjectPath(change.filePath);
+function loadSessionFile(sessionId: string): AgentSession | null {
+  const sessionFilePath = getSessionFilePath(sessionId);
+  if (!fs.existsSync(sessionFilePath)) {
+    return null;
+  }
+
+  return parseSessionFile(sessionId, sessionFilePath);
+}
+
+function restoreBeforeState(change: SessionFileChange, workspaceRoot: string): void {
+  const resolvedPath = path.resolve(workspaceRoot, change.filePath);
 
   if (!change.existedBefore) {
     fs.rmSync(resolvedPath, { force: true });
     return;
   }
 
-  ensureParentDirectory(change.filePath);
-  writeFileContent(change.filePath, change.beforeContent ?? '');
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+  fs.writeFileSync(resolvedPath, change.beforeContent ?? '', 'utf-8');
 }
 
 export function loadOrCreateSession(sessionId: string): AgentSession {
@@ -454,11 +462,11 @@ export function loadOrCreateSession(sessionId: string): AgentSession {
 export function loadExistingSession(sessionId: string): AgentSession {
   assertValidSessionId(sessionId);
   const existingSession = loadSessionFile(sessionId);
-  if (!existingSession) {
-    throw new Error(`Session not found: ${sessionId}`);
+  if (existingSession) {
+    return existingSession;
   }
 
-  return existingSession;
+  throw new Error(`Session not found: ${sessionId}`);
 }
 
 export function generateUniqueSessionId(now: Date = new Date()): string {
@@ -640,10 +648,7 @@ export function saveSessionPlanArtifact(
 }
 
 export function formatLatestSessionPlan(sessionId: string): string {
-  const session = loadSessionFile(sessionId);
-  if (!session) {
-    throw new Error(`Session not found: ${sessionId}`);
-  }
+  const session = loadExistingSession(sessionId);
 
   const artifact = session.latestPlanArtifact;
   if (!artifact) {
@@ -669,10 +674,7 @@ export function formatLatestSessionPlan(sessionId: string): string {
 }
 
 export function getLatestSessionDiff(sessionId: string): string {
-  const session = loadSessionFile(sessionId);
-  if (!session) {
-    throw new Error(`Session not found: ${sessionId}`);
-  }
+  const session = loadExistingSession(sessionId);
 
   const latestSnapshot = session.snapshots.at(-1);
   if (!latestSnapshot) {
@@ -683,10 +685,7 @@ export function getLatestSessionDiff(sessionId: string): string {
 }
 
 export function undoLastSessionSnapshot(sessionId: string): string {
-  const session = loadSessionFile(sessionId);
-  if (!session) {
-    throw new Error(`Session not found: ${sessionId}`);
-  }
+  const session = loadExistingSession(sessionId);
 
   const latestSnapshot = session.snapshots.pop();
   if (!latestSnapshot) {
@@ -694,7 +693,7 @@ export function undoLastSessionSnapshot(sessionId: string): string {
   }
 
   for (const change of latestSnapshot.fileChanges) {
-    restoreBeforeState(change);
+    restoreBeforeState(change, session.workspaceRoot);
   }
 
   const response = [

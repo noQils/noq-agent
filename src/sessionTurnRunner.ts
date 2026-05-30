@@ -26,6 +26,17 @@ export interface SessionTurnOptions {
   onMutation?: ToolMutationCallback;
 }
 
+async function withWorkingDirectory<T>(workspaceRoot: string, callback: () => Promise<T>): Promise<T> {
+  const previousCwd = process.cwd();
+  process.chdir(workspaceRoot);
+
+  try {
+    return await callback();
+  } finally {
+    process.chdir(previousCwd);
+  }
+}
+
 export async function runSessionTurn(
   sessionId: string,
   userPrompt: string,
@@ -50,10 +61,10 @@ export async function runSessionTurn(
     let response: string;
 
     try {
-      response = await runAgentTurn(userPrompt, mode, {
+      response = await withWorkingDirectory(session.workspaceRoot, () => runAgentTurn(userPrompt, mode, {
         historyMessages,
         ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
-      });
+      }));
     } catch (error) {
       resetSessionChangeTracking();
       debugLog('Session turn failed:', {

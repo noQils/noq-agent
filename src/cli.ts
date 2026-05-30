@@ -272,7 +272,11 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
   }
 
   if (sessionId) {
-    loadExistingSession(sessionId);
+    const existingSession = loadExistingSession(sessionId);
+    if (action === 'chat' && userPrompt.length === 0 && !directTui && !internalOpenTui) {
+      // The TUI itself will execute turns in the stored workspace root.
+      void existingSession;
+    }
   }
 
   if (action !== 'chat') {
@@ -305,9 +309,11 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
       if (!directTui) {
         const launchMode = await selectInteractiveLaunchMode();
         if (launchMode === 'popup') {
+          const existingSession = activeSessionId ? loadExistingSession(activeSessionId) : null;
           const launchResult = runtime.launchSessionWindow({
             mode,
             restoreStoredMode: resolvedRestoreStoredMode,
+            ...(existingSession ? { cwd: existingSession.workspaceRoot } : {}),
             ...(activeSessionId ? { sessionId: activeSessionId } : {}),
           });
 
