@@ -1,8 +1,8 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import dotenv from 'dotenv';
+import { getNoqHomeDirectory } from './noqHome';
 
 const workspaceEnvFileNames = [
   path.join('.noq', '.env'),
@@ -21,15 +21,6 @@ function isCurrentWorkspaceInsidePackageRoot(): boolean {
   const relativePath = path.relative(packageRoot, process.cwd());
 
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
-}
-
-export function getNoqHomeDirectory(): string {
-  const override = process.env.NOQ_HOME?.trim();
-  if (override) {
-    return path.resolve(override);
-  }
-
-  return path.join(os.homedir(), '.noq');
 }
 
 function getCandidateEnvFiles(): string[] {
