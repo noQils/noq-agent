@@ -48,9 +48,22 @@ function getRuntimeEntrypoint(): string {
   );
 }
 
+function getSourceRuntimeEntrypoint(): string | null {
+  const candidates = [
+    path.resolve(__dirname, '..', 'src', 'runtimeExecutable.ts'),
+    path.resolve(process.cwd(), 'src', 'runtimeExecutable.ts'),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+}
+
 function shouldUseDirectExecutable(): boolean {
   const currentScript = process.argv[1];
   return !currentScript || !/\.(?:c?js|m?js|ts|tsx)$/i.test(currentScript);
+}
+
+function isNodeScriptRuntime(): boolean {
+  return path.basename(process.execPath).toLowerCase().startsWith('node');
 }
 
 export function resolveRuntimeLaunchSpec(): RuntimeLaunchSpec {
@@ -58,6 +71,18 @@ export function resolveRuntimeLaunchSpec(): RuntimeLaunchSpec {
     return {
       command: process.execPath,
       args: [],
+    };
+  }
+
+  const sourceRuntimeEntrypoint = getSourceRuntimeEntrypoint();
+  if (sourceRuntimeEntrypoint && isNodeScriptRuntime()) {
+    return {
+      command: process.platform === 'win32' ? 'bun.exe' : 'bun',
+      args: [
+        '--preload',
+        getOpenTuiSolidPreload(),
+        sourceRuntimeEntrypoint,
+      ],
     };
   }
 
