@@ -18,7 +18,7 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getRuntimeEnvVar } from '../runtimeEnv';
+import { getProviderModelSetting } from '../providerSettings';
 import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
@@ -61,7 +61,7 @@ export async function chat(
   messages: ChatMessage[],
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = options?.model ?? getRuntimeEnvVar('OLLAMA_DEFAULT_MODEL');
+  const model = getProviderModelSetting('ollama', options?.model);
   if (!model) {
     throw new Error('OLLAMA model not specified');
   }

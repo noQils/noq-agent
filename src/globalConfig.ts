@@ -8,6 +8,8 @@ export interface GlobalConfig {
   defaultModel?: string;
 }
 
+const providerNames: ProviderName[] = ['ollama', 'gemini', 'openai', 'openrouter'];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -34,6 +36,10 @@ function normalizeGlobalConfig(rawConfig: unknown, configPath: string): GlobalCo
 
   const defaultProvider = normalizeString(rawConfig.defaultProvider);
   const defaultModel = normalizeString(rawConfig.defaultModel);
+
+  if (defaultProvider && !providerNames.includes(defaultProvider as ProviderName)) {
+    throw new Error(`"defaultProvider" in ${configPath} must be one of: ${providerNames.join(', ')}.`);
+  }
 
   return {
     ...(defaultProvider ? { defaultProvider: defaultProvider as ProviderName } : {}),

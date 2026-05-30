@@ -26,12 +26,12 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
+import { getProviderModelSetting, getRequiredProviderApiKey } from '../providerSettings';
 import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
-  return getRequiredRuntimeEnvVar('GEMINI_API_KEY');
+  return getRequiredProviderApiKey('gemini');
 }
 
 // Convert internal tool definitions to the format expected by the Gemini API
@@ -71,9 +71,15 @@ function toGeminiSchema(schema: InternalTool['parameters']): Schema {
 }
 
 let geminiClient: GoogleGenAI | undefined;
+let geminiClientApiKey: string | undefined;
 
 function getGeminiClient(): GoogleGenAI {
-  geminiClient ??= new GoogleGenAI({ apiKey: getApiKey() });
+  const apiKey = getApiKey();
+  if (!geminiClient || geminiClientApiKey !== apiKey) {
+    geminiClient = new GoogleGenAI({ apiKey });
+    geminiClientApiKey = apiKey;
+  }
+
   return geminiClient;
 }
 
@@ -239,7 +245,7 @@ export async function chat(
   messages: ChatMessage[],
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = options?.model ?? getRuntimeEnvVar('GEMINI_MODEL');
+  const model = getProviderModelSetting('gemini', options?.model);
   if (!model) {
     throw new Error('Gemini model not specified');
   }
