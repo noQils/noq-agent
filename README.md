@@ -86,6 +86,7 @@ Provider selection works like this:
 
 1. `AI_PROVIDER` if explicitly set
 2. `defaultProvider` from `noq-agent.json` if present
+3. `defaultProvider` from `~/.noq/config.json` if present
 3. auto-select exactly one fully configured provider
 4. otherwise fail with a clear setup error instead of silently defaulting to Ollama
 
@@ -107,7 +108,7 @@ noq --plan "your prompt"
 ```
 
 The default mode is configurable in `noq-agent.json`.
-The default provider can also be set there when you want a workspace-level preference.
+The default provider can be set in either `noq-agent.json` for a workspace override or `~/.noq/config.json` for a user-wide default.
 
 ## Current Tools
 
@@ -188,7 +189,7 @@ For rule-based `bash` permissions, the last matching rule wins.
 
 ## Sessions, Diffs, and Undo
 
-The agent supports persistent local sessions.
+The agent supports persistent global sessions.
 
 Running `noq` starts a new interactive conversation and automatically creates a session id like `session-20260527-114600`. Running `noq "your prompt"` also creates a persistent session automatically, sends that prompt as the first turn, and prints a resume command afterward.
 
@@ -200,7 +201,9 @@ When you start a new interactive conversation with `noq`, or resume an existing 
 The interactive session UI is now rendered with OpenTUI. Popup terminal launch is currently implemented for Windows and falls back to the current terminal when a popup cannot be opened.
 The TUI uses the terminal's alternate screen buffer, so it behaves like a full-screen terminal app while active and restores your previous shell screen when you exit.
 
-All sessions are stored under `.noq/sessions/<session-id>/session.json` in the current workspace and prior turns are replayed as compacted history in future runs. When debug logging is enabled, session debug logs are written next to the session file at `.noq/sessions/<session-id>/debug.log`.
+All sessions are stored under `~/.noq/sessions/<session-id>/session.json`, and debug logs for named sessions are written next to the session file at `~/.noq/sessions/<session-id>/debug.log`.
+
+Each session also records its original workspace root, so you can resume a saved session from any directory and `noq-agent` will continue operating inside the workspace where that session was created.
 
 Session features:
 
@@ -255,7 +258,7 @@ Version output:
 noq --version
 ```
 
-Resume a previous conversation:
+Resume a previous conversation from any directory:
 
 ```bash
 noq --session session-20260527-114600
@@ -268,6 +271,8 @@ Resuming a conversation uses the same launch choice flow and the same OpenTUI be
 Interactive session commands:
 
 ```text
+/connect
+/models
 /mode plan
 /mode build
 /plan show
@@ -318,7 +323,14 @@ noq --session session-20260527-114600 --undo
 npm install
 ```
 
-2. Configure provider credentials.
+2. Configure provider credentials and defaults.
+
+Recommended global files:
+
+- `~/.noq/auth.json`
+  stores provider credentials such as API keys
+- `~/.noq/config.json`
+  stores user-wide non-secret defaults such as `defaultProvider` and `defaultModel`
 
 You can provide them in any of these places:
 
@@ -327,6 +339,13 @@ You can provide them in any of these places:
 - `.noq/.env` inside a workspace for project-specific overrides
 - `noq-agent.env` in the workspace root as an alternative local env file
 - the repo-local `.env` when you are running `noq-agent` from inside this repo during development
+
+You can also configure these interactively in the OpenTUI with:
+
+- `/connect`
+  saves provider credentials into `~/.noq/auth.json`
+- `/models`
+  saves the global default provider and model into `~/.noq/config.json`
 
 Example values depend on which provider you want to use:
 
@@ -350,14 +369,15 @@ OLLAMA_DEFAULT_MODEL=llama3.1:8b
 If `AI_PROVIDER` is not set, `noq-agent` will:
 
 1. use `defaultProvider` from `noq-agent.json` if present
-2. otherwise auto-select a provider only when exactly one backend is fully configured
-3. otherwise fail clearly and ask you to choose explicitly by setting `AI_PROVIDER`
+2. otherwise use `defaultProvider` from `~/.noq/config.json` if present
+3. otherwise auto-select a provider only when exactly one backend is fully configured
+4. otherwise fail clearly and ask you to choose explicitly by setting `AI_PROVIDER`
 
 Optional runtime controls:
 
 ```env
 # Print provider, workflow, tool, permission, and session debug logs.
-# During named sessions, logs append to .noq/sessions/<session-id>/debug.log.
+# During named sessions, logs append to ~/.noq/sessions/<session-id>/debug.log.
 # Outside a session, logs fall back to stderr.
 NOQ_DEBUG=true
 
@@ -368,7 +388,7 @@ NOQ_PROVIDER_TIMEOUT_MS=180000
 NOQ_PROVIDER_MAX_TOOL_ROUNDS=10
 ```
 
-3. Optionally create `noq-agent.json` in the workspace root to set a default mode, default provider, and permission policy.
+3. Optionally create `noq-agent.json` in the workspace root to set workspace overrides for the default mode, default provider, default model, and permission policy.
 
 Example:
 
@@ -376,6 +396,7 @@ Example:
 {
   "defaultMode": "build",
   "defaultProvider": "openai",
+  "defaultModel": "gpt-5.4-mini",
   "permission": {
     "todo": "allow",
     "read": "allow",
@@ -488,6 +509,7 @@ This is still an evolving learning project, but the current version already demo
 - policy-driven command execution
 - TypeScript/JavaScript semantic tooling
 - config-driven permissions
+- global provider config and auth storage
 - persistent sessions with diff and undo support
 
 ## Next Steps
