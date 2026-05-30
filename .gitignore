@@ -148,3 +148,8 @@ vite.config.ts.timestamp-*
 # Temp
 .tmp*
 tmp/
+
+# Runtime packaging artifacts
+packages/noq-agent-*/bin/noq-agent
+packages/noq-agent-*/bin/noq-agent.exe
+dist/runtime/

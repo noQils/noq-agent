@@ -2,6 +2,7 @@
   "name": "noq-agent",
   "version": "1.0.0",
   "description": "noq-agent – Local AI coding agent CLI. Analyzes repos, answers code questions, edits files, runs commands.",
+  "private": true,
   "main": "dist/index.js",
   "bin": {
     "noq": "dist/index.js"
@@ -10,8 +11,17 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "dev": "ts-node src/index.ts",
+    "dev:runtime": "bun --preload ./node_modules/@opentui/solid/scripts/preload.ts src/runtimeExecutable.ts",
     "dev:tui:opentui": "bun run src/opentui/index.tsx --session opentui-preview --mode build",
     "check:tui:opentui": "tsc -p tsconfig.opentui.json --noEmit",
+    "sync:package-versions": "node scripts/sync-package-versions.mjs",
+    "build:runtime:windows-x64": "node scripts/build-runtime-package.mjs --target windows-x64",
+    "build:runtime:darwin-arm64": "node scripts/build-runtime-package.mjs --target darwin-arm64",
+    "build:runtime:darwin-x64": "node scripts/build-runtime-package.mjs --target darwin-x64",
+    "build:runtime:linux-x64": "node scripts/build-runtime-package.mjs --target linux-x64",
+    "build:runtime:linux-arm64": "node scripts/build-runtime-package.mjs --target linux-arm64",
+    "build:runtime:current": "node scripts/build-runtime-package.mjs",
+    "pack:smoke": "node scripts/pack-local-install-smoke.mjs",
     "test": "node --test --require ts-node/register \"tests/**/*.test.ts\"",
     "verify": "npm run typecheck && npm run check:tui:opentui && npm test"
   },
@@ -28,6 +38,8 @@
   },
   "homepage": "https://github.com/noQils/noq-agent#readme",
   "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/diff": "^7.0.1",
     "@types/node": "^25.6.2",
     "@types/react": "^18.3.26",
     "ts-node": "^10.9.2"
