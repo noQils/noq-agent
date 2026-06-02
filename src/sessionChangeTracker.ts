@@ -18,10 +18,14 @@ export type SessionFileState = {
 };
 
 export type WorkspaceFileStates = Map<string, SessionFileState>;
+export interface WorkspaceMutationTrackingSnapshot {
+  roots: string[];
+  states: WorkspaceFileStates;
+}
 
 export interface MutationChangeTrackingSnapshot {
   targetBeforeStates: Map<string, SessionFileState>;
-  workspaceBeforeStates: WorkspaceFileStates | null;
+  workspaceBeforeStates: WorkspaceMutationTrackingSnapshot | null;
 }
 
 let trackedBeforeStates: Map<string, SessionFileState> | undefined;
@@ -50,15 +54,34 @@ function readFileState(filePath: string): SessionFileState {
 }
 
 function scanWorkspaceFileStates(): WorkspaceFileStates {
+  return scanWorkspaceFileStatesForRoots([process.cwd()]);
+}
+
+function normalizeWorkspaceRoots(workspaceRoots: string[]): string[] {
+  return Array.from(
+    new Set(
+      workspaceRoots
+        .map((workspaceRoot) => workspaceRoot.trim())
+        .filter((workspaceRoot) => workspaceRoot.length > 0)
+        .map((workspaceRoot) => path.resolve(process.cwd(), workspaceRoot)),
+    ),
+  );
+}
+
+function scanWorkspaceFileStatesForRoots(workspaceRoots: string[]): WorkspaceFileStates {
   const startedAt = Date.now();
   const workspaceFileStates: WorkspaceFileStates = new Map();
+  const normalizedRoots = normalizeWorkspaceRoots(workspaceRoots);
 
-  for (const filePath of getProjectFilePaths()) {
-    const normalizedPath = normalizeTrackedFilePath(filePath);
-    workspaceFileStates.set(normalizedPath, readFileState(normalizedPath));
+  for (const workspaceRoot of normalizedRoots) {
+    for (const filePath of getProjectFilePaths(workspaceRoot)) {
+      const normalizedPath = normalizeTrackedFilePath(filePath);
+      workspaceFileStates.set(normalizedPath, readFileState(normalizedPath));
+    }
   }
 
   debugLog('Workspace file state scan completed:', {
+    workspaceRootCount: normalizedRoots.length,
     fileCount: workspaceFileStates.size,
     durationMs: Date.now() - startedAt,
   });
@@ -93,17 +116,17 @@ function buildFileChangesFromBeforeStates(
 }
 
 function collectWorkspaceChangedBeforeStates(
-  beforeWorkspaceStates: WorkspaceFileStates,
+  beforeWorkspaceSnapshot: WorkspaceMutationTrackingSnapshot,
 ): Map<string, SessionFileState> {
-  const afterWorkspaceStates = scanWorkspaceFileStates();
+  const afterWorkspaceStates = scanWorkspaceFileStatesForRoots(beforeWorkspaceSnapshot.roots);
   const changedBeforeStates = new Map<string, SessionFileState>();
   const changedPaths = new Set<string>([
-    ...beforeWorkspaceStates.keys(),
+    ...beforeWorkspaceSnapshot.states.keys(),
     ...afterWorkspaceStates.keys(),
   ]);
 
   for (const filePath of changedPaths) {
-    const beforeState = beforeWorkspaceStates.get(filePath) ?? { existed: false };
+    const beforeState = beforeWorkspaceSnapshot.states.get(filePath) ?? { existed: false };
     const afterState = afterWorkspaceStates.get(filePath) ?? { existed: false };
 
     if (fileStatesAreEqual(beforeState, afterState)) {
@@ -148,7 +171,7 @@ export function recordMutationTargets(filePaths: string[]): void {
 
 export function beginMutationChangeTracking(
   filePaths: string[],
-  workspaceBeforeStates: WorkspaceFileStates | null,
+  workspaceBeforeStates: WorkspaceMutationTrackingSnapshot | null,
 ): MutationChangeTrackingSnapshot {
   const targetBeforeStates = new Map<string, SessionFileState>();
 
@@ -169,17 +192,23 @@ export function beginMutationChangeTracking(
   };
 }
 
-export function beginWorkspaceMutationTracking(): WorkspaceFileStates | null {
+export function beginWorkspaceMutationTracking(workspaceRoots: string[] = [process.cwd()]): WorkspaceMutationTrackingSnapshot | null {
   if (!trackedBeforeStates) {
     debugLog('Workspace mutation tracking skipped: no active session tracking.');
     return null;
   }
 
-  debugLog('Workspace mutation tracking started.');
-  return scanWorkspaceFileStates();
+  const normalizedRoots = normalizeWorkspaceRoots(workspaceRoots);
+  debugLog('Workspace mutation tracking started.', {
+    workspaceRootCount: normalizedRoots.length,
+  });
+  return {
+    roots: normalizedRoots,
+    states: scanWorkspaceFileStatesForRoots(normalizedRoots),
+  };
 }
 
-export function recordWorkspaceMutationChanges(beforeWorkspaceStates: WorkspaceFileStates | null): void {
+export function recordWorkspaceMutationChanges(beforeWorkspaceStates: WorkspaceMutationTrackingSnapshot | null): void {
   if (!trackedBeforeStates || !beforeWorkspaceStates) {
     return;
   }

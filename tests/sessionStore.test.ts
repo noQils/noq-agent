@@ -283,3 +283,37 @@ test('session permission approvals persist across approval state resets', async 
     });
   });
 });
+
+test('undo restores files recorded outside the base workspace', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      const externalWorkspace = workspace.path('..', `external-workspace-${path.basename(workspace.root)}`);
+      const externalFilePath = path.join(externalWorkspace, 'example.txt');
+      fs.mkdirSync(path.dirname(externalFilePath), { recursive: true });
+      fs.writeFileSync(externalFilePath, 'after\n', 'utf-8');
+
+      appendSessionTurn(
+        'external-snapshot-session',
+        {
+          timestamp: '2026-01-01T00:00:00.000Z',
+          mode: 'build',
+          userPrompt: 'update outside file',
+          response: 'updated outside file',
+        },
+        [{
+          filePath: externalFilePath,
+          existedBefore: true,
+          beforeContent: 'before\n',
+          existedAfter: true,
+          afterContent: 'after\n',
+        }],
+      );
+
+      const undoResponse = undoLastSessionSnapshot('external-snapshot-session');
+
+      assert.match(undoResponse, /Reverted snapshot/);
+      assert.equal(fs.readFileSync(externalFilePath, 'utf-8'), 'before\n');
+      fs.rmSync(externalWorkspace, { recursive: true, force: true });
+    });
+  });
+});

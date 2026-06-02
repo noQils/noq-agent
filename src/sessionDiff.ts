@@ -5,6 +5,20 @@ import { spawnSync } from 'node:child_process';
 
 import { type SessionFileChange } from './sessionChangeTracker';
 
+function toSnapshotRelativePath(filePath: string): string {
+  const normalizedPath = filePath.replaceAll('\\', '/');
+  if (!path.isAbsolute(filePath)) {
+    return normalizedPath.replace(/^\.\/+/, '');
+  }
+
+  return path.posix.join(
+    '__external__',
+    normalizedPath
+      .replace(/^([A-Za-z]):/, '$1')
+      .replace(/^\/+/, ''),
+  );
+}
+
 function writeSnapshotSide(
   targetDirectory: string,
   fileChanges: SessionFileChange[],
@@ -19,7 +33,7 @@ function writeSnapshotSide(
     const content = side === 'before'
       ? change.beforeContent ?? ''
       : change.afterContent ?? '';
-    const targetPath = path.join(targetDirectory, change.filePath);
+    const targetPath = path.join(targetDirectory, toSnapshotRelativePath(change.filePath));
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     fs.writeFileSync(targetPath, content, 'utf-8');
   }

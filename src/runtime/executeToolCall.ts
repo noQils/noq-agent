@@ -110,6 +110,23 @@ function shouldTrackWorkspaceChanges(
   return toolName === 'run_command';
 }
 
+function getWorkspaceMutationRoots(
+  toolName: string,
+  args: Record<string, unknown>,
+): string[] {
+  if (toolName !== 'run_command') {
+    return [process.cwd()];
+  }
+
+  const roots = [process.cwd()];
+  const cwd = typeof args.cwd === 'string' ? args.cwd.trim() : '';
+  if (cwd.length > 0) {
+    roots.push(cwd);
+  }
+
+  return Array.from(new Set(roots));
+}
+
 async function notifyMutation(
   toolName: string,
   args: Record<string, unknown>,
@@ -319,7 +336,7 @@ export async function executeToolCall(
   const mutationTargets = getMutationTargets(toolName, args);
   const shouldTrackWorkspace = shouldTrackWorkspaceChanges(toolName);
   const workspaceMutationSnapshot = shouldTrackWorkspace
-    ? beginWorkspaceMutationTracking()
+    ? beginWorkspaceMutationTracking(getWorkspaceMutationRoots(toolName, args))
     : null;
   const mutationSnapshot = options?.onMutation && (mutationTargets.length > 0 || shouldTrackWorkspace)
     ? beginMutationChangeTracking(mutationTargets, workspaceMutationSnapshot)
