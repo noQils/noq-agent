@@ -74,6 +74,10 @@ export function setPermissionApprovalSession(sessionId?: string): void {
   currentPermissionSessionId = sessionId;
 }
 
+export function getCurrentPermissionSessionId(): string | undefined {
+  return currentPermissionSessionId;
+}
+
 export function hasPersistentPermissionSession(): boolean {
   return typeof currentPermissionSessionId === 'string' && currentPermissionSessionId.length > 0;
 }

@@ -10,8 +10,10 @@ import { loadConfig } from '../src/config';
 import { evaluatePermission } from '../src/permissions/evaluate';
 import { saveGlobalConfig } from '../src/globalConfig';
 import { getNoqHomeDirectory } from '../src/noqHome';
+import { setPermissionApprovalSession } from '../src/permissions/approvals';
 import { getConfiguredProviderNames, getExplicitProviderNameSetting, getProviderSettings } from '../src/providerSettings';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
+import { getSessionFilePath } from '../src/sessionStore';
 import { runCommand } from '../src/tools/runCommand';
 import { withTempWorkspace } from './helpers/tempWorkspace';
 
@@ -268,6 +270,92 @@ test('external directory permission denies paths outside the workspace', async (
 
     assert.equal(decision.scope, 'external_directory');
     assert.equal(decision.outcome, 'deny');
+  });
+});
+
+test('external directory permission allows paths inside approved external directories', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      const approvedDirectory = workspace.path('..', 'approved-workspace');
+      const sessionFilePath = getSessionFilePath('approved-dir-session');
+
+      fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
+      fs.writeFileSync(
+        sessionFilePath,
+        JSON.stringify({
+          id: 'approved-dir-session',
+          workspaceRoot: workspace.root,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          turns: [],
+          snapshots: [],
+          permissionApprovals: [],
+          latestPlanArtifact: null,
+          tuiState: { mode: null, entries: [] },
+          approvedExternalDirectories: [approvedDirectory],
+        }),
+        'utf-8',
+      );
+
+      setPermissionApprovalSession('approved-dir-session');
+
+      const decision = evaluatePermission({
+        scope: 'read',
+        toolName: 'read_file',
+        target: path.join(approvedDirectory, 'notes.txt'),
+        args: {
+          filePath: path.join(approvedDirectory, 'notes.txt'),
+        },
+      });
+
+      assert.equal(decision.scope, 'read');
+      assert.equal(decision.outcome, 'allow');
+    });
+  });
+});
+
+test('external directory permission can ask for new outside paths', async () => {
+  await withTempWorkspace((workspace) => {
+    workspace.writeFile('noq-agent.json', JSON.stringify({
+      permission: {
+        external_directory: 'ask',
+      },
+    }));
+
+    const decision = evaluatePermission({
+      scope: 'read',
+      toolName: 'read_file',
+      target: workspace.path('..', 'outside.txt'),
+      args: {
+        filePath: workspace.path('..', 'outside.txt'),
+      },
+    });
+
+    assert.equal(decision.scope, 'external_directory');
+    assert.equal(decision.outcome, 'ask');
+  });
+});
+
+test('external directory permission applies to command cwd', async () => {
+  await withTempWorkspace((workspace) => {
+    workspace.writeFile('noq-agent.json', JSON.stringify({
+      permission: {
+        external_directory: 'ask',
+      },
+    }));
+
+    const decision = evaluatePermission({
+      scope: 'bash',
+      toolName: 'run_command',
+      target: 'npm test',
+      args: {
+        command: 'npm test',
+        cwd: workspace.path('..', 'outside-workspace'),
+      },
+    });
+
+    assert.equal(decision.scope, 'external_directory');
+    assert.equal(decision.outcome, 'ask');
   });
 });
 

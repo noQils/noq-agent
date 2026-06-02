@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import { resolveCommandPermission } from '../commandPolicy';
 import { getConfig } from '../config';
+import { getCurrentPermissionSessionId } from './approvals';
+import { getSessionApprovedExternalDirectories } from '../sessionStore';
 import { type PermissionOutcome, type PermissionRequest, type PermissionScope } from './types';
 
 export interface PermissionDecision {
@@ -10,12 +12,33 @@ export interface PermissionDecision {
   reason: string;
 }
 
-function isInsideWorkspace(targetPath: string): boolean {
-  const workspaceRoot = path.resolve(process.cwd());
-  const resolvedTargetPath = path.resolve(process.cwd(), targetPath);
-  const relativePath = path.relative(workspaceRoot, resolvedTargetPath);
+function canonicalizePath(targetPath: string): string {
+  return path.resolve(process.cwd(), targetPath);
+}
+
+function isInsideDirectory(targetPath: string, directory: string): boolean {
+  const resolvedTargetPath = canonicalizePath(targetPath);
+  const resolvedDirectory = canonicalizePath(directory);
+  const relativePath = path.relative(resolvedDirectory, resolvedTargetPath);
 
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function getApprovedExternalDirectories(): string[] {
+  const sessionId = getCurrentPermissionSessionId();
+  if (!sessionId) {
+    return [];
+  }
+
+  return getSessionApprovedExternalDirectories(sessionId);
+}
+
+function isAllowedPathTarget(targetPath: string): boolean {
+  if (isInsideDirectory(targetPath, process.cwd())) {
+    return true;
+  }
+
+  return getApprovedExternalDirectories().some((directory) => isInsideDirectory(targetPath, directory));
 }
 
 function getPathTargets(request: PermissionRequest): string[] {
@@ -46,7 +69,7 @@ function getExternalDirectoryDecision(request: PermissionRequest): PermissionDec
   const pathTargets = getPathTargets(request);
 
   for (const pathTarget of pathTargets) {
-    if (!isInsideWorkspace(pathTarget)) {
+    if (!isAllowedPathTarget(pathTarget)) {
       const outcome = config.permission.external_directory;
       return {
         outcome,

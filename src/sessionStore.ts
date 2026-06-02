@@ -517,6 +517,11 @@ export function getSessionPermissionApprovals(sessionId: string): SessionPermiss
   return session.permissionApprovals;
 }
 
+export function getSessionApprovedExternalDirectories(sessionId: string): string[] {
+  const session = loadOrCreateSession(sessionId);
+  return session.approvedExternalDirectories;
+}
+
 export function appendSessionPermissionApproval(
   sessionId: string,
   approval: Omit<SessionPermissionApproval, 'createdAt'>,
