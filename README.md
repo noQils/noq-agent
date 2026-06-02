@@ -185,6 +185,14 @@ When a command asks for approval, the CLI supports:
 
 Interactive sessions keep the same process alive across turns, so “allow always for this run” remains available until you exit that conversation. Resumed named sessions can also reuse approvals that were stored with “allow always for this named session”.
 
+External-directory behavior:
+
+- `external_directory: "deny"` blocks reads, edits, listings, globs, greps, and command `cwd`s outside the session workspace
+- `external_directory: "ask"` prompts the user the first time the agent targets an outside directory
+- `external_directory: "allow"` skips that prompt entirely
+- when you approve an outside directory for the named session, `noq-agent` remembers that directory in the session and later turns can reuse it without re-asking
+- the session still keeps its original `workspaceRoot`; remembered outside directories extend access, they do not replace the base workspace
+
 For rule-based `bash` permissions, the last matching rule wins.
 
 ## Sessions, Diffs, and Undo
@@ -204,6 +212,8 @@ The TUI uses the terminal's alternate screen buffer, so it behaves like a full-s
 All sessions are stored under `~/.noq/sessions/<session-id>/session.json`, and debug logs for named sessions are written next to the session file at `~/.noq/sessions/<session-id>/debug.log`.
 
 Each session also records its original workspace root, so you can resume a saved session from any directory and `noq-agent` will continue operating inside the workspace where that session was created.
+
+When you explicitly ask the agent to work in another directory, it can also operate there subject to the `external_directory` permission. Approved outside directories are stored with the session so later turns can keep using them.
 
 Session features:
 
@@ -313,6 +323,14 @@ Session + undo:
 noq "Create tmp/session-memory.txt containing the text 'first turn', then confirm it."
 noq --session session-20260527-114600 --diff
 noq --session session-20260527-114600 --undo
+```
+
+Cross-workspace access:
+
+```bash
+noq "Read C:/Users/TUF/Documents/Projects/other-repo/package.json and summarize it."
+noq "Run npm test in ../other-repo and tell me what failed."
+noq "Edit ../other-repo/src/index.ts to add a comment, then show me the diff."
 ```
 
 ## Setup

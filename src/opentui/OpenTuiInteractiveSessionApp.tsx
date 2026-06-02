@@ -826,6 +826,14 @@ function getPermissionDirectoryLabel(request: PermissionRequest): string {
   return path.resolve(process.cwd(), cwd && cwd.trim().length > 0 ? cwd : process.cwd()).replaceAll('\\', '/');
 }
 
+function getPermissionWorkspaceLabel(): string {
+  return process.cwd().replaceAll('\\', '/');
+}
+
+function isExternalDirectoryPermission(request: PermissionRequest): boolean {
+  return request.scope === 'external_directory';
+}
+
 function PermissionPromptPanel(props: {
   request: PermissionRequest;
   isCompact: boolean;
@@ -868,17 +876,19 @@ function PermissionPromptPanel(props: {
       gap={1}
       width="100%"
       height="100%"
-    >
-      <box
-        flexDirection="row"
-        gap={1}
-        width="100%"
+      >
+        <box
+          flexDirection="row"
+          gap={1}
+          width="100%"
         alignItems="center"
         flexShrink={0}
         paddingLeft={1}
         justifyContent="space-between"
-      >
-        <text fg={openTuiTheme.color.amber} flexShrink={1}>Permission Required</text>
+        >
+        <text fg={openTuiTheme.color.amber} flexShrink={1}>
+          {isExternalDirectoryPermission(props.request) ? 'External Directory Access' : 'Permission Required'}
+        </text>
         <box backgroundColor={permissionScopeColor(props.request.scope)} paddingX={1} flexShrink={0}>
           <text fg={openTuiTheme.color.canvas} truncate>
             {props.request.scope.toUpperCase()}
@@ -905,12 +915,26 @@ function PermissionPromptPanel(props: {
         </box>
         <box flexDirection="row" gap={1}>
           <box width={detailLabelWidth} flexShrink={0}>
-            <text fg={openTuiTheme.color.textFaint}>Path</text>
+            <text fg={openTuiTheme.color.textFaint}>
+              {isExternalDirectoryPermission(props.request) ? 'Base' : 'Path'}
+            </text>
           </box>
           <text fg={openTuiTheme.color.textSoft} truncate flexGrow={1}>
-            {pathLabel()}
+            {isExternalDirectoryPermission(props.request)
+              ? getPermissionWorkspaceLabel()
+              : pathLabel()}
           </text>
         </box>
+        {isExternalDirectoryPermission(props.request) ? (
+          <box flexDirection="row" gap={1}>
+            <box width={detailLabelWidth} flexShrink={0}>
+              <text fg={openTuiTheme.color.textFaint}>Out</text>
+            </box>
+            <text fg={openTuiTheme.color.textSoft} truncate flexGrow={1}>
+              {props.request.target.trim().length > 0 ? props.request.target : '(no target)'}
+            </text>
+          </box>
+        ) : null}
         {props.request.toolName === 'run_command' ? (
           <box flexDirection="row" gap={1}>
             <box width={detailLabelWidth} flexShrink={0}>
@@ -924,12 +948,14 @@ function PermissionPromptPanel(props: {
         {isFileModificationPermission(props.request) ? (
           <box flexDirection="row" gap={1}>
             <box width={detailLabelWidth} flexShrink={0}>
-              <text fg={openTuiTheme.color.textFaint}>File</text>
+              <text fg={openTuiTheme.color.textFaint}>
+                {isExternalDirectoryPermission(props.request) ? 'Entry' : 'File'}
+              </text>
             </box>
             <text fg={openTuiTheme.color.textSoft} truncate flexGrow={1}>
               {targetLabel()}
             </text>
-          </box>
+            </box>
         ) : null}
         {targets().length > 1 ? (
           <box flexDirection="row" gap={1}>

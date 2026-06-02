@@ -29,6 +29,16 @@ function buildPermissionPrompt(request: PermissionRequest): string {
     ? 'always for this named session'
     : 'always for this run';
 
+  if (request.scope === 'external_directory') {
+    return [
+      '',
+      `External directory access required for ${request.toolName}`,
+      `Session workspace: ${process.cwd()}`,
+      `Outside directory: ${request.target || '(no target)'}`,
+      `Choose: allow once [o], ${persistentSessionLabel} [s], or deny [d] (default): `,
+    ].join('\n');
+  }
+
   return [
     '',
     `Permission required for ${request.toolName}`,
