@@ -4,7 +4,7 @@ import {
   allowPermissionOnce,
   isPermissionPreApproved,
 } from '../permissions/approvals';
-import { evaluatePermission } from '../permissions/evaluate';
+import { evaluatePermission, getExternalDirectoryApprovalTarget } from '../permissions/evaluate';
 import { promptForPermission } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
 import { canonicalizeArgsValue } from '../providers/shared/toolFingerprint';
@@ -40,6 +40,26 @@ function getPermissionRequestCacheKey(request: PermissionRequest): string {
     target: request.target,
     args: request.args,
   });
+}
+
+function getApprovalRequest(
+  permissionRequest: PermissionRequest,
+  permissionScope: PermissionRequest['scope'],
+): PermissionRequest {
+  if (permissionScope !== 'external_directory') {
+    return permissionRequest;
+  }
+
+  const approvalTarget = getExternalDirectoryApprovalTarget(permissionRequest);
+  if (!approvalTarget) {
+    return permissionRequest;
+  }
+
+  return {
+    ...permissionRequest,
+    scope: 'external_directory',
+    target: approvalTarget,
+  };
 }
 
 function buildPermissionRequest(
@@ -235,6 +255,7 @@ export async function executeToolCall(
     const cacheKey = getPermissionRequestCacheKey(permissionRequest);
     const cachedDecision = permissionDecisionCache.get(cacheKey);
     let allowed = cachedDecision ?? false;
+    const approvalRequest = getApprovalRequest(permissionRequest, permissionDecision.scope);
     debugLog('Tool permission requires approval:', {
       toolName,
       scope: permissionRequest.scope,
@@ -243,27 +264,27 @@ export async function executeToolCall(
     });
 
     if (cachedDecision === undefined) {
-      const preApproved = isPermissionPreApproved(permissionRequest);
+      const preApproved = isPermissionPreApproved(approvalRequest);
       debugLog('Tool permission pre-approval check:', {
         toolName,
-        target: permissionRequest.target,
+        target: approvalRequest.target,
         preApproved,
       });
 
       if (preApproved) {
         allowed = true;
       } else {
-        const promptDecision = await promptForPermission(permissionRequest);
+        const promptDecision = await promptForPermission(approvalRequest);
         debugLog('Tool permission prompt result:', {
           toolName,
-          target: permissionRequest.target,
+          target: approvalRequest.target,
           promptDecision,
         });
         if (promptDecision === 'allow_session') {
-          allowPermissionForSession(permissionRequest);
+          allowPermissionForSession(approvalRequest);
           allowed = true;
         } else if (promptDecision === 'allow_once') {
-          allowPermissionOnce(permissionRequest);
+          allowPermissionOnce(approvalRequest);
           allowed = true;
         }
       }

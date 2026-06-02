@@ -1,5 +1,6 @@
 import { matchCommandPattern, normalizeCommand } from '../commandPolicy';
 import {
+  appendSessionApprovedExternalDirectory,
   appendSessionPermissionApproval,
   getSessionPermissionApprovals,
   type SessionPermissionApproval,
@@ -22,6 +23,10 @@ function normalizeApprovalTarget(scope: PermissionScope, target: string): string
   const normalizedTarget = target.trim();
   if (scope === 'bash') {
     return normalizeCommand(normalizedTarget);
+  }
+
+  if (scope === 'external_directory') {
+    return normalizedTarget.replaceAll('\\', '/');
   }
 
   return normalizedTarget;
@@ -110,4 +115,8 @@ export function allowPermissionForSession(request: PermissionRequest): void {
   }
 
   appendSessionPermissionApproval(currentPermissionSessionId, approval);
+
+  if (request.scope === 'external_directory') {
+    appendSessionApprovedExternalDirectory(currentPermissionSessionId, request.target);
+  }
 }

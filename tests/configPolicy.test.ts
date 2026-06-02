@@ -10,10 +10,10 @@ import { loadConfig } from '../src/config';
 import { evaluatePermission } from '../src/permissions/evaluate';
 import { saveGlobalConfig } from '../src/globalConfig';
 import { getNoqHomeDirectory } from '../src/noqHome';
-import { setPermissionApprovalSession } from '../src/permissions/approvals';
+import { allowPermissionForSession, setPermissionApprovalSession } from '../src/permissions/approvals';
 import { getConfiguredProviderNames, getExplicitProviderNameSetting, getProviderSettings } from '../src/providerSettings';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
-import { getSessionFilePath } from '../src/sessionStore';
+import { getSessionApprovedExternalDirectories, getSessionFilePath } from '../src/sessionStore';
 import { runCommand } from '../src/tools/runCommand';
 import { withTempWorkspace } from './helpers/tempWorkspace';
 
@@ -356,6 +356,85 @@ test('external directory permission applies to command cwd', async () => {
 
     assert.equal(decision.scope, 'external_directory');
     assert.equal(decision.outcome, 'ask');
+  });
+});
+
+test('session approval persists approved external directories for later turns', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          external_directory: 'ask',
+        },
+      }));
+
+      const approvedDirectory = workspace.path('..', 'approved-workspace');
+      setPermissionApprovalSession('approved-session');
+      allowPermissionForSession({
+        scope: 'external_directory',
+        toolName: 'read_file',
+        target: approvedDirectory,
+        args: {
+          filePath: path.join(approvedDirectory, 'notes.txt'),
+        },
+      });
+
+      assert.deepEqual(getSessionApprovedExternalDirectories('approved-session'), [
+        path.resolve(approvedDirectory).replaceAll('\\', '/'),
+      ]);
+
+      setPermissionApprovalSession('approved-session');
+      const decision = evaluatePermission({
+        scope: 'read',
+        toolName: 'read_file',
+        target: path.join(approvedDirectory, 'notes.txt'),
+        args: {
+          filePath: path.join(approvedDirectory, 'notes.txt'),
+        },
+      });
+
+      assert.equal(decision.scope, 'read');
+      assert.equal(decision.outcome, 'allow');
+    });
+  });
+});
+
+test('session approval persists approved external command cwd after reload', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          bash: 'allow',
+          external_directory: 'ask',
+        },
+      }));
+
+      const approvedDirectory = workspace.path('..', 'approved-command-workspace');
+      setPermissionApprovalSession('approved-command-session');
+      allowPermissionForSession({
+        scope: 'external_directory',
+        toolName: 'run_command',
+        target: approvedDirectory,
+        args: {
+          command: 'npm test',
+          cwd: approvedDirectory,
+        },
+      });
+
+      setPermissionApprovalSession('approved-command-session');
+      const decision = evaluatePermission({
+        scope: 'bash',
+        toolName: 'run_command',
+        target: 'npm test',
+        args: {
+          command: 'npm test',
+          cwd: approvedDirectory,
+        },
+      });
+
+      assert.equal(decision.scope, 'bash');
+      assert.equal(decision.outcome, 'allow');
+    });
   });
 });
 

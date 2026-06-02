@@ -522,6 +522,20 @@ export function getSessionApprovedExternalDirectories(sessionId: string): string
   return session.approvedExternalDirectories;
 }
 
+export function appendSessionApprovedExternalDirectory(
+  sessionId: string,
+  directory: string,
+): AgentSession {
+  const session = loadOrCreateSession(sessionId);
+  session.approvedExternalDirectories = normalizeApprovedExternalDirectories([
+    ...session.approvedExternalDirectories,
+    directory,
+  ]);
+  session.updatedAt = createTimestamp();
+  saveSession(session);
+  return session;
+}
+
 export function appendSessionPermissionApproval(
   sessionId: string,
   approval: Omit<SessionPermissionApproval, 'createdAt'>,

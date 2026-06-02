@@ -64,19 +64,55 @@ function getPathTargets(request: PermissionRequest): string[] {
   return pathTargets.filter(Boolean);
 }
 
-function getExternalDirectoryDecision(request: PermissionRequest): PermissionDecision | null {
-  const config = getConfig();
+function getPathTargetApprovalDirectory(request: PermissionRequest, pathTarget: string): string {
+  const resolvedPath = canonicalizePath(pathTarget);
+  const cwd = request.args.cwd;
+
+  if (typeof cwd === 'string' && cwd.trim() && pathTarget === cwd) {
+    return resolvedPath;
+  }
+
+  if (request.scope === 'read' || request.scope === 'edit') {
+    return path.dirname(resolvedPath);
+  }
+
+  return resolvedPath;
+}
+
+export function getFirstDisallowedPathTarget(request: PermissionRequest): string | null {
   const pathTargets = getPathTargets(request);
 
   for (const pathTarget of pathTargets) {
     if (!isAllowedPathTarget(pathTarget)) {
-      const outcome = config.permission.external_directory;
-      return {
-        outcome,
-        scope: 'external_directory',
-        reason: `Path "${pathTarget}" resolves outside the workspace, so "external_directory" is configured as "${outcome}".`,
-      };
+      return pathTarget;
     }
+  }
+
+  return null;
+}
+
+export function getExternalDirectoryApprovalTarget(request: PermissionRequest): string | null {
+  const pathTargets = getPathTargets(request);
+
+  for (const pathTarget of pathTargets) {
+    if (!isAllowedPathTarget(pathTarget)) {
+      return getPathTargetApprovalDirectory(request, pathTarget);
+    }
+  }
+
+  return null;
+}
+
+function getExternalDirectoryDecision(request: PermissionRequest): PermissionDecision | null {
+  const config = getConfig();
+  const pathTarget = getFirstDisallowedPathTarget(request);
+  if (pathTarget) {
+    const outcome = config.permission.external_directory;
+    return {
+      outcome,
+      scope: 'external_directory',
+      reason: `Path "${pathTarget}" resolves outside the workspace, so "external_directory" is configured as "${outcome}".`,
+    };
   }
 
   return null;
