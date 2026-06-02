@@ -80,6 +80,7 @@ export interface AgentSession {
   permissionApprovals: SessionPermissionApproval[];
   latestPlanArtifact: SessionPlanArtifact | null;
   tuiState: SessionTuiState;
+  approvedExternalDirectories: string[];
 }
 
 function createTimestamp(): string {
@@ -302,6 +303,26 @@ function normalizeTuiState(tuiState: unknown): SessionTuiState {
   };
 }
 
+function canonicalizePath(potentialPath: string): string {
+  return path.resolve(potentialPath).replaceAll(/\\/g, '/');
+}
+
+function normalizeApprovedExternalDirectories(directories: unknown): string[] {
+  if (!Array.isArray(directories)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      directories
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+        .map(canonicalizePath),
+    ),
+  ];
+}
+
 function assertValidSessionId(sessionId: string): void {
   if (!sessionIdPattern.test(sessionId) || sessionId === '.' || sessionId === '..') {
     throw new Error('Session id may contain only letters, numbers, ".", "_" and "-", and cannot be "." or "..".');
@@ -320,6 +341,7 @@ function createEmptySession(sessionId: string, workspaceRoot = process.cwd()): A
     permissionApprovals: [],
     latestPlanArtifact: null,
     tuiState: createEmptyTuiState(),
+    approvedExternalDirectories: [],
   };
 }
 
@@ -424,6 +446,7 @@ function parseSessionFile(sessionId: string, sessionFilePath: string): AgentSess
     permissionApprovals: normalizePermissionApprovals(session.permissionApprovals),
     latestPlanArtifact: normalizeSessionPlanArtifact(session.latestPlanArtifact),
     tuiState: normalizeTuiState(session.tuiState),
+    approvedExternalDirectories: normalizeApprovedExternalDirectories(session.approvedExternalDirectories),
   };
 }
 

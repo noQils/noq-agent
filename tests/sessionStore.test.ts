@@ -69,6 +69,7 @@ test('new sessions are stored in a per-session directory', async () => {
 
       assert.equal(session.id, 'folder-session');
       assert.equal(session.workspaceRoot, workspace.root);
+      assert.deepEqual(session.approvedExternalDirectories, []);
       assert.equal(
         getSessionFilePath('folder-session'),
         path.join(process.env.NOQ_HOME!, 'sessions', 'folder-session', 'session.json'),
@@ -78,6 +79,80 @@ test('new sessions are stored in a per-session directory', async () => {
         path.join(process.env.NOQ_HOME!, 'sessions', 'folder-session', 'debug.log'),
       );
       assert.equal(fs.existsSync(getSessionFilePath('folder-session')), true);
+    });
+  });
+});
+
+test('older sessions without approved external directories load with an empty default', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(() => {
+      const sessionFilePath = getSessionFilePath('older-session');
+      fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
+      fs.writeFileSync(
+        sessionFilePath,
+        JSON.stringify({
+          id: 'older-session',
+          workspaceRoot: process.cwd(),
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          turns: [],
+          snapshots: [],
+          permissionApprovals: [],
+          latestPlanArtifact: null,
+          tuiState: { mode: null, entries: [] },
+        }),
+        'utf-8',
+      );
+
+      const session = loadExistingSession('older-session');
+
+      assert.deepEqual(session.approvedExternalDirectories, []);
+    });
+  });
+});
+
+test('approved external directories are normalized to absolute unique paths on load', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      const externalRoot = path.join(workspace.root, '..', 'external-workspace');
+      const nestedExternalRoot = path.join(externalRoot, 'nested');
+      const expectedExternalRoot = path.resolve(externalRoot).replaceAll('\\', '/');
+      const expectedNestedExternalRoot = path.resolve(nestedExternalRoot).replaceAll('\\', '/');
+      const sessionFilePath = getSessionFilePath('external-dir-session');
+
+      fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
+      fs.writeFileSync(
+        sessionFilePath,
+        JSON.stringify({
+          id: 'external-dir-session',
+          workspaceRoot: workspace.root,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          turns: [],
+          snapshots: [],
+          permissionApprovals: [],
+          latestPlanArtifact: null,
+          tuiState: { mode: null, entries: [] },
+          approvedExternalDirectories: [
+            '../external-workspace',
+            '  ../external-workspace  ',
+            path.join(externalRoot, '.'),
+            path.join(nestedExternalRoot, '..', 'nested'),
+            '',
+            '   ',
+            123,
+            null,
+          ],
+        }),
+        'utf-8',
+      );
+
+      const session = loadExistingSession('external-dir-session');
+
+      assert.deepEqual(session.approvedExternalDirectories, [
+        expectedExternalRoot,
+        expectedNestedExternalRoot,
+      ]);
     });
   });
 });
