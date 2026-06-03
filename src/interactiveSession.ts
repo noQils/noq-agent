@@ -6,6 +6,7 @@ import { buildInternalOpenTuiArgs, resolveRuntimeLaunchSpec } from './runtimeLau
 
 export interface InteractiveSessionOptions {
   restoreStoredMode?: boolean;
+  cwd?: string;
 }
 
 export async function startInteractiveSession(
@@ -27,7 +28,7 @@ export async function startInteractiveSession(
         ...buildInternalOpenTuiArgs(sessionId, initialMode, options),
       ],
       {
-        cwd: process.cwd(),
+        cwd: options?.cwd ?? process.cwd(),
         stdio: 'inherit',
         windowsHide: false,
       },

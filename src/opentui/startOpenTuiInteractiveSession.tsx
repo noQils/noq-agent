@@ -49,6 +49,7 @@ import {
 
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
+  cwd?: string;
 }
 
 type SlashCommand =

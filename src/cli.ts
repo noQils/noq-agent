@@ -20,6 +20,7 @@ export const INTERNAL_OPENTUI_FLAG = '--internal-opentui';
 
 export interface InteractiveSessionOptions {
   restoreStoredMode?: boolean;
+  cwd?: string;
 }
 
 export type ResumeWorkingDirectoryChoice = 'session' | 'current';
@@ -372,6 +373,7 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
       if (internalOpenTui) {
         await runtime.startInteractiveSession(activeSessionId, mode, {
           restoreStoredMode: resolvedRestoreStoredMode,
+          ...(resolvedResumeWorkingDirectory ? { cwd: resolvedResumeWorkingDirectory } : {}),
         });
         return;
       }
@@ -398,6 +400,7 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
 
       await runtime.startInteractiveSession(activeSessionId, mode, {
         restoreStoredMode: resolvedRestoreStoredMode,
+        ...(resolvedResumeWorkingDirectory ? { cwd: resolvedResumeWorkingDirectory } : {}),
       });
       return;
     }
