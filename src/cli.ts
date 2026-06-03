@@ -412,7 +412,9 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
 
     setPermissionApprovalSession(activeSessionId);
 
-    const { response } = await runSessionTurn(activeSessionId, userPrompt, mode);
+    const { response } = await runSessionTurn(activeSessionId, userPrompt, mode, {
+      ...(resolvedResumeWorkingDirectory ? { workingDirectory: resolvedResumeWorkingDirectory } : {}),
+    });
     console.log(response);
     printSessionContinuationHint(activeSessionId);
   } finally {

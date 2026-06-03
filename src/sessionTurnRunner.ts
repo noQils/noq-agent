@@ -12,7 +12,7 @@ import {
   loadOrCreateSession,
   saveSessionPlanArtifact,
 } from './sessionStore';
-import { type ToolMutationCallback } from './providers/types';
+import { type Provider, type ToolMutationCallback } from './providers/types';
 import { debugLog, getDebugLogFilePath, setDebugLogFilePath } from './runtimeSettings';
 import { runAgentTurn } from './workflow';
 
@@ -24,6 +24,8 @@ export interface SessionTurnResult {
 
 export interface SessionTurnOptions {
   onMutation?: ToolMutationCallback;
+  workingDirectory?: string;
+  provider?: Provider;
 }
 
 async function withWorkingDirectory<T>(workspaceRoot: string, callback: () => Promise<T>): Promise<T> {
@@ -48,6 +50,7 @@ export async function runSessionTurn(
 
   try {
     const session = loadOrCreateSession(sessionId);
+    const effectiveWorkingDirectory = options?.workingDirectory ?? session.workspaceRoot;
     const historyMessages = buildSessionHistoryMessages(session);
     debugLog('Session turn start:', {
       sessionId,
@@ -55,15 +58,17 @@ export async function runSessionTurn(
       turnCount: session.turns.length,
       historyMessageCount: historyMessages.length,
       promptLength: userPrompt.length,
+      workingDirectory: effectiveWorkingDirectory,
     });
 
     beginSessionChangeTracking();
     let response: string;
 
     try {
-      response = await withWorkingDirectory(session.workspaceRoot, () => runAgentTurn(userPrompt, mode, {
+      response = await withWorkingDirectory(effectiveWorkingDirectory, () => runAgentTurn(userPrompt, mode, {
         historyMessages,
         ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+        ...(options?.provider ? { provider: options.provider } : {}),
       }));
     } catch (error) {
       resetSessionChangeTracking();
