@@ -82,6 +82,23 @@ test('resolveResumeWorkingDirectory returns the session root when prompting is u
   assert.equal(resolvedWorkingDirectory, sessionWorkspaceRoot);
 });
 
+test('resolveResumeWorkingDirectory throws when prompting is unavailable and an explicit error message is provided', async () => {
+  const sessionWorkspaceRoot = path.resolve('C:/Users/TUF/projects/original-workspace');
+  const currentWorkingDirectory = path.resolve('C:/Users/TUF/downloads/test');
+
+  await assert.rejects(
+    () => resolveResumeWorkingDirectory(
+      sessionWorkspaceRoot,
+      currentWorkingDirectory,
+      {
+        canPrompt: false,
+        promptUnavailableErrorMessage: 'resume cwd choice required',
+      },
+    ),
+    /resume cwd choice required/,
+  );
+});
+
 test('runCli passes the resolved resume cwd to current-terminal interactive startup', async () => {
   await withTempNoqHome(async () => {
     const originalStdinIsTTY = process.stdin.isTTY;
@@ -136,5 +153,56 @@ test('runCli passes the resolved resume cwd to current-terminal interactive star
     assert.equal(capturedCalls.length, 1);
     assert.equal(capturedCalls[0]?.sessionId, sessionId);
     assert.equal(capturedCalls[0]?.options?.cwd, workspaceRoot);
+  });
+});
+
+test('runCli errors for non-interactive resumed one-shot turns when cwd choice is required', async () => {
+  await withTempNoqHome(async () => {
+    const originalStdinIsTTY = process.stdin.isTTY;
+    const originalStdoutIsTTY = process.stdout.isTTY;
+    const sessionWorkspaceRoot = path.resolve('C:/Users/TUF/projects/original-workspace');
+    const currentWorkingDirectory = path.resolve('C:/Users/TUF/downloads/test');
+    const sessionId = 'resume-cli-non-interactive';
+    const sessionFilePath = getSessionFilePath(sessionId);
+
+    fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
+    fs.writeFileSync(
+      sessionFilePath,
+      JSON.stringify({
+        id: sessionId,
+        workspaceRoot: sessionWorkspaceRoot,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        turns: [],
+        snapshots: [],
+        permissionApprovals: [],
+        latestPlanArtifact: null,
+        tuiState: { mode: null, entries: [] },
+        approvedExternalDirectories: [],
+      }),
+      'utf-8',
+    );
+
+    const originalCwd = process.cwd();
+
+    try {
+      fs.mkdirSync(sessionWorkspaceRoot, { recursive: true });
+      fs.mkdirSync(currentWorkingDirectory, { recursive: true });
+      process.chdir(currentWorkingDirectory);
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: false });
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: false });
+
+      await assert.rejects(
+        () => runCli(['--session', sessionId, 'Continue'], {
+          startInteractiveSession: async () => undefined,
+          launchSessionWindow: () => ({ launched: false }),
+        }),
+        /Cannot resume session .* non-interactively because its stored workspace directory differs from the current working directory\./,
+      );
+    } finally {
+      process.chdir(originalCwd);
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalStdoutIsTTY });
+    }
   });
 });

@@ -174,7 +174,12 @@ Session data includes:
 - latest saved plan artifact
 - TUI transcript state and stored mode
 
-Because the workspace root is stored with the session, you can resume a session from another directory and still continue work in the original workspace.
+Because the workspace root is stored with the session, `noq` remembers the original session directory.
+When you resume a session from a different current directory, `noq` asks whether to use:
+- the session's stored workspace directory
+- your current working directory
+
+If you run a resumed one-shot command non-interactively and those directories differ, `noq` exits with guidance instead of guessing.
 
 Examples:
 
