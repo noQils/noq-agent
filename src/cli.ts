@@ -1,4 +1,5 @@
 import readline from 'node:readline/promises';
+import path from 'node:path';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { isAgentMode, type AgentMode } from './agentMode';
@@ -20,6 +21,8 @@ export const INTERNAL_OPENTUI_FLAG = '--internal-opentui';
 export interface InteractiveSessionOptions {
   restoreStoredMode?: boolean;
 }
+
+export type ResumeWorkingDirectoryChoice = 'session' | 'current';
 
 export interface LaunchSessionWindowOptions extends InteractiveSessionOptions {
   sessionId?: string;
@@ -105,6 +108,68 @@ function printSessionContinuationHint(sessionId: string): void {
   console.log(`\nTo continue this conversation use: noq --session ${sessionId}`);
 }
 
+async function promptForResumeWorkingDirectoryChoice(
+  sessionWorkspaceRoot: string,
+  currentWorkingDirectory: string,
+): Promise<ResumeWorkingDirectoryChoice> {
+  const rl = readline.createInterface({ input, output });
+
+  try {
+    const answer = await rl.question(
+      [
+        'Choose working directory to resume this session:',
+        '  Session = this session\'s original workspace directory',
+        '  Current = your current working directory',
+        '',
+        `  1. Use session directory (${sessionWorkspaceRoot})`,
+        `  2. Use current directory (${currentWorkingDirectory})`,
+        'Select: ',
+      ].join('\n'),
+    );
+
+    const normalizedAnswer = answer.trim().toLowerCase();
+    if (normalizedAnswer === '1' || normalizedAnswer === 'session' || normalizedAnswer === 's') {
+      return 'session';
+    }
+
+    return 'current';
+  } finally {
+    rl.close();
+  }
+}
+
+export async function resolveResumeWorkingDirectory(
+  sessionWorkspaceRoot: string,
+  currentWorkingDirectory: string,
+  options?: {
+    canPrompt?: boolean;
+    promptForChoice?: (
+      sessionWorkspaceRoot: string,
+      currentWorkingDirectory: string,
+    ) => Promise<ResumeWorkingDirectoryChoice>;
+  },
+): Promise<string> {
+  const resolvedSessionWorkspaceRoot = path.resolve(sessionWorkspaceRoot);
+  const resolvedCurrentWorkingDirectory = path.resolve(currentWorkingDirectory);
+
+  if (resolvedSessionWorkspaceRoot === resolvedCurrentWorkingDirectory) {
+    return resolvedSessionWorkspaceRoot;
+  }
+
+  if (options?.canPrompt === false) {
+    return resolvedSessionWorkspaceRoot;
+  }
+
+  const choice = await (options?.promptForChoice ?? promptForResumeWorkingDirectoryChoice)(
+    resolvedSessionWorkspaceRoot,
+    resolvedCurrentWorkingDirectory,
+  );
+
+  return choice === 'current'
+    ? resolvedCurrentWorkingDirectory
+    : resolvedSessionWorkspaceRoot;
+}
+
 async function selectInteractiveLaunchMode(): Promise<InteractiveLaunchMode> {
   if (!input.isTTY || !output.isTTY) {
     return 'terminal';
@@ -118,7 +183,7 @@ async function selectInteractiveLaunchMode(): Promise<InteractiveLaunchMode> {
         'Choose how to open the interactive session:',
         '  1. Use current terminal',
         '  2. Open popup window',
-        'Select [1]: ',
+        'Select: ',
       ].join('\n'),
     );
 
@@ -271,11 +336,16 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
     throw new Error(`--${action} requires --session <id>.`);
   }
 
+  const existingSession = sessionId ? loadExistingSession(sessionId) : null;
+  const resolvedResumeWorkingDirectory = existingSession && action === 'chat'
+    ? await resolveResumeWorkingDirectory(existingSession.workspaceRoot, process.cwd(), {
+      canPrompt: input.isTTY && output.isTTY && !internalOpenTui,
+    })
+    : null;
+
   if (sessionId) {
-    const existingSession = loadExistingSession(sessionId);
     if (action === 'chat' && userPrompt.length === 0 && !directTui && !internalOpenTui) {
-      // The TUI itself will execute turns in the stored workspace root.
-      void existingSession;
+      void resolvedResumeWorkingDirectory;
     }
   }
 
@@ -309,11 +379,10 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
       if (!directTui) {
         const launchMode = await selectInteractiveLaunchMode();
         if (launchMode === 'popup') {
-          const existingSession = activeSessionId ? loadExistingSession(activeSessionId) : null;
           const launchResult = runtime.launchSessionWindow({
             mode,
             restoreStoredMode: resolvedRestoreStoredMode,
-            ...(existingSession ? { cwd: existingSession.workspaceRoot } : {}),
+            ...(resolvedResumeWorkingDirectory ? { cwd: resolvedResumeWorkingDirectory } : {}),
             ...(activeSessionId ? { sessionId: activeSessionId } : {}),
           });
 
