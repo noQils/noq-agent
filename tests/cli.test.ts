@@ -156,6 +156,65 @@ test('runCli passes the resolved resume cwd to current-terminal interactive star
   });
 });
 
+test('runCli keeps the current cwd for internal OpenTUI resume startup', async () => {
+  await withTempNoqHome(async () => {
+    const originalStdinIsTTY = process.stdin.isTTY;
+    const originalStdoutIsTTY = process.stdout.isTTY;
+    const sessionWorkspaceRoot = path.resolve('C:/Users/TUF/projects/original-workspace');
+    const currentWorkingDirectory = path.resolve('C:/Users/TUF/downloads/test');
+    const sessionId = 'resume-cli-internal-opentui';
+    const sessionFilePath = getSessionFilePath(sessionId);
+
+    fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
+    fs.writeFileSync(
+      sessionFilePath,
+      JSON.stringify({
+        id: sessionId,
+        workspaceRoot: sessionWorkspaceRoot,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        turns: [],
+        snapshots: [],
+        permissionApprovals: [],
+        latestPlanArtifact: null,
+        tuiState: { mode: null, entries: [] },
+        approvedExternalDirectories: [],
+      }),
+      'utf-8',
+    );
+
+    const originalCwd = process.cwd();
+    const capturedCalls: Array<{
+      sessionId: string | undefined;
+      mode: AgentMode;
+      options: InteractiveSessionOptions | undefined;
+    }> = [];
+
+    try {
+      fs.mkdirSync(sessionWorkspaceRoot, { recursive: true });
+      fs.mkdirSync(currentWorkingDirectory, { recursive: true });
+      process.chdir(currentWorkingDirectory);
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: false });
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: false });
+
+      await runCli(['--session', sessionId, '--internal-opentui'], {
+        startInteractiveSession: async (capturedSessionId, mode, options) => {
+          capturedCalls.push({ sessionId: capturedSessionId, mode, options });
+        },
+        launchSessionWindow: () => ({ launched: false }),
+      });
+    } finally {
+      process.chdir(originalCwd);
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalStdoutIsTTY });
+    }
+
+    assert.equal(capturedCalls.length, 1);
+    assert.equal(capturedCalls[0]?.sessionId, sessionId);
+    assert.equal(capturedCalls[0]?.options?.cwd, currentWorkingDirectory);
+  });
+});
+
 test('runCli errors for non-interactive resumed one-shot turns when cwd choice is required', async () => {
   await withTempNoqHome(async () => {
     const originalStdinIsTTY = process.stdin.isTTY;

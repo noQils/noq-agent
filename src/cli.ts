@@ -344,17 +344,19 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
 
   const existingSession = sessionId ? loadExistingSession(sessionId) : null;
   const resolvedResumeWorkingDirectory = existingSession && action === 'chat'
-    ? await resolveResumeWorkingDirectory(existingSession.workspaceRoot, process.cwd(), {
-      canPrompt: input.isTTY && output.isTTY && !internalOpenTui,
-      ...(userPrompt.length > 0 ? {
-        promptUnavailableErrorMessage: [
-          `Cannot resume session "${sessionId}" non-interactively because its stored workspace directory differs from the current working directory.`,
-          `Stored session directory: ${path.resolve(existingSession.workspaceRoot)}`,
-          `Current working directory: ${path.resolve(process.cwd())}`,
-          'Rerun the command in an interactive terminal so noq can ask which directory to use, or rerun it from the intended directory.',
-        ].join('\n'),
-      } : {}),
-    })
+    ? internalOpenTui
+      ? path.resolve(process.cwd())
+      : await resolveResumeWorkingDirectory(existingSession.workspaceRoot, process.cwd(), {
+        canPrompt: input.isTTY && output.isTTY,
+        ...(userPrompt.length > 0 ? {
+          promptUnavailableErrorMessage: [
+            `Cannot resume session "${sessionId}" non-interactively because its stored workspace directory differs from the current working directory.`,
+            `Stored session directory: ${path.resolve(existingSession.workspaceRoot)}`,
+            `Current working directory: ${path.resolve(process.cwd())}`,
+            'Rerun the command in an interactive terminal so noq can ask which directory to use, or rerun it from the intended directory.',
+          ].join('\n'),
+        } : {}),
+      })
     : null;
 
   if (sessionId) {

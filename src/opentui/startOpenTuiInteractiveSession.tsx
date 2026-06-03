@@ -287,6 +287,8 @@ export async function startOpenTuiInteractiveSession(
   initialMode: AgentMode,
   options?: StartOpenTuiInteractiveSessionOptions,
 ): Promise<void> {
+  const sessionWorkingDirectory = options?.cwd ?? process.cwd();
+
   if (sessionId) {
     setDebugLogFilePath(getSessionDebugLogPath(sessionId));
   }
@@ -699,6 +701,7 @@ export async function startOpenTuiInteractiveSession(
     try {
       const resolvedSessionId = ensureActiveSessionId();
       const { response } = await runSessionTurn(resolvedSessionId, rawInput, mode(), {
+        workingDirectory: sessionWorkingDirectory,
         onMutation: (event) => {
           appendTranscriptEntry('system', event.diff);
           renderer.requestRender();
