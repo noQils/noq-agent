@@ -1,0 +1,25 @@
+{
+  "name": "noq-agent",
+  "version": "1.0.0",
+  "description": "npm wrapper package for the noq-agent standalone runtime",
+  "license": "ISC",
+  "bin": {
+    "noq": "bin/noq.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "noq-agent-windows-x64": "1.0.0",
+    "noq-agent-darwin-arm64": "1.0.0",
+    "noq-agent-darwin-x64": "1.0.0",
+    "noq-agent-linux-x64": "1.0.0",
+    "noq-agent-linux-arm64": "1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

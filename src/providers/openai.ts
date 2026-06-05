@@ -23,12 +23,14 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
+import { getProviderModelSetting, getRequiredProviderApiKey } from '../providerSettings';
+import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 // Helper function to retrieve the API key from environment variables
 function getApiKey(): string {
-  return getRequiredRuntimeEnvVar('OPENAI_API_KEY');
+  return getRequiredProviderApiKey('openai');
 }
 
 // Helper function to convert internal tool definitions to the format expected by OpenAI
@@ -68,9 +70,15 @@ function toOpenAISchema(schema: InternalTool['parameters']) {
   };
 }
 let openAIClient: OpenAI | undefined;
+let openAIClientApiKey: string | undefined;
 
 function getOpenAIClient(): OpenAI {
-  openAIClient ??= new OpenAI({ apiKey: getApiKey(), maxRetries: 3 });
+  const apiKey = getApiKey();
+  if (!openAIClient || openAIClientApiKey !== apiKey) {
+    openAIClient = new OpenAI({ apiKey, maxRetries: 3 });
+    openAIClientApiKey = apiKey;
+  }
+
   return openAIClient;
 }
 
@@ -151,7 +159,7 @@ export async function chat(
   messages: ChatMessage[],
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = options?.model ?? getRuntimeEnvVar('OPENAI_MODEL');
+  const model = getProviderModelSetting('openai', options?.model);
   if (!model) throw new Error('OpenAI model not specified');
 
   const {instructions, input} = toOpenAIHistory(messages);
@@ -159,13 +167,23 @@ export async function chat(
   const functionDeclarations = toOpenAIFunctionTool(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const openai = getOpenAIClient();
-
-  let response = await openai.responses.create({
-    model: model,
-    instructions: instructions ?? null,
-    input: input,
-    tools: functionDeclarations,
+  const maxToolRounds = getProviderMaxToolRounds();
+  debugLog('OpenAI chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: functionDeclarations.length,
+    maxToolRounds,
   });
+
+  let response = await runProviderRequest('OpenAI', 'responses.create', () =>
+    openai.responses.create({
+      model: model,
+      instructions: instructions ?? null,
+      input: input,
+      tools: functionDeclarations,
+    })
+  );
   
   let toolRoundCount = 0;
   let previousRoundCalls: ToolCallFingerprint[] = [];
@@ -176,6 +194,10 @@ export async function chat(
     const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
 
     if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('OpenAI chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.output_text?.trim(),
         executedToolCalls,
@@ -184,6 +206,7 @@ export async function chat(
     }
 
     previousRoundCalls = currentRoundCalls;
+    debugLog(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
 
     for (const item of functionCalls) {
       const normalizedArgs = parseAndNormalizeToolArgsJson(item.arguments);
@@ -200,16 +223,25 @@ export async function chat(
         });
 
         executedToolCalls.push(invalidArgsFailure.executedToolCall);
+        debugLog('OpenAI tool call rejected: invalid arguments.', {
+          toolName: item.name,
+          error: normalizedArgs.error,
+        });
 
         continue;
       }
 
       const args = normalizedArgs.args;
+      
+      debugLog('Tool call', item.name, 'with args:', args);
 
       const executionResult = await executeToolCall(
         item.name,
         args,
-        options?.mode ? { mode: options.mode } : undefined,
+        {
+          ...(options?.mode ? { mode: options.mode } : {}),
+          ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+        },
       );
 
       toolOutputs.push({
@@ -219,9 +251,20 @@ export async function chat(
       });
 
       executedToolCalls.push(executionResult.executedToolCall);
+      debugLog('OpenAI tool call result:', {
+        toolName: item.name,
+        succeeded: executionResult.executedToolCall.succeeded,
+        failureKind: executionResult.executedToolCall.failureKind,
+        outputLength: executionResult.output.length,
+      });
     }
 
     if (toolOutputs.length === 0) {
+      debugLog('OpenAI chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: response.output_text?.trim().length ?? 0,
+      });
       return {
         text: response.output_text?.trim(),
         executedToolCalls: executedToolCalls,
@@ -229,7 +272,12 @@ export async function chat(
       };
     }
 
-    if (toolRoundCount >= 10) {
+    if (toolRoundCount >= maxToolRounds) {
+      debugLog('OpenAI chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        maxToolRounds,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.output_text?.trim(),
         executedToolCalls: executedToolCalls,
@@ -237,12 +285,14 @@ export async function chat(
       };
     }
 
-    response = await openai.responses.create({
-      model,
-      previous_response_id: response.id,
-      input: toolOutputs,
-      tools: functionDeclarations,
-    });
+    response = await runProviderRequest('OpenAI', 'responses.create', () =>
+      openai.responses.create({
+        model,
+        previous_response_id: response.id,
+        input: toolOutputs,
+        tools: functionDeclarations,
+      })
+    );
 
     toolRoundCount++;
   }

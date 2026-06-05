@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import { resolveCommandPermission } from '../commandPolicy';
 import { getConfig } from '../config';
+import { getCurrentPermissionSessionId } from './approvals';
+import { getSessionApprovedExternalDirectories } from '../sessionStore';
 import { type PermissionOutcome, type PermissionRequest, type PermissionScope } from './types';
 
 export interface PermissionDecision {
@@ -10,12 +12,33 @@ export interface PermissionDecision {
   reason: string;
 }
 
-function isInsideWorkspace(targetPath: string): boolean {
-  const workspaceRoot = path.resolve(process.cwd());
-  const resolvedTargetPath = path.resolve(process.cwd(), targetPath);
-  const relativePath = path.relative(workspaceRoot, resolvedTargetPath);
+function canonicalizePath(targetPath: string): string {
+  return path.resolve(process.cwd(), targetPath);
+}
+
+function isInsideDirectory(targetPath: string, directory: string): boolean {
+  const resolvedTargetPath = canonicalizePath(targetPath);
+  const resolvedDirectory = canonicalizePath(directory);
+  const relativePath = path.relative(resolvedDirectory, resolvedTargetPath);
 
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function getApprovedExternalDirectories(): string[] {
+  const sessionId = getCurrentPermissionSessionId();
+  if (!sessionId) {
+    return [];
+  }
+
+  return getSessionApprovedExternalDirectories(sessionId);
+}
+
+function isAllowedPathTarget(targetPath: string): boolean {
+  if (isInsideDirectory(targetPath, process.cwd())) {
+    return true;
+  }
+
+  return getApprovedExternalDirectories().some((directory) => isInsideDirectory(targetPath, directory));
 }
 
 function getPathTargets(request: PermissionRequest): string[] {
@@ -41,19 +64,55 @@ function getPathTargets(request: PermissionRequest): string[] {
   return pathTargets.filter(Boolean);
 }
 
-function getExternalDirectoryDecision(request: PermissionRequest): PermissionDecision | null {
-  const config = getConfig();
+function getPathTargetApprovalDirectory(request: PermissionRequest, pathTarget: string): string {
+  const resolvedPath = canonicalizePath(pathTarget);
+  const cwd = request.args.cwd;
+
+  if (typeof cwd === 'string' && cwd.trim() && pathTarget === cwd) {
+    return resolvedPath;
+  }
+
+  if (request.scope === 'read' || request.scope === 'edit') {
+    return path.dirname(resolvedPath);
+  }
+
+  return resolvedPath;
+}
+
+export function getFirstDisallowedPathTarget(request: PermissionRequest): string | null {
   const pathTargets = getPathTargets(request);
 
   for (const pathTarget of pathTargets) {
-    if (!isInsideWorkspace(pathTarget)) {
-      const outcome = config.permission.external_directory;
-      return {
-        outcome,
-        scope: 'external_directory',
-        reason: `Path "${pathTarget}" resolves outside the workspace, so "external_directory" is configured as "${outcome}".`,
-      };
+    if (!isAllowedPathTarget(pathTarget)) {
+      return pathTarget;
     }
+  }
+
+  return null;
+}
+
+export function getExternalDirectoryApprovalTarget(request: PermissionRequest): string | null {
+  const pathTargets = getPathTargets(request);
+
+  for (const pathTarget of pathTargets) {
+    if (!isAllowedPathTarget(pathTarget)) {
+      return getPathTargetApprovalDirectory(request, pathTarget);
+    }
+  }
+
+  return null;
+}
+
+function getExternalDirectoryDecision(request: PermissionRequest): PermissionDecision | null {
+  const config = getConfig();
+  const pathTarget = getFirstDisallowedPathTarget(request);
+  if (pathTarget) {
+    const outcome = config.permission.external_directory;
+    return {
+      outcome,
+      scope: 'external_directory',
+      reason: `Path "${pathTarget}" resolves outside the workspace, so "external_directory" is configured as "${outcome}".`,
+    };
   }
 
   return null;

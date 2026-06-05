@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { getProjectFilePaths, resolveProjectPath } from './fileUtils';
+import { debugLog } from './runtimeSettings';
 
 export interface SessionFileChange {
   filePath: string;
@@ -11,14 +12,23 @@ export interface SessionFileChange {
   afterContent?: string;
 }
 
-type FileState = {
+export type SessionFileState = {
   existed: boolean;
   content?: string;
 };
 
-type WorkspaceFileStates = Map<string, FileState>;
+export type WorkspaceFileStates = Map<string, SessionFileState>;
+export interface WorkspaceMutationTrackingSnapshot {
+  roots: string[];
+  states: WorkspaceFileStates;
+}
 
-let trackedBeforeStates: Map<string, FileState> | undefined;
+export interface MutationChangeTrackingSnapshot {
+  targetBeforeStates: Map<string, SessionFileState>;
+  workspaceBeforeStates: WorkspaceMutationTrackingSnapshot | null;
+}
+
+let trackedBeforeStates: Map<string, SessionFileState> | undefined;
 
 function normalizeTrackedFilePath(filePath: string): string {
   const absolutePath = path.resolve(process.cwd(), filePath);
@@ -31,7 +41,7 @@ function normalizeTrackedFilePath(filePath: string): string {
   return absolutePath.replaceAll('\\', '/');
 }
 
-function readFileState(filePath: string): FileState {
+function readFileState(filePath: string): SessionFileState {
   const resolvedPath = resolveProjectPath(filePath);
   if (!fs.existsSync(resolvedPath)) {
     return { existed: false };
@@ -44,26 +54,99 @@ function readFileState(filePath: string): FileState {
 }
 
 function scanWorkspaceFileStates(): WorkspaceFileStates {
-  const workspaceFileStates: WorkspaceFileStates = new Map();
+  return scanWorkspaceFileStatesForRoots([process.cwd()]);
+}
 
-  for (const filePath of getProjectFilePaths()) {
-    const normalizedPath = normalizeTrackedFilePath(filePath);
-    workspaceFileStates.set(normalizedPath, readFileState(normalizedPath));
+function normalizeWorkspaceRoots(workspaceRoots: string[]): string[] {
+  return Array.from(
+    new Set(
+      workspaceRoots
+        .map((workspaceRoot) => workspaceRoot.trim())
+        .filter((workspaceRoot) => workspaceRoot.length > 0)
+        .map((workspaceRoot) => path.resolve(process.cwd(), workspaceRoot)),
+    ),
+  );
+}
+
+function scanWorkspaceFileStatesForRoots(workspaceRoots: string[]): WorkspaceFileStates {
+  const startedAt = Date.now();
+  const workspaceFileStates: WorkspaceFileStates = new Map();
+  const normalizedRoots = normalizeWorkspaceRoots(workspaceRoots);
+
+  for (const workspaceRoot of normalizedRoots) {
+    for (const filePath of getProjectFilePaths(workspaceRoot)) {
+      const normalizedPath = normalizeTrackedFilePath(filePath);
+      workspaceFileStates.set(normalizedPath, readFileState(normalizedPath));
+    }
   }
 
+  debugLog('Workspace file state scan completed:', {
+    workspaceRootCount: normalizedRoots.length,
+    fileCount: workspaceFileStates.size,
+    durationMs: Date.now() - startedAt,
+  });
   return workspaceFileStates;
 }
 
-function fileStatesAreEqual(left: FileState, right: FileState): boolean {
+function fileStatesAreEqual(left: SessionFileState, right: SessionFileState): boolean {
   return left.existed === right.existed && left.content === right.content;
+}
+
+function buildFileChangesFromBeforeStates(
+  beforeStates: Map<string, SessionFileState>,
+): SessionFileChange[] {
+  const fileChanges: SessionFileChange[] = [];
+
+  for (const [filePath, beforeState] of beforeStates.entries()) {
+    const afterState = readFileState(filePath);
+    if (beforeState.existed === afterState.existed && beforeState.content === afterState.content) {
+      continue;
+    }
+
+    fileChanges.push({
+      filePath,
+      existedBefore: beforeState.existed,
+      ...(beforeState.existed ? { beforeContent: beforeState.content ?? '' } : {}),
+      existedAfter: afterState.existed,
+      ...(afterState.existed ? { afterContent: afterState.content ?? '' } : {}),
+    });
+  }
+
+  return fileChanges.sort((left, right) => left.filePath.localeCompare(right.filePath));
+}
+
+function collectWorkspaceChangedBeforeStates(
+  beforeWorkspaceSnapshot: WorkspaceMutationTrackingSnapshot,
+): Map<string, SessionFileState> {
+  const afterWorkspaceStates = scanWorkspaceFileStatesForRoots(beforeWorkspaceSnapshot.roots);
+  const changedBeforeStates = new Map<string, SessionFileState>();
+  const changedPaths = new Set<string>([
+    ...beforeWorkspaceSnapshot.states.keys(),
+    ...afterWorkspaceStates.keys(),
+  ]);
+
+  for (const filePath of changedPaths) {
+    const beforeState = beforeWorkspaceSnapshot.states.get(filePath) ?? { existed: false };
+    const afterState = afterWorkspaceStates.get(filePath) ?? { existed: false };
+
+    if (fileStatesAreEqual(beforeState, afterState)) {
+      continue;
+    }
+
+    changedBeforeStates.set(filePath, beforeState);
+  }
+
+  return changedBeforeStates;
 }
 
 export function beginSessionChangeTracking(): void {
   trackedBeforeStates = new Map();
+  debugLog('Session change tracking started.');
 }
 
 export function resetSessionChangeTracking(): void {
   trackedBeforeStates = undefined;
+  debugLog('Session change tracking reset.');
 }
 
 export function recordMutationTargets(filePaths: string[]): void {
@@ -82,42 +165,86 @@ export function recordMutationTargets(filePaths: string[]): void {
     }
 
     trackedBeforeStates.set(normalizedPath, readFileState(normalizedPath));
+    debugLog('Session mutation target recorded:', { filePath: normalizedPath });
   }
 }
 
-export function beginWorkspaceMutationTracking(): WorkspaceFileStates | null {
+export function beginMutationChangeTracking(
+  filePaths: string[],
+  workspaceBeforeStates: WorkspaceMutationTrackingSnapshot | null,
+): MutationChangeTrackingSnapshot {
+  const targetBeforeStates = new Map<string, SessionFileState>();
+
+  for (const filePath of filePaths) {
+    if (!filePath.trim()) {
+      continue;
+    }
+
+    const normalizedPath = normalizeTrackedFilePath(filePath);
+    if (!targetBeforeStates.has(normalizedPath)) {
+      targetBeforeStates.set(normalizedPath, readFileState(normalizedPath));
+    }
+  }
+
+  return {
+    targetBeforeStates,
+    workspaceBeforeStates,
+  };
+}
+
+export function beginWorkspaceMutationTracking(workspaceRoots: string[] = [process.cwd()]): WorkspaceMutationTrackingSnapshot | null {
   if (!trackedBeforeStates) {
+    debugLog('Workspace mutation tracking skipped: no active session tracking.');
     return null;
   }
 
-  return scanWorkspaceFileStates();
+  const normalizedRoots = normalizeWorkspaceRoots(workspaceRoots);
+  debugLog('Workspace mutation tracking started.', {
+    workspaceRootCount: normalizedRoots.length,
+  });
+  return {
+    roots: normalizedRoots,
+    states: scanWorkspaceFileStatesForRoots(normalizedRoots),
+  };
 }
 
-export function recordWorkspaceMutationChanges(beforeWorkspaceStates: WorkspaceFileStates | null): void {
+export function recordWorkspaceMutationChanges(beforeWorkspaceStates: WorkspaceMutationTrackingSnapshot | null): void {
   if (!trackedBeforeStates || !beforeWorkspaceStates) {
     return;
   }
 
-  const afterWorkspaceStates = scanWorkspaceFileStates();
-  const changedPaths = new Set<string>([
-    ...beforeWorkspaceStates.keys(),
-    ...afterWorkspaceStates.keys(),
-  ]);
-
-  for (const filePath of changedPaths) {
+  let recordedChangeCount = 0;
+  for (const [filePath, beforeState] of collectWorkspaceChangedBeforeStates(beforeWorkspaceStates)) {
     if (trackedBeforeStates.has(filePath)) {
       continue;
     }
 
-    const beforeState = beforeWorkspaceStates.get(filePath) ?? { existed: false };
-    const afterState = afterWorkspaceStates.get(filePath) ?? { existed: false };
-
-    if (fileStatesAreEqual(beforeState, afterState)) {
-      continue;
-    }
-
     trackedBeforeStates.set(filePath, beforeState);
+    recordedChangeCount++;
   }
+
+  debugLog('Workspace mutation changes recorded:', { recordedChangeCount });
+}
+
+export function finishMutationChangeTracking(
+  snapshot: MutationChangeTrackingSnapshot,
+): SessionFileChange[] {
+  const beforeStates = new Map(snapshot.targetBeforeStates);
+
+  if (snapshot.workspaceBeforeStates) {
+    for (const [filePath, beforeState] of collectWorkspaceChangedBeforeStates(snapshot.workspaceBeforeStates)) {
+      if (!beforeStates.has(filePath)) {
+        beforeStates.set(filePath, beforeState);
+      }
+    }
+  }
+
+  const fileChanges = buildFileChangesFromBeforeStates(beforeStates);
+  debugLog('Mutation change tracking finished:', {
+    beforeStateCount: beforeStates.size,
+    fileChangeCount: fileChanges.length,
+  });
+  return fileChanges;
 }
 
 export function finishSessionChangeTracking(): SessionFileChange[] {
@@ -125,23 +252,10 @@ export function finishSessionChangeTracking(): SessionFileChange[] {
     return [];
   }
 
-  const fileChanges: SessionFileChange[] = [];
-
-  for (const [filePath, beforeState] of trackedBeforeStates.entries()) {
-    const afterState = readFileState(filePath);
-    if (beforeState.existed === afterState.existed && beforeState.content === afterState.content) {
-      continue;
-    }
-
-    fileChanges.push({
-      filePath,
-      existedBefore: beforeState.existed,
-      ...(beforeState.existed ? { beforeContent: beforeState.content ?? '' } : {}),
-      existedAfter: afterState.existed,
-      ...(afterState.existed ? { afterContent: afterState.content ?? '' } : {}),
-    });
-  }
-
+  const fileChanges = buildFileChangesFromBeforeStates(trackedBeforeStates);
   trackedBeforeStates = undefined;
-  return fileChanges.sort((left, right) => left.filePath.localeCompare(right.filePath));
+  debugLog('Session change tracking finished:', {
+    fileChangeCount: fileChanges.length,
+  });
+  return fileChanges;
 }

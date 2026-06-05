@@ -1,116 +1,116 @@
 # noq-agent
 
-`noq-agent` is a local AI coding agent CLI built to explore how modern tool-using coding agents work under the hood.
+`noq-agent` is a local AI coding agent CLI for exploring tool-using coding agents without hiding the core runtime behind a larger framework.
 
-Instead of relying on a full agent framework, this project implements the main layers directly:
+## Installation
 
-- provider adapters for multiple model backends
-- a shared internal tool system
-- a workflow/orchestration layer
-- a config-driven permission model
-- lightweight session persistence, diffing, and undo
+Install from npm:
 
-## What It Can Do
+```bash
+npm install -g noq-agent
+```
 
-The current agent can:
+Current published package support:
 
-- inspect a codebase with directory listing, glob search, grep, and file reads
-- read full files or specific line ranges
-- edit existing files with exact replacements
-- create new files
+- Windows x64 is published and supported today
+- macOS and Linux runtime packages are not published yet
+
+If you install `noq-agent` on a non-Windows platform right now, the platform-specific runtime will be missing.
+
+After installation, start the agent with:
+
+```bash
+noq
+```
+
+You can also run a one-shot prompt directly:
+
+```bash
+noq "Read the repo and explain the entrypoints."
+```
+
+It currently includes:
+
+- multiple provider adapters
+- a shared internal tool registry
+- a workflow layer that pushes the model to verify and finish work
+- runtime-enforced permissions
+- persistent global sessions with diff, undo, and saved plan artifacts
+- an OpenTUI-based interactive session UI
+
+## Current Capabilities
+
+Today the agent can:
+
+- inspect a repo with `list_dir`, `glob`, `grep`, and `read_file`
+- read full files or line ranges
+- edit files with exact snippet replacement
+- write new files
 - apply structured multi-file patches
-- run shell commands under a permission policy
-- ask for command approvals once or persist them across a named session
-- track multi-step work with in-memory todos
-- provide TypeScript/JavaScript diagnostics
-- jump to TypeScript/JavaScript symbol definitions
-- persist session history across CLI invocations
+- run shell commands behind a permission policy
+- keep short task state with `todo_read` and `todo_write`
+- provide diagnostics for TypeScript/JavaScript, Python, Java, and Go
+- jump to symbol definitions in TypeScript/JavaScript, Python, Go, and best-effort Java
+- persist conversations across CLI runs
 - show the latest agent-generated diff for a session
-- undo the last agent-generated snapshot for a session
+- undo the latest recorded agent snapshot
+- save the latest plan-mode artifact for later review
+- remember named-session approvals, including approved external directories
+- resume sessions from any directory
+- work across directories when the permission policy allows it
 
-It is designed as a terminal-first local coding assistant that can answer code questions, navigate a repository, make code changes, verify them, and keep a small amount of structured state between runs.
+## Runtime Modes
 
-## Why I Built It
+`noq-agent` runs in two modes:
 
-I built this project to better understand:
+- `build`
+  Full coding mode. All tools are available, including editing and `run_command`, subject to permissions.
+- `plan`
+  Read-only planning mode. The agent can inspect the codebase and produce a grounded implementation plan, but mutation tools are not available.
 
-- how provider APIs differ in tool-calling behavior
-- how an agent loop is separated from a provider adapter
-- how tool contracts affect model reliability
-- how runtime rules such as verification, permissions, and bounded loops improve agent behavior
-- how persistent sessions and undo can be layered into a local coding agent
+Examples:
 
-The goal was not just to use an AI SDK, but to learn the architecture behind agentic coding systems by implementing the layers myself.
-
-## Current Architecture
-
-The project is split into a few simple layers:
-
-- `src/providers/`
-  provider-specific adapters for OpenAI, OpenRouter, Gemini, and Ollama
-- `src/tools/`
-  internal tool definitions and tool implementations
-- `src/workflow.ts`
-  orchestration logic that manages one agent turn and enforces workflow rules
-- `src/runtime/executeToolCall.ts`
-  shared tool execution gate for permissions and mode enforcement
-- `src/config.ts`
-  config loading and validation
-- `src/sessionStore.ts`
-  persistent session history, snapshot diffs, and undo support
-- `src/sessionChangeTracker.ts`
-  tracking for agent-made file mutations, including command-driven workspace changes
-- `src/systemPrompt.ts`
-  shared default system prompt used by providers
+```bash
+noq --mode build "Read the failing test, fix it, and rerun the test."
+noq --mode plan "Inspect the runtime and tell me how to add a new tool safely."
+noq --plan "Review src/workflow.ts and outline the implementation steps."
+```
 
 ## Providers
 
-Current providers:
+Current provider backends:
 
-- OpenAI Responses API
-- OpenRouter Chat Completions
+- OpenAI
+- OpenRouter
 - Google Gemini
 - Ollama
 
-The provider layer is responsible for:
+Provider setup now uses only global files under `~/.noq/`:
 
-- converting internal messages into provider-specific request formats
-- converting internal tool schemas into provider-specific tool definitions
-- running provider-level tool loops
-- returning a normalized `ChatResult`
+- `~/.noq/auth.json`
+  Provider credentials and connection details
+- `~/.noq/config.json`
+  Global default provider and model
 
-OpenRouter is implemented through its OpenAI-compatible API surface, but requests are still sent to OpenRouter and billed against OpenRouter credits.
+Workspace `noq-agent.json` can still override `defaultProvider` and `defaultModel` for a specific repo.
 
-Provider selection works like this:
+Provider selection order:
 
-1. `AI_PROVIDER` if explicitly set
-2. `defaultProvider` from `noq-agent.json` if present
+1. `defaultProvider` in workspace `noq-agent.json`
+2. `defaultProvider` in `~/.noq/config.json`
 3. auto-select exactly one fully configured provider
-4. otherwise fail with a clear setup error instead of silently defaulting to Ollama
+4. otherwise fail with a setup error
 
-## Modes
+A provider is usable only when:
 
-The agent supports two runtime modes:
+- OpenAI, OpenRouter, Gemini: matching auth exists in `~/.noq/auth.json` and the chosen default provider/model exists in config
+- Ollama: the chosen default provider/model exists in config
 
-- `build`
-  full coding mode; can use mutation tools and command execution subject to permissions
-- `plan`
-  read-only planning mode; can inspect the codebase and produce a grounded implementation plan without changing files
+The provider layer normalizes tool calling into one internal `ChatResult`, but each backend still keeps its own request and loop behavior.
 
-You can choose the mode with:
+## Tools
 
-```bash
-noq --mode plan "your prompt"
-noq --mode build "your prompt"
-noq --plan "your prompt"
-```
-
-The default mode is configurable in `noq-agent.json`.
-The default provider can also be set there when you want a workspace-level preference.
-
-## Current Tools
-
-Current tools:
+Current internal tools:
 
 - `todo_read`
 - `todo_write`
@@ -125,37 +125,134 @@ Current tools:
 - `list_dir`
 - `run_command`
 
-Notable tool behavior:
+Notable behavior:
 
-- `read_file` supports optional line ranges
-- `grep` prefers `ripgrep` and falls back to a Node-based search when `rg` is unavailable
-- `get_diagnostics` and `go_to_definition` currently provide semantic support for TypeScript/JavaScript files
-- `edit_file` performs exact text replacement using `oldText` and `newText`
-- `edit_file` rejects missing or ambiguous matches and verifies the final file after writing
-- `apply_patch` supports structured multi-file add/update/delete patch operations
-- `run_command` is permission-gated, supports rule-based bash policies, and still hard-blocks catastrophic commands
-- todo tools are intended for multi-step work and are available to all providers through the shared registry
+- `read_file` supports optional line ranges.
+- `grep` prefers `rg` and falls back when `ripgrep` is unavailable.
+- `get_diagnostics` supports TypeScript/JavaScript, Python, Java, and Go.
+- `go_to_definition` supports TypeScript/JavaScript, Python, Go, and best-effort Java workspace lookup.
+- `edit_file` requires a unique exact match and verifies the final file after writing.
+- `apply_patch` supports structured add/update/delete operations across files.
+- `run_command` is build-mode only, permission-gated, output-truncated, timeout-bounded, and still hard-blocks catastrophic commands.
+
+Plan mode only exposes:
+
+- `read_file`
+- `glob`
+- `grep`
+- `get_diagnostics`
+- `go_to_definition`
+- `list_dir`
 
 ## Workflow Layer
 
-`runAgentTurn()` in `src/workflow.ts` acts as the orchestrator for one user request.
+`src/workflow.ts` is the orchestration layer for a single user turn. It does more than just pass tool schemas to a model.
 
-It currently enforces behaviors such as:
+It currently enforces rules such as:
 
-- changes should be read back before being considered verified
+- changed files should be read back before the turn is treated as complete
 - verification commands should be rerun after later mutations
-- repeated blocked or failed actions should not be retried blindly
-- final answers should be based on actual tool results
-- bounded workflow rounds should prevent infinite churn
-- plan-mode answers should stay concise and grounded
+- blocked actions should not be retried blindly
+- repeated failed edits should trigger a smaller retry strategy
+- build-mode answers should lead with the actual code change, not verification boilerplate
+- plan-mode answers should stay concise and read-only
+- multi-step tasks should prompt the agent to start using todos
+- bounded workflow rounds should stop infinite churn
 
-This layer exists because “tool calling works” is not enough by itself; the runtime also needs lightweight control over completion, verification, and convergence.
+## OpenTUI Sessions
+
+Interactive sessions are rendered with OpenTUI and use the terminal alternate screen buffer. When the TUI exits, your previous shell screen is restored.
+
+Starting or resuming an interactive session prompts you to choose:
+
+- current terminal
+- popup terminal window
+
+Popup window launch is currently implemented on Windows and falls back to the current terminal elsewhere.
+
+Useful interactive commands:
+
+```text
+/connect
+/models
+/mode plan
+/mode build
+/plan show
+/diff
+/undo
+/exit
+```
+
+Setup flow details:
+
+- `/connect`
+  Saves provider credentials into `~/.noq/auth.json`
+- `/models`
+  Lets you choose the global default provider and model in `~/.noq/config.json`
+- `/models` applies immediately to the next turn in the current session
+- `/connect` makes a provider available immediately, but does not change the active provider/model until `/models`
+- `/models` tries live model discovery first and falls back to curated presets when discovery is unavailable
+- Ollama does not need an API key for `/connect`; you can just use `/models`
+
+TUI details:
+
+- new sessions get a generated id when you send the first real prompt
+- session transcript entries are persisted with the session
+- permission prompts are shown inline in the TUI with previews for commands and edits
+- external-directory prompts show both the session workspace and the outside directory being requested
+- `Ctrl+C` copies the current selection
+- `Ctrl+V` pastes the last copied selection into the composer
+- `Ctrl+O` inserts a newline in the composer
+
+## Sessions, Diffs, and Undo
+
+Sessions are stored under:
+
+```text
+~/.noq/sessions/<session-id>/session.json
+```
+
+Named-session debug logs are written to:
+
+```text
+~/.noq/sessions/<session-id>/debug.log
+```
+
+Session data includes:
+
+- original workspace root
+- persistent turn history
+- recorded snapshots of agent-made file changes
+- named-session permission approvals
+- approved external directories
+- latest saved plan artifact
+- TUI transcript state and stored mode
+
+Because the workspace root is stored with the session, `noq` remembers the original session directory.
+
+When you resume a session from a different current directory, interactive startup asks whether to use:
+
+- the session's stored workspace directory
+- your current working directory
+
+If you run a resumed one-shot command non-interactively and those directories differ, `noq` exits with guidance instead of guessing.
+
+Examples:
+
+```bash
+noq
+noq "Create src/example.ts and verify it."
+noq --session session-20260602-201500
+noq --session session-20260602-201500 "Continue the refactor."
+noq --session session-20260602-201500 --diff
+noq --session session-20260602-201500 --undo
+```
 
 ## Permissions
 
-The agent uses a config-driven permission model loaded from `noq-agent.json`.
+Permissions are enforced in runtime code, not just described in prompts.
 
-Current permission scopes:
+Current scopes:
 
 - `todo`
 - `read`
@@ -166,148 +263,45 @@ Current permission scopes:
 - `bash`
 - `external_directory`
 
-Default behavior:
+Default config behavior:
 
 - read-oriented tools are allowed
-- edit and command tools ask for permission
-- external-directory access is denied
+- edits ask
+- commands ask
+- external directory access is denied unless you override it
 
-Permissions are enforced before tool execution, not just described in the prompt.
-For `bash`, you can keep a simple `"ask"` rule or switch to command patterns like `"npm run build": "allow"` and `"rm *": "deny"`.
-When a command asks for approval, the CLI supports:
+For `bash`, you can use either a single outcome like `"ask"` or a rule map such as:
+
+```json
+{
+  "*": "ask",
+  "npm test*": "allow",
+  "git status*": "allow",
+  "rm *": "deny"
+}
+```
+
+Rule precedence is simple: the last matching rule wins.
+
+Approval choices:
 
 - allow once
-- allow always for the current run
-- allow always for the current named session when `--session` is active
+- allow for this run or named session
 - deny
 
-For rule-based `bash` permissions, the last matching rule wins.
+In interactive TUI sessions, approvals are shown inline. In plain terminal mode, prompts fall back to a text-based approval prompt. Without a TTY, permission prompts default to deny.
 
-## Sessions, Diffs, and Undo
+External directory behavior:
 
-The agent supports persistent local sessions.
+- `deny` blocks outside-workspace access
+- `ask` prompts on first use
+- `allow` skips the prompt
+- choosing the session-level approval remembers the outside directory for later turns in that session
+- `allow once` does not add the directory to the remembered list
 
-With `--session`, it stores prior turns under `.noq-agent/sessions` in the current workspace and can replay compacted history into future runs.
+## Configuration
 
-Session features:
-
-- persistent turn history
-- latest snapshot diff via `--diff`
-- undo last agent-generated snapshot via `--undo`
-- tracking of agent-made file changes from edit tools and workspace changes caused by `run_command`
-
-Example:
-
-```bash
-noq --session feature-a "Create src/example.ts and verify it."
-noq --session feature-a --diff
-noq --session feature-a --undo
-```
-
-## CLI Usage
-
-After building and linking the CLI locally, you can run:
-
-```bash
-noq "Read src/tools/runCommand.ts and summarize it."
-```
-
-During development, you can also run:
-
-```bash
-npm run dev -- "Read src/tools/runCommand.ts and summarize it."
-```
-
-Help output:
-
-```bash
-noq --help
-```
-
-Version output:
-
-```bash
-noq --version
-```
-
-## Example Prompts
-
-Read-only planning:
-
-```bash
-noq --mode plan "Inspect src/workflow.ts and tell me how you would add a new tool safely."
-```
-
-Targeted edit:
-
-```bash
-noq "Read src/tools/runCommand.ts, make one small clarity improvement, verify it, and summarize the result."
-```
-
-Patch-based edit:
-
-```bash
-noq "Use apply_patch to update two related sections in one file, then read back the changed lines and summarize exactly what changed."
-```
-
-Semantic navigation:
-
-```bash
-noq --mode plan "Inspect src/tools/readFile.ts, use semantic navigation to find where readFileContent is defined, and check diagnostics in src/typescriptService.ts."
-```
-
-Session + undo:
-
-```bash
-noq --session feature-notes "Create tmp/session-memory.txt containing the text 'first turn', then confirm it."
-noq --session feature-notes --diff
-noq --session feature-notes --undo
-```
-
-## Setup
-
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Configure provider credentials.
-
-You can provide them in any of these places:
-
-- shell environment variables
-- `~/.noq-agent/.env` for user-wide defaults
-- `.noq-agent/.env` inside a workspace for project-specific overrides
-- `noq-agent.env` in the workspace root as an alternative local env file
-- the repo-local `.env` when you are running `noq-agent` from inside this repo during development
-
-Example values depend on which provider you want to use:
-
-```env
-AI_PROVIDER=openai
-
-OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-5.4-mini
-
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=openai/gpt-4.1-mini
-OPENROUTER_HTTP_REFERER=https://your-app.example
-OPENROUTER_APP_TITLE=noq-agent
-
-GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.5-flash
-
-OLLAMA_DEFAULT_MODEL=llama3.1:8b
-```
-
-If `AI_PROVIDER` is not set, `noq-agent` will:
-
-1. use `defaultProvider` from `noq-agent.json` if present
-2. otherwise auto-select a provider only when exactly one backend is fully configured
-3. otherwise fail clearly and ask you to choose explicitly by setting `AI_PROVIDER`
-
-3. Optionally create `noq-agent.json` in the workspace root to set a default mode, default provider, and permission policy.
+Workspace config lives in `noq-agent.json`.
 
 Example:
 
@@ -315,6 +309,7 @@ Example:
 {
   "defaultMode": "build",
   "defaultProvider": "openai",
+  "defaultModel": "gpt-5.4-mini",
   "permission": {
     "todo": "allow",
     "read": "allow",
@@ -329,85 +324,179 @@ Example:
       "git status*": "allow",
       "rm *": "deny"
     },
-    "external_directory": "deny"
+    "external_directory": "ask"
   }
 }
 ```
 
-4. Build the CLI:
+Global files under `~/.noq/`:
+
+- `config.json`
+  User-wide non-secret defaults such as `defaultProvider` and `defaultModel`
+- `auth.json`
+  Provider credentials saved by `/connect`
+- `sessions/`
+  Stored session state, diff history, and debug logs
+
+`NOQ_HOME` can override the default `~/.noq` location.
+
+## Environment Variables
+
+Provider setup no longer comes from environment variables or `.env` files. Use `/connect` and `/models`, or edit `~/.noq/auth.json` and `~/.noq/config.json` directly.
+
+Environment loading still exists for runtime settings and home-directory overrides.
+
+Useful variables:
+
+```env
+NOQ_HOME=C:\Users\you\.noq
+NOQ_DEBUG=true
+NOQ_PROVIDER_TIMEOUT_MS=180000
+NOQ_PROVIDER_MAX_TOOL_ROUNDS=10
+```
+
+The runtime will also load `.env` files from:
+
+- workspace `.noq/.env`
+- workspace `noq-agent.env`
+- `~/.noq/.env`
+- repo-local `.env` when you are running inside the `noq-agent` package workspace during development
+
+## Setup
+
+1. Install dependencies.
+
+```bash
+npm install
+```
+
+2. Build the CLI.
 
 ```bash
 npm run build
 ```
 
-5. Link it locally:
+3. Link it locally for development.
 
 ```bash
 npm link
 ```
 
-6. Run the agent:
+4. Run `noq`.
 
 ```bash
-noq "your prompt"
+noq
+```
+
+5. Inside the TUI:
+
+- run `/connect` to save hosted-provider credentials into `~/.noq/auth.json`
+- run `/models` to choose the active global provider and model in `~/.noq/config.json`
+
+Fresh-install behavior:
+
+- if `~/.noq/config.json` is missing or empty, it is treated like no global model has been selected yet
+- if no provider is fully configured, `noq` starts and shows setup guidance instead of crashing
+
+## CLI Usage
+
+Basic usage:
+
+```bash
+noq
+noq "Read src/tools/runCommand.ts and summarize it."
+noq --session session-20260602-201500
+noq --session session-20260602-201500 "Continue the task."
+noq --session session-20260602-201500 --diff
+noq --session session-20260602-201500 --undo
+noq --mode plan "Inspect src/workflow.ts and propose the implementation."
+noq --tui
+noq --help
+noq --version
+```
+
+Notes:
+
+- `noq` with no prompt starts an interactive OpenTUI session.
+- `noq "prompt"` runs one turn, prints the response, and prints a resume hint for the created session id.
+- `--session <id>` resumes an existing session only. It does not create a new one if the id is invalid.
+- `--tui` skips the launch chooser and starts the OpenTUI in the current terminal.
+- `--diff` and `--undo` require `--session <id>`.
+
+During development you can also run:
+
+```bash
+npm run dev -- "Read src/tools/runCommand.ts and summarize it."
+```
+
+## Packaging
+
+The npm packaging flow targets a wrapper package plus platform runtime packages.
+
+Current release status on npm:
+
+- `noq-agent`: published
+- `noq-agent-windows-x64`: published
+- `noq-agent-darwin-arm64`: not published yet
+- `noq-agent-darwin-x64`: not published yet
+- `noq-agent-linux-x64`: not published yet
+- `noq-agent-linux-arm64`: not published yet
+
+Repo commands:
+
+```bash
+npm run sync:package-versions
+npm run build:runtime:current
+npm run pack:smoke
+```
+
+Available runtime targets:
+
+- `npm run build:runtime:windows-x64`
+- `npm run build:runtime:darwin-arm64`
+- `npm run build:runtime:darwin-x64`
+- `npm run build:runtime:linux-x64`
+- `npm run build:runtime:linux-arm64`
+
+The wrapper package lives in `packages/noq-agent/`. Platform runtime packages live under `packages/noq-agent-*`.
+
+The standalone runtime is built from `src/runtimeExecutable.ts` with Bun's compile pipeline and the OpenTUI Solid preload, so end users do not need Bun installed.
+
+## Development
+
+Useful scripts:
+
+```bash
+npm run typecheck
+npm run check:tui:opentui
+npm test
+npm run verify
+npm run dev:tui:opentui
+npm run dev:runtime
 ```
 
 ## Current Safety Model
 
-This project uses lightweight safeguards rather than a full sandbox.
+This is a guarded local runtime, not a sandbox.
 
-- runtime-enforced permissions for reads, edits, commands, and external paths
-- rule-based bash permissions with allow-once and allow-always approvals
-- `plan` mode for read-only planning
-- exact-text verification for `edit_file`
+Current safeguards include:
+
+- runtime-enforced permissions
+- command allow, ask, and deny rules
+- hard-blocking catastrophic commands
 - read-back verification after mutations
-- bounded provider and workflow loops
-- policy-driven command execution with a hard danger floor
-- session undo based on stored before-state snapshots
+- exact-match verification for `edit_file`
+- bounded provider tool loops
+- bounded workflow rounds
+- session snapshot undo
 
-These safeguards are intentionally simple, but they noticeably improve reliability for a local learning project.
+## Limitations
 
-## Current Limitations
-
-- semantic diagnostics and definition lookup are currently TypeScript/JavaScript-specific
-- this is not a sandbox; it is a guarded local runtime
-- provider support is normalized, but each backend still has different tool-calling behavior and quality characteristics
-
-## What I Learned
-
-A few practical lessons from building this:
-
-- provider APIs may share the same idea of tool calling while requiring very different message and loop handling
-- tool design matters a lot; smaller and clearer tool contracts improve reliability
-- verification logic belongs above the provider layer
-- permission checks are much stronger when enforced in runtime code instead of only described in prompts
-- persistent sessions and undo add a lot of usability, but only if mutation tracking is explicit
-- simple orchestration rules can noticeably improve agent behavior without needing a large framework
-
-## Current State
-
-This is still an evolving learning project, but the current version already demonstrates:
-
-- multi-provider tool-calling support
-- plan/build execution modes
-- a shared internal tool schema
-- a custom orchestration layer
-- repository navigation and code search
-- exact-text editing and patch-based editing
-- policy-driven command execution
-- TypeScript/JavaScript semantic tooling
-- config-driven permissions
-- persistent sessions with diff and undo support
-
-## Next Steps
-
-Planned improvements include:
-
-- more language backends beyond TypeScript/JavaScript semantics
-- safer and more configurable command execution
-- more polished CLI output and ergonomics
-- stronger session tooling and history inspection
-- continued hardening of search, verification, and convergence behavior
+- non-TypeScript languages currently use lighter integrations: Python diagnostics use `py_compile`, Java diagnostics use `javac`, Go diagnostics use `go build`, Python definition lookup uses Jedi, Go uses `gopls`, and Java definition lookup is best-effort workspace search
+- `plan` mode is intentionally read-only and does not expose mutation tools
+- popup TUI windows currently have first-class support on Windows only
+- command execution is guarded, but it is still local command execution on your machine
+- provider quality and tool-calling behavior still vary across backends
 
 ## Repository
 

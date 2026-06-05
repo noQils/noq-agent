@@ -1,11 +1,11 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import dotenv from 'dotenv';
+import { getNoqHomeDirectory } from './noqHome';
 
 const workspaceEnvFileNames = [
-  path.join('.noq-agent', '.env'),
+  path.join('.noq', '.env'),
   'noq-agent.env',
 ];
 
@@ -21,15 +21,6 @@ function isCurrentWorkspaceInsidePackageRoot(): boolean {
   const relativePath = path.relative(packageRoot, process.cwd());
 
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
-}
-
-export function getNoqHomeDirectory(): string {
-  const override = process.env.NOQ_HOME?.trim();
-  if (override) {
-    return path.resolve(override);
-  }
-
-  return path.join(os.homedir(), '.noq-agent');
 }
 
 function getCandidateEnvFiles(): string[] {
@@ -85,7 +76,7 @@ export function getRequiredRuntimeEnvVar(name: string, label?: string): string {
     throw new Error(
       `${label ?? name} is not configured. ` +
       `Set it in your shell environment, ${path.join(getNoqHomeDirectory(), '.env')}, ` +
-      `or a workspace file like .noq-agent/.env.`,
+      `or a workspace file like .noq/.env.`,
     );
   }
 

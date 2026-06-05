@@ -35,8 +35,23 @@ export function getToolByName(name: string): InternalTool | undefined {
   return toolsByName.get(name);
 }
 
+const buildModeToolNames = new Set(allTools.map((tool) => tool.name));
+
+const planModeToolNames = new Set([
+  readFileTool.name,
+  globTool.name,
+  grepTool.name,
+  getDiagnosticsTool.name,
+  goToDefinitionTool.name,
+  listDirTool.name,
+]);
+
 export function getToolsForMode(mode: AgentMode): InternalTool[] {
-  return allTools.filter((tool) => tool.allowedModes.includes(mode));
+  const allowedToolNames = mode === 'plan'
+    ? planModeToolNames
+    : buildModeToolNames;
+
+  return allTools.filter((tool) => allowedToolNames.has(tool.name));
 }
 
 type PrimitiveType = 'string' | 'number' | 'integer' | 'boolean';

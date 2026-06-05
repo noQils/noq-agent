@@ -14,6 +14,6 @@
       "git status*": "allow",
       "rm *": "deny"
     },
-    "external_directory": "deny"
+    "external_directory": "ask"
   }
 }

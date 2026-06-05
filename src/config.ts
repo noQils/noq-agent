@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isAgentMode, type AgentMode } from './agentMode';
+import { loadGlobalConfig } from './globalConfig';
 import { providerNames, type ProviderName } from './providers/types';
 import {
   isRuleBasedCommandPermission,
@@ -24,12 +25,14 @@ export interface PermissionConfig {
 export interface AgentConfig {
   defaultMode: AgentMode;
   defaultProvider?: ProviderName;
+  defaultModel?: string;
   permission: PermissionConfig;
 }
 
 type ConfigFile = {
   defaultMode?: unknown;
   defaultProvider?: unknown;
+  defaultModel?: unknown;
   permission?: Partial<{
     [Scope in Exclude<PermissionScope, 'bash'>]: PermissionOutcome;
   } & {
@@ -108,6 +111,7 @@ function cloneDefaultConfig(): AgentConfig {
   return {
     defaultMode: defaultConfig.defaultMode,
     ...(defaultConfig.defaultProvider ? { defaultProvider: defaultConfig.defaultProvider } : {}),
+    ...(defaultConfig.defaultModel ? { defaultModel: defaultConfig.defaultModel } : {}),
     permission: {
       ...defaultConfig.permission,
       bash: cloneCommandPermissionConfig(defaultConfig.permission.bash),
@@ -115,13 +119,25 @@ function cloneDefaultConfig(): AgentConfig {
   };
 }
 
-function validateAndMergeConfig(rawConfig: unknown, configPath: string): AgentConfig {
+function validateAndMergeConfig(
+  rawConfig: unknown,
+  configPath: string,
+  baseConfig: AgentConfig = cloneDefaultConfig(),
+): AgentConfig {
   if (!isPlainObject(rawConfig)) {
     throw new Error(`${CONFIG_FILE_NAME} must contain a JSON object.`);
   }
 
   const configFile = rawConfig as ConfigFile;
-  const mergedConfig = cloneDefaultConfig();
+  const mergedConfig: AgentConfig = {
+    defaultMode: baseConfig.defaultMode,
+    ...(baseConfig.defaultProvider ? { defaultProvider: baseConfig.defaultProvider } : {}),
+    ...(baseConfig.defaultModel ? { defaultModel: baseConfig.defaultModel } : {}),
+    permission: {
+      ...baseConfig.permission,
+      bash: cloneCommandPermissionConfig(baseConfig.permission.bash),
+    },
+  };
 
   if (configFile.defaultMode !== undefined) {
     if (typeof configFile.defaultMode !== 'string' || !isAgentMode(configFile.defaultMode)) {
@@ -139,6 +155,14 @@ function validateAndMergeConfig(rawConfig: unknown, configPath: string): AgentCo
     }
 
     mergedConfig.defaultProvider = configFile.defaultProvider;
+  }
+
+  if (configFile.defaultModel !== undefined) {
+    if (typeof configFile.defaultModel !== 'string' || configFile.defaultModel.trim().length === 0) {
+      throw new Error(`"defaultModel" in ${configPath} must be a non-empty string.`);
+    }
+
+    mergedConfig.defaultModel = configFile.defaultModel;
   }
 
   if (configFile.permission === undefined) {
@@ -183,10 +207,16 @@ export function getConfigPath(): string {
 }
 
 export function loadConfig(): AgentConfig {
+  const globalConfig = loadGlobalConfig();
+  const baseConfig: AgentConfig = {
+    ...cloneDefaultConfig(),
+    ...(globalConfig.defaultProvider ? { defaultProvider: globalConfig.defaultProvider } : {}),
+    ...(globalConfig.defaultModel ? { defaultModel: globalConfig.defaultModel } : {}),
+  };
   const configPath = getConfigPath();
 
   if (!fs.existsSync(configPath)) {
-    return cloneDefaultConfig();
+    return baseConfig;
   }
 
   let parsedConfig: unknown;
@@ -198,7 +228,7 @@ export function loadConfig(): AgentConfig {
     throw new Error(`Failed to read ${configPath}: ${message}`);
   }
 
-  return validateAndMergeConfig(parsedConfig, configPath);
+  return validateAndMergeConfig(parsedConfig, configPath, baseConfig);
 }
 
 export function getConfig(): AgentConfig {

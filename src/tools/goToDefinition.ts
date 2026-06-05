@@ -1,9 +1,9 @@
-import { goToTypeScriptDefinition } from '../typescriptService';
+import { goToDefinition } from '../definitionService';
 import { InternalTool } from './index';
 
 export const goToDefinitionTool: InternalTool = {
   name: 'go_to_definition',
-  description: 'Resolve the definition location for a symbol in a TypeScript or JavaScript file. Provide a 1-based line number and the symbol text from that line.',
+  description: 'Resolve definition locations for a symbol in a supported source file. TypeScript and JavaScript use the TypeScript language service, Python uses Jedi, Go uses gopls, and Java uses a best-effort workspace definition search.',
   allowedModes: ['plan', 'build'],
   permission: {
     scope: 'read',
@@ -41,7 +41,7 @@ export const goToDefinitionTool: InternalTool = {
     symbol: string;
     occurrence?: number | null;
   }) => {
-    const definitions = goToTypeScriptDefinition({
+    const definitions = goToDefinition({
       filePath: args.filePath,
       line: args.line,
       symbol: args.symbol,

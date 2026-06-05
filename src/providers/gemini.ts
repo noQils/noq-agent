@@ -24,12 +24,14 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
+import { getProviderModelSetting, getRequiredProviderApiKey } from '../providerSettings';
+import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {
-  return getRequiredRuntimeEnvVar('GEMINI_API_KEY');
+  return getRequiredProviderApiKey('gemini');
 }
 
 // Convert internal tool definitions to the format expected by the Gemini API
@@ -69,9 +71,15 @@ function toGeminiSchema(schema: InternalTool['parameters']): Schema {
 }
 
 let geminiClient: GoogleGenAI | undefined;
+let geminiClientApiKey: string | undefined;
 
 function getGeminiClient(): GoogleGenAI {
-  geminiClient ??= new GoogleGenAI({ apiKey: getApiKey() });
+  const apiKey = getApiKey();
+  if (!geminiClient || geminiClientApiKey !== apiKey) {
+    geminiClient = new GoogleGenAI({ apiKey });
+    geminiClientApiKey = apiKey;
+  }
+
   return geminiClient;
 }
 
@@ -154,7 +162,7 @@ function collectCurrentRoundFunctionCalls(functionCalls: FunctionCall[]): ToolCa
 // Helper function to execute tool calls and return the responses
 async function executeFunctionCalls(
   functionCalls: FunctionCall[],
-  mode?: ChatOptions['mode'],
+  options?: ChatOptions,
 ): Promise<{
   toolResponses: FunctionResponse[],
   executedToolCalls: ExecutedToolCall[],
@@ -182,15 +190,23 @@ async function executeFunctionCalls(
 
       toolResponses.push(response);
       executedToolCalls.push(invalidArgsFailure.executedToolCall);
+      debugLog('Gemini tool call rejected: invalid arguments.', {
+        toolName,
+        error: normalizedArgs.error,
+      });
       continue;
     }
 
     const args = normalizedArgs.args;
 
+    debugLog(`Executing tool ${functionCall.name}`, 'with args', args);
     const executionResult = await executeToolCall(
       toolName,
       args,
-      mode ? { mode } : undefined,
+      {
+        ...(options?.mode ? { mode: options.mode } : {}),
+        ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+      },
     );
     const response: FunctionResponse = executionResult.executedToolCall.succeeded
       ? {
@@ -210,6 +226,12 @@ async function executeFunctionCalls(
 
     toolResponses.push(response);
     executedToolCalls.push(executionResult.executedToolCall);
+    debugLog('Gemini tool call result:', {
+      toolName,
+      succeeded: executionResult.executedToolCall.succeeded,
+      failureKind: executionResult.executedToolCall.failureKind,
+      outputLength: executionResult.output.length,
+    });
   }
 
   return { 
@@ -223,7 +245,7 @@ export async function chat(
   messages: ChatMessage[],
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = options?.model ?? getRuntimeEnvVar('GEMINI_MODEL');
+  const model = getProviderModelSetting('gemini', options?.model);
   if (!model) {
     throw new Error('Gemini model not specified');
   }
@@ -233,28 +255,44 @@ export async function chat(
   const functionDeclarations = toGeminiFunctionDeclaration(selectedTools);
   const executedToolCalls: ExecutedToolCall[] = [];
   const gemini = getGeminiClient();
+  const maxToolRounds = getProviderMaxToolRounds();
+  debugLog('Gemini chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: functionDeclarations.length,
+    maxToolRounds,
+  });
 
   let toolRoundCount = 0;
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const response = await gemini.models.generateContent({
-      model: model,
-      contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
-      config: {
-        ...(systemInstruction ? { systemInstruction } : {}),
-        tools: [{functionDeclarations}],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO,
+    const response = await runProviderRequest('Gemini', 'models.generateContent', () =>
+      gemini.models.generateContent({
+        model: model,
+        contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
+        config: {
+          ...(systemInstruction ? { systemInstruction } : {}),
+          tools: [{functionDeclarations}],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: FunctionCallingConfigMode.AUTO,
+            }
           }
-        }
-      },
-    });
+        },
+      })
+    );
+    debugLog('Round', toolRoundCount, 'tool calls', response.functionCalls);
+
     const functionCalls = response.functionCalls ?? [];
     const currentRoundCalls = collectCurrentRoundFunctionCalls(functionCalls);
 
     if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('Gemini chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.text ?? '',
         executedToolCalls,
@@ -265,6 +303,11 @@ export async function chat(
     previousRoundCalls = currentRoundCalls;
 
     if (functionCalls.length === 0) {
+      debugLog('Gemini chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: response.text?.length ?? 0,
+      });
       return {
         text: response.text ?? '',
         executedToolCalls,
@@ -272,7 +315,12 @@ export async function chat(
       };
     }
 
-    if (toolRoundCount >= 10) {
+    if (toolRoundCount >= maxToolRounds) {
+      debugLog('Gemini chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        maxToolRounds,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: response.text ?? '',
         executedToolCalls,
@@ -287,7 +335,7 @@ export async function chat(
 
     const functionCallResult = await executeFunctionCalls(
       functionCalls,
-      options?.mode,
+      options,
     );
 
     const {
@@ -302,6 +350,7 @@ export async function chat(
     });
 
     executedToolCalls.push(...roundExecutedToolCalls);
+
     toolRoundCount++;
   }
 }

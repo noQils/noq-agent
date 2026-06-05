@@ -142,8 +142,14 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 .opencode
-.noq-agent/
+.noq
+.crush
 
 # Temp
 .tmp*
 tmp/
+
+# Runtime packaging artifacts
+packages/noq-agent-*/bin/noq-agent
+packages/noq-agent-*/bin/noq-agent.exe
+dist/runtime/

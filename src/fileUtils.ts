@@ -27,7 +27,21 @@ export function writeFileContent(filePath: string, content: string) {
 
 export function ensureParentDirectory(filePath: string) {
   const resolvedPath = resolveProjectPath(filePath);
-  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+  const parentDirectoryPath = path.dirname(resolvedPath);
+
+  if (fs.existsSync(parentDirectoryPath)) {
+    return;
+  }
+
+  try {
+    fs.mkdirSync(parentDirectoryPath, { recursive: true });
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST' && fs.existsSync(parentDirectoryPath)) {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 function readDirectoryEntries(resolvedPath: string): DirectoryEntry[] {
@@ -62,7 +76,7 @@ export function getProjectFilePaths(dirPath = '.'): string[] {
   const ignoredDirectories = new Set([
     'node_modules',
     '.git',
-    '.noq-agent',
+    '.noq',
     'dist',
     'build',
   ]);

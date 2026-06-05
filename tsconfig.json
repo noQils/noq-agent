@@ -42,6 +42,6 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules", "tmp"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["dist", "node_modules", "tmp", "src/opentui"]
 }

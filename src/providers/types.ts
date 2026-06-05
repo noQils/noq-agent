@@ -1,6 +1,7 @@
 import { type AgentMode } from '../agentMode';
 import { type InternalTool } from '../tools';
 import { type PermissionScope } from '../permissions/types';
+import { type SessionFileChange } from '../sessionChangeTracker';
 
 export const providerNames = ['ollama', 'gemini', 'openai', 'openrouter'] as const;
 export type ProviderName = typeof providerNames[number];
@@ -37,6 +38,18 @@ export interface ExecutedToolCall {
   permissionDeniedBy?: 'policy' | 'user';
 }
 
+export interface ToolMutationEvent {
+  toolName: string;
+  args: Record<string, unknown>;
+  executedToolCall: ExecutedToolCall;
+  fileChanges: SessionFileChange[];
+  diff: string;
+}
+
+export type ToolMutationCallback = (
+  event: ToolMutationEvent,
+) => void | Promise<void>;
+
 export type StopReason =
   | 'no_tool_calls'
   | 'repeated_tool_calls'
@@ -52,6 +65,7 @@ export interface ChatOptions {
   model?: string;
   mode?: AgentMode;
   tools?: InternalTool[];
+  onMutation?: ToolMutationCallback;
 }
 
 export interface Provider {

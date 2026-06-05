@@ -1,11 +1,12 @@
-import { getTypeScriptDiagnostics } from '../typescriptService';
+import { getDiagnostics } from '../diagnosticsService';
+import { type DiagnosticLanguage } from '../diagnosticsTypes';
 import { InternalTool } from './index';
 
 const defaultMaxDiagnostics = 100;
 
 export const getDiagnosticsTool: InternalTool = {
   name: 'get_diagnostics',
-  description: 'Get TypeScript or JavaScript diagnostics using the project compiler settings. Pass filePath to scope the results to one file.',
+  description: 'Get diagnostics for supported languages. TypeScript and JavaScript use project-aware compiler settings; Python, Java, and Go use their native compilers. Pass filePath to scope the results to one file.',
   allowedModes: ['plan', 'build'],
   permission: {
     scope: 'read',
@@ -16,7 +17,13 @@ export const getDiagnosticsTool: InternalTool = {
     properties: {
       filePath: {
         type: 'string',
-        description: 'Optional file to check. If omitted, diagnostics are collected for the current TypeScript project.',
+        description: 'Optional file to check. If omitted, diagnostics are collected across supported project files.',
+        required: false,
+        nullable: true,
+      },
+      language: {
+        type: 'string',
+        description: 'Optional language override. Supported values: "typescript", "python", "java", "go".',
         required: false,
         nullable: true,
       },
@@ -36,11 +43,13 @@ export const getDiagnosticsTool: InternalTool = {
   },
   execute: (args: {
     filePath?: string | null;
+    language?: DiagnosticLanguage | null;
     includeSuggestions?: boolean | null;
     maxDiagnostics?: number | null;
   }) => {
-    const diagnostics = getTypeScriptDiagnostics({
+    const diagnostics = getDiagnostics({
       ...(typeof args.filePath === 'string' ? { filePath: args.filePath } : {}),
+      ...(typeof args.language === 'string' ? { language: args.language } : {}),
       ...(typeof args.includeSuggestions === 'boolean'
         ? { includeSuggestions: args.includeSuggestions }
         : {}),

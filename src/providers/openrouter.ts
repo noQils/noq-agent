@@ -27,17 +27,18 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getRequiredRuntimeEnvVar, getRuntimeEnvVar } from '../runtimeEnv';
+import { getProviderModelSetting, getProviderSettings, getRequiredProviderApiKey } from '../providerSettings';
+import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
 
 function getApiKey(): string {
-  return getRequiredRuntimeEnvVar('OPENROUTER_API_KEY');
+  return getRequiredProviderApiKey('openrouter');
 }
 
 function getDefaultHeaders(): Record<string, string> | undefined {
   const defaultHeaders: Record<string, string> = {};
-  const httpReferer = getRuntimeEnvVar('OPENROUTER_HTTP_REFERER');
-  const appTitle = getRuntimeEnvVar('OPENROUTER_APP_TITLE');
+  const { httpReferer, appTitle } = getProviderSettings('openrouter');
 
   if (httpReferer) {
     defaultHeaders['HTTP-Referer'] = httpReferer;
@@ -170,14 +171,28 @@ function getAssistantText(assistantMessage: ChatCompletionAssistantMessageParam)
 }
 
 let openRouterClient: OpenAI | undefined;
+let openRouterClientApiKey: string | undefined;
+let openRouterClientHeadersKey: string | undefined;
 
 function getOpenRouterClient(): OpenAI {
-  openRouterClient ??= new OpenAI({
-    baseURL: 'https://openrouter.ai/api/v1',
-    apiKey: getApiKey(),
-    defaultHeaders: getDefaultHeaders(),
-    maxRetries: 3,
-  });
+  const apiKey = getApiKey();
+  const defaultHeaders = getDefaultHeaders();
+  const headersKey = JSON.stringify(defaultHeaders ?? {});
+
+  if (
+    !openRouterClient
+    || openRouterClientApiKey !== apiKey
+    || openRouterClientHeadersKey !== headersKey
+  ) {
+    openRouterClient = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey,
+      defaultHeaders,
+      maxRetries: 3,
+    });
+    openRouterClientApiKey = apiKey;
+    openRouterClientHeadersKey = headersKey;
+  }
 
   return openRouterClient;
 }
@@ -186,7 +201,7 @@ export async function chat(
   messages: ChatMessage[],
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  const model = options?.model ?? getRuntimeEnvVar('OPENROUTER_MODEL');
+  const model = getProviderModelSetting('openrouter', options?.model);
   if (!model) {
     throw new Error('OpenRouter model not specified');
   }
@@ -196,23 +211,37 @@ export async function chat(
   const completionMessages = toOpenRouterHistory(messages);
   const executedToolCalls: ExecutedToolCall[] = [];
   const openrouter = getOpenRouterClient();
+  const maxToolRounds = getProviderMaxToolRounds();
+  debugLog('OpenRouter chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: openRouterTools.length,
+    maxToolRounds,
+  });
 
   let toolRoundCount = 0;
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const completion = await openrouter.chat.completions.create({
-      model,
-      messages: completionMessages,
-      tools: openRouterTools,
-      tool_choice: 'auto',
-    });
+    const completion = await runProviderRequest('OpenRouter', 'chat.completions.create', () =>
+      openrouter.chat.completions.create({
+        model,
+        messages: completionMessages,
+        tools: openRouterTools,
+        tool_choice: 'auto',
+      })
+    );
 
     const assistantMessage = toAssistantMessage(completion);
     const toolCalls = (assistantMessage.tool_calls ?? []).filter(isFunctionToolCall);
     const currentRoundCalls = collectCurrentRoundFunctionCalls(toolCalls);
 
     if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('OpenRouter chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: getAssistantText(assistantMessage),
         executedToolCalls,
@@ -224,6 +253,11 @@ export async function chat(
     completionMessages.push(assistantMessage);
 
     if (toolCalls.length === 0) {
+      debugLog('OpenRouter chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: getAssistantText(assistantMessage).length,
+      });
       return {
         text: getAssistantText(assistantMessage),
         executedToolCalls,
@@ -231,13 +265,20 @@ export async function chat(
       };
     }
 
-    if (toolRoundCount >= 10) {
+    if (toolRoundCount >= maxToolRounds) {
+      debugLog('OpenRouter chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        maxToolRounds,
+        executedToolCallCount: executedToolCalls.length,
+      });
       return {
         text: getAssistantText(assistantMessage),
         executedToolCalls,
         stopReason: 'tool_round_limit_reached',
       };
     }
+
+    debugLog(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
 
     for (const toolCall of toolCalls) {
       const normalizedArgs = parseAndNormalizeToolArgsJson(toolCall.function.arguments);
@@ -254,14 +295,23 @@ export async function chat(
           content: invalidArgsFailure.output,
         } satisfies ChatCompletionToolMessageParam);
         executedToolCalls.push(invalidArgsFailure.executedToolCall);
+        debugLog('OpenRouter tool call rejected: invalid arguments.', {
+          toolName: toolCall.function.name,
+          error: normalizedArgs.error,
+        });
         continue;
       }
 
       const args = normalizedArgs.args;
+      debugLog('Tool call', toolCall.function.name, 'with args:', args);
+
       const executionResult = await executeToolCall(
         toolCall.function.name,
         args,
-        options?.mode ? { mode: options.mode } : undefined,
+        {
+          ...(options?.mode ? { mode: options.mode } : {}),
+          ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+        },
       );
 
       completionMessages.push({
@@ -270,7 +320,14 @@ export async function chat(
         content: executionResult.output,
       } satisfies ChatCompletionToolMessageParam);
       executedToolCalls.push(executionResult.executedToolCall);
+      debugLog('OpenRouter tool call result:', {
+        toolName: toolCall.function.name,
+        succeeded: executionResult.executedToolCall.succeeded,
+        failureKind: executionResult.executedToolCall.failureKind,
+        outputLength: executionResult.output.length,
+      });
     }
+
     toolRoundCount++;
   }
 }
