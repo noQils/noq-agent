@@ -51,6 +51,7 @@ type WorkflowState = {
     planFalseCompletionRewriteIssued: boolean;
     sawSuccessfulMutation: boolean;
     todoReminderIssued: boolean;
+    toolUsageContradictionRewriteIssued: boolean;
 };
 
 function getRunCommandArg(args: Record<string, unknown>): string | null {
@@ -244,6 +245,55 @@ function buildAnswerNowMessage(): string {
         'You already gathered the relevant tool results for the original user request. ' +
         'Do not call more tools unless a truly missing fact blocks the answer. ' +
         'Provide the concise final answer now based on the current evidence.'
+    );
+}
+
+function isToolUsageFollowupRequest(userPrompt: string): boolean {
+    return /\b(tool|tools|tool call|tool usage|used a tool|used tools|how did you get|how did you know|assumption|guess)\b/i.test(userPrompt);
+}
+
+function isToolUsageDenialResponse(responseText: string): boolean {
+    const normalized = responseText.trim().toLowerCase();
+    return /i didn['’]t (actually )?use a tool/.test(normalized)
+        || /i did not (actually )?use a tool/.test(normalized)
+        || /relying on an assumption/.test(normalized)
+        || /made a bad assumption/.test(normalized)
+        || /wasn['’]t actually.*tool/.test(normalized);
+}
+
+function extractRecordedToolFactMessages(historyMessages: ChatMessage[]): string[] {
+    return historyMessages
+        .flatMap((message) => (
+            message.role === 'system' && typeof message.content === 'string'
+                ? [message.content.trim()]
+                : []
+        ))
+        .filter((content) => /^Recorded turn facts:/i.test(content))
+        .filter((content) => /recorded tool calls:/i.test(content) && !/recorded tool calls:\s*none/i.test(content));
+}
+
+function shouldRewriteToolUsageContradictionResponse(
+    userPrompt: string,
+    responseText: string,
+    historyMessages: ChatMessage[],
+    rewriteIssued: boolean,
+): boolean {
+    if (rewriteIssued || !isToolUsageFollowupRequest(userPrompt) || !isToolUsageDenialResponse(responseText)) {
+        return false;
+    }
+
+    return extractRecordedToolFactMessages(historyMessages).length > 0;
+}
+
+function buildToolUsageContradictionRewriteMessage(recordedFactMessages: string[]): string {
+    const recentFacts = recordedFactMessages.slice(-2).join('\n');
+
+    return buildWorkflowReminder(
+        'Rewrite your previous answer. ' +
+        'Your answer contradicted the recorded session facts about prior tool usage. ' +
+        'Base the rewrite on the recorded facts below, state that the earlier turn did use tools, and mention the relevant recorded tool call(s) directly. ' +
+        'Do not claim that you relied only on assumption or memory.\n\n' +
+        recentFacts
     );
 }
 
@@ -667,6 +717,7 @@ export async function runAgentTurn(
         planFalseCompletionRewriteIssued: false,
         sawSuccessfulMutation: false,
         todoReminderIssued: false,
+        toolUsageContradictionRewriteIssued: false,
     }
     
     while (workflowState.flowRoundCount < maxFlowRounds) {
@@ -748,6 +799,28 @@ export async function runAgentTurn(
             : handleBuildModeCompletion(userPrompt, response, executedToolCalls, workflowState);
 
         if (completionAction) {
+            if (
+                completionAction.type === 'return'
+                && shouldRewriteToolUsageContradictionResponse(
+                    userPrompt,
+                    completionAction.text,
+                    options?.historyMessages ?? [],
+                    workflowState.toolUsageContradictionRewriteIssued,
+                )
+            ) {
+                workflowState.toolUsageContradictionRewriteIssued = true;
+                const recordedFactMessages = extractRecordedToolFactMessages(options?.historyMessages ?? []);
+                messages.push({
+                    role: 'user' as const,
+                    content: buildToolUsageContradictionRewriteMessage(recordedFactMessages),
+                });
+                debugLog('Workflow continuing after tool-usage contradiction.', {
+                    flowRound: workflowState.flowRoundCount,
+                    recordedFactCount: recordedFactMessages.length,
+                });
+                continue;
+            }
+
             if (completionAction.type === 'return') {
                 debugLog('Agent turn returning final response.', {
                     flowRound: workflowState.flowRoundCount,

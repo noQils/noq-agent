@@ -242,3 +242,43 @@ test('runAgentTurn asks for a summary when provider tool rounds hit their limit'
     assert.match(getLastUserMessage(calls[1]!), /requested changes are already applied and verified/i);
   });
 });
+
+test('runAgentTurn rewrites a false denial of recorded prior tool usage', async () => {
+  await withTempWorkspace(async () => {
+    const { calls, provider } = createSequenceProvider([
+      {
+        text: 'I didn’t actually use a tool in that last reply. I was relying on an assumption.',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [],
+      },
+      {
+        text: 'I did use a tool in that earlier turn: the recorded session facts show `list_dir(dirPath=".")` succeeded while the working directory was `C:\\Users\\TUF\\Downloads`.',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [],
+      },
+    ]);
+
+    const response = await runAgentTurn('what tools did you use to get that file list?', 'build', {
+      provider,
+      historyMessages: [
+        {
+          role: 'user',
+          content: 'tell me the files that are in this directory',
+        },
+        {
+          role: 'model',
+          content: 'Here are the files and folders in the current directory...',
+        },
+        {
+          role: 'system',
+          content: 'Recorded turn facts: working directory was "C:\\Users\\TUF\\Downloads". recorded tool calls: list_dir(dirPath=".") succeeded.',
+        },
+      ],
+    });
+
+    assert.match(response.response, /I did use a tool/i);
+    assert.match(response.response, /list_dir\(dirPath="\."\)/);
+    assert.match(getLastUserMessage(calls[1]!), /contradicted the recorded session facts/i);
+    assert.match(getLastUserMessage(calls[1]!), /Recorded turn facts:/i);
+  });
+});
