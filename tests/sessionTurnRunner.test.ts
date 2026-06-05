@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import { runSessionTurn } from '../src/sessionTurnRunner';
 import { getSessionFilePath } from '../src/sessionStore';
-import { type ExecutedToolCall, type Provider } from '../src/providers/types';
+import { type ChatMessage, type ExecutedToolCall, type Provider } from '../src/providers/types';
 import { withTempWorkspace } from './helpers/tempWorkspace';
 
 async function withTempNoqHome<T>(callback: () => Promise<T> | T): Promise<T> {
@@ -120,6 +120,82 @@ test('runSessionTurn persists workingDirectory, stopReason, and executedToolCall
       assert.equal(latestTurn?.workingDirectory, workingDirectory);
       assert.equal(latestTurn?.stopReason, 'no_tool_calls');
       assert.deepEqual(latestTurn?.executedToolCalls, executedToolCalls);
+    });
+  });
+});
+
+test('runSessionTurn reuses recorded tool facts to correct a false tool-usage denial on a later turn', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(async (workspace) => {
+      const sessionId = 'session-turn-runner-tool-usage-regression';
+      const workingDirectory = path.join(workspace.root, 'downloads-like-dir');
+      const providerCalls: ChatMessage[][] = [];
+      let providerCallIndex = 0;
+
+      fs.mkdirSync(workingDirectory, { recursive: true });
+
+      const provider: Provider = {
+        async chat(messages) {
+          providerCalls.push(messages);
+          providerCallIndex++;
+
+          if (providerCallIndex === 1) {
+            return {
+              text: 'Here are the files in the current directory.',
+              executedToolCalls: [{
+                toolName: 'list_dir',
+                args: { dirPath: '.' },
+                succeeded: true,
+              }],
+              stopReason: 'no_tool_calls',
+            };
+          }
+
+          if (providerCallIndex === 2) {
+            return {
+              text: 'I didn’t actually use a tool in that last reply. I was relying on an assumption.',
+              executedToolCalls: [],
+              stopReason: 'no_tool_calls',
+            };
+          }
+
+          if (providerCallIndex === 3) {
+            return {
+              text: 'I did use a tool in that earlier turn: the recorded session facts show `list_dir(dirPath=".")` succeeded while the working directory was `"C:\\Users\\TUF\\Downloads"`.',
+              executedToolCalls: [],
+              stopReason: 'no_tool_calls',
+            };
+          }
+
+          throw new Error(`Unexpected provider call ${providerCallIndex}.`);
+        },
+      };
+
+      await runSessionTurn(sessionId, 'tell me the files that are in this directory', 'build', {
+        workingDirectory,
+        provider,
+      });
+
+      const followup = await runSessionTurn(sessionId, 'what tools did you use to get that file list?', 'build', {
+        workingDirectory,
+        provider,
+      });
+
+      assert.match(followup.response, /I did use a tool/i);
+      assert.match(followup.response, /list_dir\(dirPath="\."\)/);
+      assert.equal(providerCalls.length, 3);
+      assert.ok(
+        providerCalls[1]?.some((message) => (
+          message.role === 'system'
+          && typeof message.content === 'string'
+          && /Recorded turn facts: working directory was/.test(message.content)
+          && /list_dir\(dirPath="\."\) succeeded/.test(message.content)
+        )),
+      );
+      assert.match(
+        [...providerCalls[2]!].reverse().find((message) => message.role === 'user')?.content ?? '',
+        /contradicted the recorded session facts/i,
+      );
     });
   });
 });
