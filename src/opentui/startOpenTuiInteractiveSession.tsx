@@ -602,10 +602,10 @@ export async function startOpenTuiInteractiveSession(
         const configPath = saveGlobalModelSelection(activeSetupFlow.provider, model!);
         appendTranscriptEntry(
           'system',
-          `Saved global default provider "${activeSetupFlow.provider}" and model "${model}" to ${configPath}.`,
+          `Saved global default provider "${activeSetupFlow.provider}" and model "${model}" to ${configPath}. The next turn in this session will use them immediately.`,
         );
         setSetupFlow(null);
-        setStatusMessage('Setup completed');
+        setStatusMessage(`Active model: ${activeSetupFlow.provider} / ${model}`);
         return true;
       }
 
@@ -618,10 +618,10 @@ export async function startOpenTuiInteractiveSession(
         const configPath = saveGlobalModelSelection(activeSetupFlow.provider, userInputValue);
         appendTranscriptEntry(
           'system',
-          `Saved global default provider "${activeSetupFlow.provider}" and model "${userInputValue}" to ${configPath}.`,
+          `Saved global default provider "${activeSetupFlow.provider}" and model "${userInputValue}" to ${configPath}. The next turn in this session will use them immediately.`,
         );
         setSetupFlow(null);
-        setStatusMessage('Setup completed');
+        setStatusMessage(`Active model: ${activeSetupFlow.provider} / ${userInputValue}`);
         return true;
       }
     }

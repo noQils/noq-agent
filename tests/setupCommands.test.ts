@@ -7,6 +7,7 @@ import test from 'node:test';
 import { loadAuthStore } from '../src/authStore';
 import { resetConfigCache } from '../src/config';
 import { loadGlobalConfig } from '../src/globalConfig';
+import { resolveProviderName } from '../src/providers';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
 import {
   formatModelChoiceList,
@@ -73,6 +74,22 @@ test('saveGlobalModelSelection persists default provider and model', async () =>
 
     assert.equal(globalConfig.defaultProvider, 'gemini');
     assert.equal(globalConfig.defaultModel, 'gemini-2.5-flash');
+  });
+});
+
+test('saveGlobalModelSelection takes effect immediately in the current process', async () => {
+  await withTempNoqHome(() => {
+    saveAuthStore({
+      openai: { apiKey: 'openai-key' },
+      openrouter: { apiKey: 'openrouter-key' },
+    });
+
+    saveGlobalModelSelection('openai', 'gpt-5.4-mini');
+    assert.equal(resolveProviderName(), 'openai');
+
+    saveGlobalModelSelection('openrouter', 'openai/gpt-4.1-mini');
+
+    assert.equal(resolveProviderName(), 'openrouter');
   });
 });
 
