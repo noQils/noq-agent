@@ -137,15 +137,15 @@ export function getRequiredProviderApiKey(providerName: Exclude<ProviderName, 'o
   const apiKey = getProviderSettings(providerName).apiKey;
   if (!apiKey) {
     const providerLabelMap: Record<Exclude<ProviderName, 'ollama'>, string> = {
-      openai: 'OPENAI_API_KEY',
-      openrouter: 'OPENROUTER_API_KEY',
-      gemini: 'GEMINI_API_KEY',
+      openai: 'OpenAI',
+      openrouter: 'OpenRouter',
+      gemini: 'Gemini',
     };
-    const envLabel = providerLabelMap[providerName];
+    const providerLabel = providerLabelMap[providerName];
 
     throw new Error(
-      `${envLabel} is not configured. ` +
-      `Set it in your shell environment, one of the loaded env files, or ${getAuthStorePath()}.`,
+      `${providerLabel} credentials are not configured. ` +
+      `Run /connect to save them into ${getAuthStorePath()}, then use /models to choose the active default provider and model.`,
     );
   }
 
@@ -168,12 +168,16 @@ export function buildMissingProviderError(): string {
   return [
     'No AI provider is configured.',
     '',
-    'Configure at least one provider in ~/.noq/auth.json and choose a default provider/model in ~/.noq/config.json.',
+    'This install now uses only ~/.noq/auth.json and ~/.noq/config.json for provider setup.',
     '',
-    'Setup paths:',
-    '- Run /connect to save provider credentials into ~/.noq/auth.json',
-    '- Run /models to choose the global default provider/model in ~/.noq/config.json',
-    '- Ollama only needs /models unless you also want to set a custom base URL',
+    'To get started:',
+    '- Run /connect to add at least one hosted provider API key to ~/.noq/auth.json',
+    '- Run /models to choose the active default provider and model in ~/.noq/config.json',
+    '- For Ollama, you can skip /connect and just run /models',
+    '',
+    'A provider is usable only when:',
+    '- OpenAI/OpenRouter/Gemini: auth exists in ~/.noq/auth.json and the chosen default provider/model exists in ~/.noq/config.json',
+    '- Ollama: the chosen default provider/model exists in ~/.noq/config.json',
     '',
     `Global config path: ${getGlobalConfigPath()}`,
     `Global auth path: ${getAuthStorePath()}`,

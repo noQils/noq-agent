@@ -11,7 +11,13 @@ import { evaluatePermission } from '../src/permissions/evaluate';
 import { saveGlobalConfig } from '../src/globalConfig';
 import { getNoqHomeDirectory } from '../src/noqHome';
 import { allowPermissionForSession, setPermissionApprovalSession } from '../src/permissions/approvals';
-import { getConfiguredProviderNames, getExplicitProviderNameSetting, getProviderSettings } from '../src/providerSettings';
+import {
+  buildMissingProviderError,
+  getConfiguredProviderNames,
+  getExplicitProviderNameSetting,
+  getProviderSettings,
+  getRequiredProviderApiKey,
+} from '../src/providerSettings';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
 import { getSessionApprovedExternalDirectories, getSessionFilePath } from '../src/sessionStore';
 import { runCommand } from '../src/tools/runCommand';
@@ -220,6 +226,46 @@ test('multiple configured providers are detected from auth store plus workspace/
       }));
 
       assert.deepEqual(getConfiguredProviderNames(), ['gemini']);
+    });
+  });
+});
+
+test('missing provider error points users to /connect and /models', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(() => {
+      const message = buildMissingProviderError();
+
+      assert.match(message, /Run \/connect/);
+      assert.match(message, /Run \/models/);
+      assert.match(message, /For Ollama, you can skip \/connect/);
+      assert.match(message, /~\/\.noq\/auth\.json/);
+      assert.match(message, /~\/\.noq\/config\.json/);
+    });
+  });
+});
+
+test('missing hosted-provider credentials tell users to use /connect and /models', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(() => {
+      assert.throws(
+        () => getRequiredProviderApiKey('openai'),
+        /Run \/connect to save them into .*auth\.json, then use \/models/,
+      );
+    });
+  });
+});
+
+test('ollama is treated as configured with model-only setup', async () => {
+  await withTempNoqHome(async () => {
+    saveGlobalConfig({
+      defaultProvider: 'ollama',
+      defaultModel: 'llama3.1:8b',
+    });
+
+    await withTempWorkspace(() => {
+      assert.deepEqual(getConfiguredProviderNames(), ['ollama']);
+      assert.equal(getExplicitProviderNameSetting(), 'ollama');
+      assert.equal(getProviderSettings('ollama').model, 'llama3.1:8b');
     });
   });
 });
