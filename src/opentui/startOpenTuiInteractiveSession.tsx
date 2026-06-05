@@ -539,7 +539,7 @@ export async function startOpenTuiInteractiveSession(
         resetConfigCache();
         appendTranscriptEntry(
           'system',
-          `Saved ${activeSetupFlow.provider} credentials to ${authStorePath}. Run /models to choose a default model.`,
+          `Saved ${activeSetupFlow.provider} credentials to ${authStorePath}. ${activeSetupFlow.provider} is now available to select. Run /models to choose the active default provider and model.`,
         );
         setSetupFlow(null);
         setStatusMessage('Setup completed');

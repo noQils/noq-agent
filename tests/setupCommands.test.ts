@@ -12,6 +12,7 @@ import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
 import {
   formatModelChoiceList,
   formatProviderChoiceList,
+  getModelProviderChoices,
   getModelChoices,
   parseModelChoice,
   parseProviderChoice,
@@ -74,6 +75,24 @@ test('saveGlobalModelSelection persists default provider and model', async () =>
 
     assert.equal(globalConfig.defaultProvider, 'gemini');
     assert.equal(globalConfig.defaultModel, 'gemini-2.5-flash');
+  });
+});
+
+test('saveProviderConnection makes a provider immediately selectable without changing the active default', async () => {
+  await withTempNoqHome(() => {
+    saveAuthStore({
+      openai: { apiKey: 'openai-key' },
+    });
+    saveGlobalModelSelection('openai', 'gpt-5.4-mini');
+
+    assert.equal(resolveProviderName(), 'openai');
+    assert.deepEqual(getModelProviderChoices().slice(0, 2), ['openai', 'ollama']);
+
+    saveProviderConnection('openrouter', { apiKey: 'openrouter-key' });
+
+    assert.equal(resolveProviderName(), 'openai');
+    assert.equal(getModelProviderChoices()[0], 'openai');
+    assert.ok(getModelProviderChoices().includes('openrouter'));
   });
 });
 
