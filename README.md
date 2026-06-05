@@ -2,6 +2,33 @@
 
 `noq-agent` is a local AI coding agent CLI for exploring tool-using coding agents without hiding the core runtime behind a larger framework.
 
+## Installation
+
+Install from npm:
+
+```bash
+npm install -g noq-agent
+```
+
+Current published package support:
+
+- Windows x64 is published and supported today
+- macOS and Linux runtime packages are not published yet
+
+If you install `noq-agent` on a non-Windows platform right now, the platform-specific runtime will be missing.
+
+After installation, start the agent with:
+
+```bash
+noq
+```
+
+You can also run a one-shot prompt directly:
+
+```bash
+noq "Read the repo and explain the entrypoints."
+```
+
 It currently includes:
 
 - multiple provider adapters
@@ -405,6 +432,15 @@ npm run dev -- "Read src/tools/runCommand.ts and summarize it."
 ## Packaging
 
 The npm packaging flow targets a wrapper package plus platform runtime packages.
+
+Current release status on npm:
+
+- `noq-agent`: published
+- `noq-agent-windows-x64`: published
+- `noq-agent-darwin-arm64`: not published yet
+- `noq-agent-darwin-x64`: not published yet
+- `noq-agent-linux-x64`: not published yet
+- `noq-agent-linux-arm64`: not published yet
 
 Repo commands:
 
