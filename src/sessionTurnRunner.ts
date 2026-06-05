@@ -62,10 +62,10 @@ export async function runSessionTurn(
     });
 
     beginSessionChangeTracking();
-    let response: string;
+    let turnResult: Awaited<ReturnType<typeof runAgentTurn>>;
 
     try {
-      response = await withWorkingDirectory(effectiveWorkingDirectory, () => runAgentTurn(userPrompt, mode, {
+      turnResult = await withWorkingDirectory(effectiveWorkingDirectory, () => runAgentTurn(userPrompt, mode, {
         historyMessages,
         ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
         ...(options?.provider ? { provider: options.provider } : {}),
@@ -83,7 +83,7 @@ export async function runSessionTurn(
     debugLog('Session turn completed:', {
       sessionId,
       mode,
-      responseLength: response.length,
+      responseLength: turnResult.response.length,
       fileChangeCount: fileChanges.length,
     });
     appendSessionTurn(
@@ -92,7 +92,10 @@ export async function runSessionTurn(
         timestamp: new Date().toISOString(),
         mode,
         userPrompt,
-        response,
+        response: turnResult.response,
+        workingDirectory: effectiveWorkingDirectory,
+        stopReason: turnResult.stopReason,
+        executedToolCalls: turnResult.executedToolCalls,
       },
       fileChanges,
     );
@@ -100,13 +103,13 @@ export async function runSessionTurn(
     if (mode === 'plan') {
       saveSessionPlanArtifact(sessionId, {
         userPrompt,
-        response,
+        response: turnResult.response,
       });
     }
 
     return {
       sessionId,
-      response,
+      response: turnResult.response,
       fileChanges,
     };
   } finally {

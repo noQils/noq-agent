@@ -5,7 +5,11 @@ import { isAgentMode, type AgentMode } from './agentMode';
 import { getGlobalSessionsDirectoryPath } from './noqHome';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { type PermissionScope } from './permissions/types';
-import { type ChatMessage } from './providers/types';
+import {
+  type ChatMessage,
+  type ExecutedToolCall,
+  type StopReason,
+} from './providers/types';
 import { buildSessionFileDiff } from './sessionDiff';
 import { type SessionFileChange } from './sessionChangeTracker';
 
@@ -30,6 +34,9 @@ export interface SessionTurn {
   mode: AgentMode;
   userPrompt: string;
   response: string;
+  workingDirectory?: string;
+  stopReason: StopReason | undefined;
+  executedToolCalls: ExecutedToolCall[] | undefined;
 }
 
 export interface SessionSnapshot {
@@ -164,6 +171,8 @@ function normalizeSessionTurns(turns: unknown): SessionTurn[] {
       mode: typeof turn.mode === 'string' && isAgentMode(turn.mode) ? turn.mode : 'build',
       userPrompt,
       response,
+      stopReason: undefined,
+      executedToolCalls: undefined,
     }];
   });
 }
@@ -749,6 +758,8 @@ export function undoLastSessionSnapshot(sessionId: string): string {
     mode: 'build',
     userPrompt: 'Undo the last agent change in this session.',
     response,
+    stopReason: undefined,
+    executedToolCalls: undefined,
   });
   session.updatedAt = createTimestamp();
   saveSession(session);

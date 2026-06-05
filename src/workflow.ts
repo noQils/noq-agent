@@ -7,6 +7,7 @@ import {
   type ChatResult,
   type ExecutedToolCall,
   type Provider,
+  type StopReason,
   type ToolMutationCallback,
 } from './providers/types';
 import { getSystemPrompt } from './systemPrompt';
@@ -20,6 +21,12 @@ export interface RunAgentTurnOptions {
     historyMessages?: ChatMessage[];
     onMutation?: ToolMutationCallback;
     provider?: Provider;
+}
+
+export interface RunAgentTurnResult {
+    response: string;
+    executedToolCalls: ExecutedToolCall[];
+    stopReason: StopReason | undefined;
 }
 
 // Function to get the file path argument
@@ -590,7 +597,7 @@ export async function runAgentTurn(
     userPrompt: string,
     mode: AgentMode,
     options?: RunAgentTurnOptions,
-): Promise<string> {
+): Promise<RunAgentTurnResult> {
     const provider = options?.provider ?? getProvider();
 
     resetPermissionDecisionCache();
@@ -695,7 +702,11 @@ export async function runAgentTurn(
                 debugLog('Agent turn returning after blocked action with provider text.', {
                     blockedActionCount: turnState.blockedActionCalls.length,
                 });
-                return response.text;
+                return {
+                    response: response.text,
+                    executedToolCalls,
+                    stopReason: response.stopReason,
+                };
             }
 
             debugLog('Workflow continuing after blocked action.', {
@@ -742,7 +753,11 @@ export async function runAgentTurn(
                     flowRound: workflowState.flowRoundCount,
                     responseLength: completionAction.text.length,
                 });
-                return completionAction.text;
+                return {
+                    response: completionAction.text,
+                    executedToolCalls,
+                    stopReason: response.stopReason,
+                };
             }
 
             debugLog('Workflow continuing with reminder.', {
@@ -778,7 +793,11 @@ export async function runAgentTurn(
                 stopReason: response.stopReason,
                 responseLength: response.text.length,
             });
-            return response.text;
+            return {
+                response: response.text,
+                executedToolCalls,
+                stopReason: response.stopReason,
+            };
         }
 
         debugLog('Workflow continuing after tool calls.', {
@@ -800,7 +819,11 @@ export async function runAgentTurn(
         latestResponseLength: response.text?.length ?? 0,
     });
     
-    return response.text
-        ? `${stopMessage}\n\nLatest response:\n${response.text}`
-        : stopMessage;
+    return {
+        response: response.text
+            ? `${stopMessage}\n\nLatest response:\n${response.text}`
+            : stopMessage,
+        executedToolCalls: response.executedToolCalls ?? [],
+        stopReason: response.stopReason,
+    };
 }

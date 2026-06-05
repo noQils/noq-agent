@@ -63,7 +63,7 @@ test('runAgentTurn can use an injected provider without configured API keys', as
 
     const response = await runAgentTurn('answer briefly', 'plan', { provider });
 
-    assert.equal(response, 'offline smoke ok');
+    assert.equal(response.response, 'offline smoke ok');
     assert.equal(observed.options?.mode, 'plan');
     assert.ok(observed.messages?.some((message) => message.role === 'system'));
     assert.ok(observed.options?.tools?.some((tool) => tool.name === 'read_file'));
@@ -96,7 +96,7 @@ test('runAgentTurn sends blocked tool reminders instead of retrying blindly', as
 
     const response = await runAgentTurn('run the tests', 'build', { provider });
 
-    assert.equal(response, 'Cannot run the blocked command without a permission change.');
+    assert.equal(response.response, 'Cannot run the blocked command without a permission change.');
     assert.match(getLastUserMessage(calls[1]!), /action\(s\) were blocked/);
     assert.match(getLastUserMessage(calls[1]!), /run_command/);
   });
@@ -129,7 +129,7 @@ test('runAgentTurn asks for a reread after failed mutation attempts', async () =
 
     const response = await runAgentTurn('edit src/app.ts', 'build', { provider });
 
-    assert.match(response, /requested edit remains blocked/);
+    assert.match(response.response, /requested edit remains blocked/);
     assert.match(getLastUserMessage(calls[1]!), /attempted file change failed/);
     assert.match(getLastUserMessage(calls[1]!), /src\/app\.ts/);
   });
@@ -164,7 +164,7 @@ test('runAgentTurn requires read-back verification after mutations', async () =>
 
     const response = await runAgentTurn('update src/app.ts', 'build', { provider });
 
-    assert.equal(response, 'Updated src/app.ts and read it back.');
+    assert.equal(response.response, 'Updated src/app.ts and read it back.');
     assert.match(getLastUserMessage(calls[1]!), /changed file\(s\) but did not verify/i);
     assert.match(getLastUserMessage(calls[1]!), /src\/app\.ts/);
   });
@@ -215,7 +215,7 @@ test('runAgentTurn reruns verification commands after later mutations', async ()
 
     const response = await runAgentTurn('update src/app.ts and test it', 'build', { provider });
 
-    assert.equal(response, 'Reran npm test after the file change.');
+    assert.equal(response.response, 'Reran npm test after the file change.');
     assert.match(getLastUserMessage(calls[2]!), /Run the verification command\(s\) again/);
     assert.match(getLastUserMessage(calls[2]!), /npm test/);
   });
@@ -238,7 +238,7 @@ test('runAgentTurn asks for a summary when provider tool rounds hit their limit'
 
     const response = await runAgentTurn('summarize the current state', 'build', { provider });
 
-    assert.equal(response, 'Latest work summarized after the tool round limit.');
+    assert.equal(response.response, 'Latest work summarized after the tool round limit.');
     assert.match(getLastUserMessage(calls[1]!), /requested changes are already applied and verified/i);
   });
 });

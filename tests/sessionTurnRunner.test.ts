@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import { runSessionTurn } from '../src/sessionTurnRunner';
 import { getSessionFilePath } from '../src/sessionStore';
-import { type Provider } from '../src/providers/types';
+import { type ExecutedToolCall, type Provider } from '../src/providers/types';
 import { withTempWorkspace } from './helpers/tempWorkspace';
 
 async function withTempNoqHome<T>(callback: () => Promise<T> | T): Promise<T> {
@@ -75,6 +75,51 @@ test('runSessionTurn uses the provided workingDirectory override for resumed tur
 
       assert.equal(result.response, 'cwd captured');
       assert.equal(observedWorkingDirectory, overrideWorkingDirectory);
+    });
+  });
+});
+
+test('runSessionTurn persists workingDirectory, stopReason, and executedToolCalls for the turn', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(async (workspace) => {
+      const sessionId = 'session-turn-runner-tool-metadata';
+      const workingDirectory = path.join(workspace.root, 'downloads-like-dir');
+      const sessionFilePath = getSessionFilePath(sessionId);
+      const executedToolCalls: ExecutedToolCall[] = [{
+        toolName: 'list_dir',
+        args: { dirPath: '.' },
+        succeeded: true,
+      }];
+
+      fs.mkdirSync(workingDirectory, { recursive: true });
+
+      const provider: Provider = {
+        async chat() {
+          return {
+            text: 'Here are the files.',
+            executedToolCalls,
+            stopReason: 'no_tool_calls',
+          };
+        },
+      };
+
+      await runSessionTurn(sessionId, 'tell me the files here', 'build', {
+        workingDirectory,
+        provider,
+      });
+
+      const session = JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8')) as {
+        turns: Array<{
+          workingDirectory?: string;
+          stopReason?: string;
+          executedToolCalls?: ExecutedToolCall[];
+        }>;
+      };
+      const latestTurn = session.turns.at(-1);
+
+      assert.equal(latestTurn?.workingDirectory, workingDirectory);
+      assert.equal(latestTurn?.stopReason, 'no_tool_calls');
+      assert.deepEqual(latestTurn?.executedToolCalls, executedToolCalls);
     });
   });
 });
