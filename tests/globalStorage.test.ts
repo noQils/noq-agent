@@ -62,6 +62,15 @@ test('loadGlobalConfig returns an empty object when config.json is missing', () 
   });
 });
 
+test('loadGlobalConfig treats an empty config.json like a missing file', () => {
+  withNoqHome(() => {
+    ensureNoqHomeDirectory();
+    fs.writeFileSync(getGlobalConfigPath(), '   \n', 'utf-8');
+
+    assert.deepEqual(loadGlobalConfig(), {});
+  });
+});
+
 test('saveGlobalConfig creates the home directory and round-trips config values', () => {
   withNoqHome(() => {
     const config: GlobalConfig = {

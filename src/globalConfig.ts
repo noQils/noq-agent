@@ -16,7 +16,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readGlobalConfigFile(configPath: string): unknown {
   try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const rawConfig = fs.readFileSync(configPath, 'utf-8');
+    if (rawConfig.trim().length === 0) {
+      return {};
+    }
+
+    return JSON.parse(rawConfig);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to read ${configPath}: ${message}`);
