@@ -1,14 +1,14 @@
 # noq-agent
 
-`noq-agent` is a local AI coding agent CLI for exploring how tool-using coding agents work without hiding the core pieces behind a larger framework.
+`noq-agent` is a local AI coding agent CLI for exploring tool-using coding agents without hiding the core runtime behind a larger framework.
 
-It includes:
+It currently includes:
 
 - multiple provider adapters
 - a shared internal tool registry
 - a workflow layer that pushes the model to verify and finish work
 - runtime-enforced permissions
-- persistent sessions with diff, undo, and saved plan artifacts
+- persistent global sessions with diff, undo, and saved plan artifacts
 - an OpenTUI-based interactive session UI
 
 ## Current Capabilities
@@ -29,8 +29,10 @@ Today the agent can:
 - undo the latest recorded agent snapshot
 - save the latest plan-mode artifact for later review
 - remember named-session approvals, including approved external directories
+- resume sessions from any directory
+- work across directories when the permission policy allows it
 
-## Runtime Model
+## Runtime Modes
 
 `noq-agent` runs in two modes:
 
@@ -51,20 +53,33 @@ noq --plan "Review src/workflow.ts and outline the implementation steps."
 
 Current provider backends:
 
-- OpenAI Responses API
-- OpenRouter Chat Completions
+- OpenAI
+- OpenRouter
 - Google Gemini
 - Ollama
 
+Provider setup now uses only global files under `~/.noq/`:
+
+- `~/.noq/auth.json`
+  Provider credentials and connection details
+- `~/.noq/config.json`
+  Global default provider and model
+
+Workspace `noq-agent.json` can still override `defaultProvider` and `defaultModel` for a specific repo.
+
 Provider selection order:
 
-1. `AI_PROVIDER`
-2. `defaultProvider` in workspace `noq-agent.json`
-3. `defaultProvider` in `~/.noq/config.json`
-4. auto-select exactly one fully configured provider
-5. otherwise fail with a clear setup error
+1. `defaultProvider` in workspace `noq-agent.json`
+2. `defaultProvider` in `~/.noq/config.json`
+3. auto-select exactly one fully configured provider
+4. otherwise fail with a setup error
 
-The provider layer normalizes tool calling into one internal `ChatResult`, but each backend still keeps its own request/loop behavior.
+A provider is usable only when:
+
+- OpenAI, OpenRouter, Gemini: matching auth exists in `~/.noq/auth.json` and the chosen default provider/model exists in config
+- Ollama: the chosen default provider/model exists in config
+
+The provider layer normalizes tool calling into one internal `ChatResult`, but each backend still keeps its own request and loop behavior.
 
 ## Tools
 
@@ -141,16 +156,28 @@ Useful interactive commands:
 /exit
 ```
 
+Setup flow details:
+
+- `/connect`
+  Saves provider credentials into `~/.noq/auth.json`
+- `/models`
+  Lets you choose the global default provider and model in `~/.noq/config.json`
+- `/models` applies immediately to the next turn in the current session
+- `/connect` makes a provider available immediately, but does not change the active provider/model until `/models`
+- `/models` tries live model discovery first and falls back to curated presets when discovery is unavailable
+- Ollama does not need an API key for `/connect`; you can just use `/models`
+
 TUI details:
 
 - new sessions get a generated id when you send the first real prompt
 - session transcript entries are persisted with the session
 - permission prompts are shown inline in the TUI with previews for commands and edits
+- external-directory prompts show both the session workspace and the outside directory being requested
 - `Ctrl+C` copies the current selection
 - `Ctrl+V` pastes the last copied selection into the composer
 - `Ctrl+O` inserts a newline in the composer
 
-## Sessions, Diffs, Undo
+## Sessions, Diffs, and Undo
 
 Sessions are stored under:
 
@@ -175,7 +202,9 @@ Session data includes:
 - TUI transcript state and stored mode
 
 Because the workspace root is stored with the session, `noq` remembers the original session directory.
-When you resume a session from a different current directory, `noq` asks whether to use:
+
+When you resume a session from a different current directory, interactive startup asks whether to use:
+
 - the session's stored workspace directory
 - your current working directory
 
@@ -230,8 +259,7 @@ Rule precedence is simple: the last matching rule wins.
 Approval choices:
 
 - allow once
-- allow for this run
-- allow for this named session
+- allow for this run or named session
 - deny
 
 In interactive TUI sessions, approvals are shown inline. In plain terminal mode, prompts fall back to a text-based approval prompt. Without a TTY, permission prompts default to deny.
@@ -241,7 +269,8 @@ External directory behavior:
 - `deny` blocks outside-workspace access
 - `ask` prompts on first use
 - `allow` skips the prompt
-- named-session approvals are remembered and reused later
+- choosing the session-level approval remembers the outside directory for later turns in that session
+- `allow once` does not add the directory to the remembered list
 
 ## Configuration
 
@@ -279,46 +308,32 @@ Global files under `~/.noq/`:
   User-wide non-secret defaults such as `defaultProvider` and `defaultModel`
 - `auth.json`
   Provider credentials saved by `/connect`
+- `sessions/`
+  Stored session state, diff history, and debug logs
 
 `NOQ_HOME` can override the default `~/.noq` location.
 
-## Environment Loading
+## Environment Variables
 
-`noq-agent` loads environment variables from these locations when present:
+Provider setup no longer comes from environment variables or `.env` files. Use `/connect` and `/models`, or edit `~/.noq/auth.json` and `~/.noq/config.json` directly.
 
-- shell environment
-- workspace `.noq/.env`
-- workspace `noq-agent.env`
-- `~/.noq/.env`
-- repo-local `.env` when you are running inside the `noq-agent` package workspace during development
+Environment loading still exists for runtime settings and home-directory overrides.
 
 Useful variables:
 
 ```env
-AI_PROVIDER=openai
-
-OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-5.4-mini
-
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=openai/gpt-4.1-mini
-OPENROUTER_HTTP_REFERER=https://your-app.example
-OPENROUTER_APP_TITLE=noq-agent
-
-GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.5-flash
-
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_DEFAULT_MODEL=llama3.1:8b
-```
-
-Runtime controls:
-
-```env
+NOQ_HOME=C:\Users\you\.noq
 NOQ_DEBUG=true
 NOQ_PROVIDER_TIMEOUT_MS=180000
 NOQ_PROVIDER_MAX_TOOL_ROUNDS=10
 ```
+
+The runtime will also load `.env` files from:
+
+- workspace `.noq/.env`
+- workspace `noq-agent.env`
+- `~/.noq/.env`
+- repo-local `.env` when you are running inside the `noq-agent` package workspace during development
 
 ## Setup
 
@@ -340,20 +355,21 @@ npm run build
 npm link
 ```
 
-4. Run `noq` and use `/connect` and `/models`, or preconfigure your env/config files.
+4. Run `noq`.
 
 ```bash
 noq
 ```
 
-Provider setup inside the TUI:
+5. Inside the TUI:
 
-- `/connect`
-  Saves provider credentials into the global auth store
-- `/models`
-  Lets you choose the global default provider and model
+- run `/connect` to save hosted-provider credentials into `~/.noq/auth.json`
+- run `/models` to choose the active global provider and model in `~/.noq/config.json`
 
-`/models` tries live model discovery first and falls back to curated presets when discovery is unavailable.
+Fresh-install behavior:
+
+- if `~/.noq/config.json` is missing or empty, it is treated like no global model has been selected yet
+- if no provider is fully configured, `noq` starts and shows setup guidance instead of crashing
 
 ## CLI Usage
 
@@ -430,7 +446,7 @@ This is a guarded local runtime, not a sandbox.
 Current safeguards include:
 
 - runtime-enforced permissions
-- command allow/ask/deny rules
+- command allow, ask, and deny rules
 - hard-blocking catastrophic commands
 - read-back verification after mutations
 - exact-match verification for `edit_file`
