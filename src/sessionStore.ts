@@ -150,6 +150,69 @@ function normalizeStringArray(values: unknown): string[] {
   return values.filter((value): value is string => typeof value === 'string');
 }
 
+function isStopReason(value: unknown): value is StopReason {
+  return value === 'no_tool_calls'
+    || value === 'repeated_tool_calls'
+    || value === 'tool_round_limit_reached';
+}
+
+function normalizeExecutedToolCalls(calls: unknown): ExecutedToolCall[] | undefined {
+  if (!Array.isArray(calls)) {
+    return undefined;
+  }
+
+  const normalizedCalls = calls.flatMap((call) => {
+    if (
+      !isRecord(call)
+      || typeof call.toolName !== 'string'
+      || !isRecord(call.args)
+      || typeof call.succeeded !== 'boolean'
+    ) {
+      return [];
+    }
+
+    const normalizedCall: ExecutedToolCall = {
+      toolName: call.toolName,
+      args: call.args,
+      succeeded: call.succeeded,
+    };
+
+    if (typeof call.error === 'string') {
+      normalizedCall.error = call.error;
+    }
+
+    if (
+      call.failureKind === 'unknown_tool'
+      || call.failureKind === 'invalid_tool_arguments'
+      || call.failureKind === 'mode_denied'
+      || call.failureKind === 'permission_denied'
+      || call.failureKind === 'tool_error'
+    ) {
+      normalizedCall.failureKind = call.failureKind;
+    }
+
+    if (isPermissionScope(call.permissionScope)) {
+      normalizedCall.permissionScope = call.permissionScope;
+    }
+
+    if (typeof call.target === 'string') {
+      normalizedCall.target = call.target;
+    }
+
+    if (typeof call.blockedByMode === 'string' && isAgentMode(call.blockedByMode)) {
+      normalizedCall.blockedByMode = call.blockedByMode;
+    }
+
+    if (call.permissionDeniedBy === 'policy' || call.permissionDeniedBy === 'user') {
+      normalizedCall.permissionDeniedBy = call.permissionDeniedBy;
+    }
+
+    return [normalizedCall];
+  });
+
+  return normalizedCalls;
+}
+
 function normalizeSessionTurns(turns: unknown): SessionTurn[] {
   if (!Array.isArray(turns)) {
     return [];
@@ -162,6 +225,7 @@ function normalizeSessionTurns(turns: unknown): SessionTurn[] {
 
     const userPrompt = readStoredString(turn.userPrompt);
     const response = readStoredString(turn.response);
+    const executedToolCalls = normalizeExecutedToolCalls(turn.executedToolCalls);
     if (userPrompt.length === 0 && response.length === 0) {
       return [];
     }
@@ -171,8 +235,9 @@ function normalizeSessionTurns(turns: unknown): SessionTurn[] {
       mode: typeof turn.mode === 'string' && isAgentMode(turn.mode) ? turn.mode : 'build',
       userPrompt,
       response,
-      stopReason: undefined,
-      executedToolCalls: undefined,
+      ...(typeof turn.workingDirectory === 'string' ? { workingDirectory: turn.workingDirectory } : {}),
+      stopReason: isStopReason(turn.stopReason) ? turn.stopReason : undefined,
+      executedToolCalls,
     }];
   });
 }
@@ -400,16 +465,65 @@ function extractResponsePaths(response: string): string[] {
   return Array.from(new Set(response.match(fileReferenceRegex) ?? []));
 }
 
+function formatToolArgs(args: Record<string, unknown>): string {
+  const entries = Object.entries(args)
+    .filter(([, value]) => value !== undefined)
+    .slice(0, 3)
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`);
+
+  return entries.join(', ');
+}
+
+function formatToolCallSummary(call: ExecutedToolCall): string {
+  const formattedArgs = formatToolArgs(call.args);
+  const argsSuffix = formattedArgs.length > 0 ? `(${formattedArgs})` : '()';
+  const outcome = call.succeeded
+    ? 'succeeded'
+    : `failed${call.failureKind ? ` (${call.failureKind})` : ''}`;
+
+  return `${call.toolName}${argsSuffix} ${outcome}`;
+}
+
+function buildTurnFactsMessage(turn: SessionTurn): ChatMessage | null {
+  const facts: string[] = [];
+
+  if (turn.workingDirectory) {
+    facts.push(`working directory was "${turn.workingDirectory}"`);
+  }
+
+  if (turn.executedToolCalls && turn.executedToolCalls.length > 0) {
+    const summarizedCalls = turn.executedToolCalls
+      .slice(0, 3)
+      .map(formatToolCallSummary)
+      .join('; ');
+    facts.push(`recorded tool calls: ${summarizedCalls}`);
+  } else if (turn.stopReason === 'no_tool_calls') {
+    facts.push('recorded tool calls: none');
+  }
+
+  if (facts.length === 0) {
+    return null;
+  }
+
+  return {
+    role: 'system',
+    content: `Recorded turn facts: ${facts.join('. ')}.`,
+  };
+}
+
 function buildCompactedHistoryMessage(turns: SessionTurn[]): ChatMessage | null {
   if (turns.length === 0) {
     return null;
   }
 
   const compactedTurns = turns.slice(-maxCompactedTurns);
-  const lines = compactedTurns.map((turn) => (
-    `- [${turn.mode}] User: ${truncateText(turn.userPrompt, 120)} ` +
-    `Assistant: ${truncateText(turn.response, 160)}`
-  ));
+  const lines = compactedTurns.map((turn) => {
+    const factsMessage = buildTurnFactsMessage(turn);
+
+    return `- [${turn.mode}] User: ${truncateText(turn.userPrompt, 120)} ` +
+      `Assistant: ${truncateText(turn.response, 160)}` +
+      `${factsMessage?.content ? ` Facts: ${truncateText(factsMessage.content.replace(/^Recorded turn facts:\s*/i, ''), 160)}` : ''}`;
+  });
 
   return {
     role: 'system',
@@ -574,10 +688,17 @@ export function appendSessionPermissionApproval(
 
 export function buildSessionHistoryMessages(session: AgentSession): ChatMessage[] {
   if (session.turns.length <= maxVerbatimTurns) {
-    return session.turns.flatMap((turn) => ([
-      { role: 'user' as const, content: turn.userPrompt },
-      { role: 'model' as const, content: turn.response },
-    ]));
+    return session.turns.flatMap((turn) => {
+      const messages: ChatMessage[] = [
+        { role: 'user' as const, content: turn.userPrompt },
+        { role: 'model' as const, content: turn.response },
+      ];
+      const factsMessage = buildTurnFactsMessage(turn);
+      if (factsMessage) {
+        messages.push(factsMessage);
+      }
+      return messages;
+    });
   }
 
   const compactedTurns = session.turns.slice(0, -maxVerbatimTurns);
@@ -594,6 +715,10 @@ export function buildSessionHistoryMessages(session: AgentSession): ChatMessage[
       { role: 'user', content: turn.userPrompt },
       { role: 'model', content: turn.response },
     );
+    const factsMessage = buildTurnFactsMessage(turn);
+    if (factsMessage) {
+      messages.push(factsMessage);
+    }
   }
 
   return messages;

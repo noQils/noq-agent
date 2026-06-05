@@ -192,6 +192,13 @@ test('buildSessionHistoryMessages compacts older turns and keeps recent turns ve
             mode: 'build',
             userPrompt: `prompt ${index}`,
             response: `response ${index}`,
+            workingDirectory: `C:\\workspace\\dir-${index}`,
+            stopReason: index % 2 === 0 ? 'no_tool_calls' : undefined,
+            executedToolCalls: index % 2 === 1 ? [{
+              toolName: 'list_dir',
+              args: { dirPath: '.' },
+              succeeded: true,
+            }] : undefined,
           },
           [],
         );
@@ -199,13 +206,50 @@ test('buildSessionHistoryMessages compacts older turns and keeps recent turns ve
 
       const messages = buildSessionHistoryMessages(loadOrCreateSession('history-session'));
 
-      assert.equal(messages.length, 13);
+      assert.equal(messages.length, 19);
       assert.equal(messages[0]?.role, 'system');
       assert.match(messages[0]?.content ?? '', /Earlier session context/);
       assert.match(messages[0]?.content ?? '', /prompt 1/);
+      assert.match(messages[0]?.content ?? '', /recorded tool calls/i);
       assert.equal(messages[1]?.content, 'prompt 3');
-      assert.equal(messages.at(-2)?.content, 'prompt 8');
-      assert.equal(messages.at(-1)?.content, 'response 8');
+      assert.equal(messages[3]?.role, 'system');
+      assert.match(messages[3]?.content ?? '', /working directory was/i);
+      assert.equal(messages.at(-3)?.content, 'prompt 8');
+      assert.equal(messages.at(-2)?.content, 'response 8');
+      assert.equal(messages.at(-1)?.role, 'system');
+    });
+  });
+});
+
+test('buildSessionHistoryMessages replays recorded tool facts for verbatim history', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(() => {
+      appendSessionTurn(
+        'tool-facts-session',
+        {
+          timestamp: '2026-01-01T00:00:00.000Z',
+          mode: 'build',
+          userPrompt: 'tell me the files in this directory',
+          response: 'Here are the files.',
+          workingDirectory: 'C:\\Users\\TUF\\Downloads',
+          stopReason: 'no_tool_calls',
+          executedToolCalls: [{
+            toolName: 'list_dir',
+            args: { dirPath: '.' },
+            succeeded: true,
+          }],
+        },
+        [],
+      );
+
+      const messages = buildSessionHistoryMessages(loadOrCreateSession('tool-facts-session'));
+
+      assert.equal(messages.length, 3);
+      assert.equal(messages[0]?.content, 'tell me the files in this directory');
+      assert.equal(messages[1]?.content, 'Here are the files.');
+      assert.equal(messages[2]?.role, 'system');
+      assert.match(messages[2]?.content ?? '', /working directory was "C:\\Users\\TUF\\Downloads"/);
+      assert.match(messages[2]?.content ?? '', /list_dir\(dirPath="\."\) succeeded/);
     });
   });
 });
@@ -222,6 +266,8 @@ test('session snapshots expose diffs and undo restores the before-state', async 
           mode: 'build',
           userPrompt: 'update example',
           response: 'updated example',
+          stopReason: undefined,
+          executedToolCalls: undefined,
         },
         [{
           filePath: 'src/example.txt',
@@ -299,6 +345,8 @@ test('undo restores files recorded outside the base workspace', async () => {
           mode: 'build',
           userPrompt: 'update outside file',
           response: 'updated outside file',
+          stopReason: undefined,
+          executedToolCalls: undefined,
         },
         [{
           filePath: externalFilePath,
