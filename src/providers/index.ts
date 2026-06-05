@@ -1,5 +1,4 @@
 import { getConfig } from '../config';
-import { getLoadedEnvFiles, initializeRuntimeEnvironment } from '../runtimeEnv';
 import { debugLog } from '../runtimeSettings';
 import {
   buildMissingProviderError,
@@ -26,14 +25,11 @@ function isProviderName(value: string): value is ProviderName {
 function buildAmbiguousProviderError(configuredProviders: ProviderName[]): string {
   return [
     `Multiple providers are configured: ${configuredProviders.join(', ')}.`,
-    'Set AI_PROVIDER (or defaultProvider in noq-agent.json / ~/.noq/config.json) to choose one explicitly.',
+    'Set defaultProvider in noq-agent.json or ~/.noq/config.json to choose one explicitly.',
   ].join('\n');
 }
 
 export function resolveProviderName(): ProviderName {
-  initializeRuntimeEnvironment();
-  debugLog('Provider environment files loaded:', getLoadedEnvFiles());
-
   const explicitProviderName = getExplicitProviderNameSetting() ?? getConfig().defaultProvider;
   if (explicitProviderName) {
     if (!isProviderName(explicitProviderName)) {

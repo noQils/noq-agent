@@ -1,7 +1,6 @@
 import { getAuthStorePath, getGlobalConfigPath } from './noqHome';
 import { loadAuthStore } from './authStore';
 import { getConfig } from './config';
-import { getLoadedEnvFiles, getRuntimeEnvVar, initializeRuntimeEnvironment } from './runtimeEnv';
 import { providerNames, type ProviderName } from './providers/types';
 
 export interface ProviderSettings {
@@ -30,15 +29,10 @@ function getConfiguredStringValue(...values: Array<string | undefined>): string 
 }
 
 export function getExplicitProviderNameSetting(): string | undefined {
-  initializeRuntimeEnvironment();
-  return getConfiguredStringValue(
-    getRuntimeEnvVar('AI_PROVIDER'),
-    getConfig().defaultProvider,
-  );
+  return getConfig().defaultProvider;
 }
 
 export function getProviderSettings(providerName: ProviderName): ProviderSettings {
-  initializeRuntimeEnvironment();
   const authStore = loadAuthStore();
   const authRecord = authStore[providerName];
 
@@ -46,11 +40,9 @@ export function getProviderSettings(providerName: ProviderName): ProviderSetting
     case 'openai': {
       const settings: ProviderSettings = {};
       const apiKey = getConfiguredStringValue(
-        getRuntimeEnvVar('OPENAI_API_KEY'),
         authRecord?.apiKey,
       );
       const model = getConfiguredStringValue(
-        getRuntimeEnvVar('OPENAI_MODEL'),
         getDefaultModelForProvider('openai'),
       );
 
@@ -68,19 +60,15 @@ export function getProviderSettings(providerName: ProviderName): ProviderSetting
     case 'openrouter': {
       const settings: ProviderSettings = {};
       const apiKey = getConfiguredStringValue(
-        getRuntimeEnvVar('OPENROUTER_API_KEY'),
         authRecord?.apiKey,
       );
       const model = getConfiguredStringValue(
-        getRuntimeEnvVar('OPENROUTER_MODEL'),
         getDefaultModelForProvider('openrouter'),
       );
       const httpReferer = getConfiguredStringValue(
-        getRuntimeEnvVar('OPENROUTER_HTTP_REFERER'),
         authRecord?.httpReferer,
       );
       const appTitle = getConfiguredStringValue(
-        getRuntimeEnvVar('OPENROUTER_APP_TITLE'),
         authRecord?.appTitle,
       );
 
@@ -106,11 +94,9 @@ export function getProviderSettings(providerName: ProviderName): ProviderSetting
     case 'gemini': {
       const settings: ProviderSettings = {};
       const apiKey = getConfiguredStringValue(
-        getRuntimeEnvVar('GEMINI_API_KEY'),
         authRecord?.apiKey,
       );
       const model = getConfiguredStringValue(
-        getRuntimeEnvVar('GEMINI_MODEL'),
         getDefaultModelForProvider('gemini'),
       );
 
@@ -128,11 +114,9 @@ export function getProviderSettings(providerName: ProviderName): ProviderSetting
     case 'ollama': {
       const settings: ProviderSettings = {};
       const baseUrl = getConfiguredStringValue(
-        getRuntimeEnvVar('OLLAMA_BASE_URL'),
         authRecord?.baseUrl,
       );
       const model = getConfiguredStringValue(
-        getRuntimeEnvVar('OLLAMA_DEFAULT_MODEL'),
         getDefaultModelForProvider('ollama'),
       );
 
@@ -181,27 +165,18 @@ export function getConfiguredProviderNames(): ProviderName[] {
 }
 
 export function buildMissingProviderError(): string {
-  const loadedEnvFiles = getLoadedEnvFiles();
-  const loadedFileLines = loadedEnvFiles.length > 0
-    ? loadedEnvFiles.map((filePath) => `- ${filePath}`).join('\n')
-    : '- none';
-
   return [
     'No AI provider is configured.',
     '',
-    'Set AI_PROVIDER explicitly, or configure exactly one provider with its required model variables.',
+    'Configure at least one provider in ~/.noq/auth.json and choose a default provider/model in ~/.noq/config.json.',
     '',
-    'Recognized provider settings:',
-    '- OpenAI: OPENAI_API_KEY + OPENAI_MODEL, or ~/.noq/auth.json + defaultModel',
-    '- OpenRouter: OPENROUTER_API_KEY + OPENROUTER_MODEL, or ~/.noq/auth.json + defaultModel',
-    '- Gemini: GEMINI_API_KEY + GEMINI_MODEL, or ~/.noq/auth.json + defaultModel',
-    '- Ollama: OLLAMA_DEFAULT_MODEL',
+    'Setup paths:',
+    '- Run /connect to save provider credentials into ~/.noq/auth.json',
+    '- Run /models to choose the global default provider/model in ~/.noq/config.json',
+    '- Ollama only needs /models unless you also want to set a custom base URL',
     '',
     `Global config path: ${getGlobalConfigPath()}`,
     `Global auth path: ${getAuthStorePath()}`,
-    '',
-    'Environment files loaded for noq:',
-    loadedFileLines,
   ].join('\n');
 }
 

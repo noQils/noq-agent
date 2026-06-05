@@ -165,10 +165,7 @@ test('workspace config overrides global model for provider settings', async () =
   });
 });
 
-test('environment variables override auth store and global config', async () => {
-  const previousValues = new Map<string, string | undefined>();
-  const envNames = ['OPENAI_API_KEY', 'OPENAI_MODEL', 'AI_PROVIDER'];
-
+test('provider settings ignore environment variables for auth and model selection', async () => {
   await withTempNoqHome(async () => {
     saveGlobalConfig({
       defaultProvider: 'openai',
@@ -178,69 +175,52 @@ test('environment variables override auth store and global config', async () => 
       openai: { apiKey: 'auth-store-key' },
     });
 
-    for (const envName of envNames) {
-      previousValues.set(envName, process.env[envName]);
-    }
-
+    const previousOpenAiKey = process.env.OPENAI_API_KEY;
+    const previousOpenAiModel = process.env.OPENAI_MODEL;
+    const previousAiProvider = process.env.AI_PROVIDER;
     process.env.OPENAI_API_KEY = 'env-key';
     process.env.OPENAI_MODEL = 'gpt-5.4';
-    process.env.AI_PROVIDER = 'openai';
+    process.env.AI_PROVIDER = 'gemini';
     resetRuntimeEnvironmentForTests();
 
     try {
       await withTempWorkspace(() => {
         const settings = getProviderSettings('openai');
-        assert.equal(settings.apiKey, 'env-key');
-        assert.equal(settings.model, 'gpt-5.4');
+        assert.equal(settings.apiKey, 'auth-store-key');
+        assert.equal(settings.model, 'gpt-5.4-mini');
         assert.equal(getExplicitProviderNameSetting(), 'openai');
       });
     } finally {
-      for (const envName of envNames) {
-        const previousValue = previousValues.get(envName);
-        if (previousValue === undefined) {
-          delete process.env[envName];
-        } else {
-          process.env[envName] = previousValue;
-        }
-      }
+      if (previousOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = previousOpenAiKey;
+      if (previousOpenAiModel === undefined) delete process.env.OPENAI_MODEL;
+      else process.env.OPENAI_MODEL = previousOpenAiModel;
+      if (previousAiProvider === undefined) delete process.env.AI_PROVIDER;
+      else process.env.AI_PROVIDER = previousAiProvider;
       resetRuntimeEnvironmentForTests();
     }
   });
 });
 
-test('multiple configured providers are detected from auth store plus global model', async () => {
-  const previousValues = new Map<string, string | undefined>();
-  const envNames = ['OPENAI_MODEL', 'GEMINI_MODEL'];
-
+test('multiple configured providers are detected from auth store plus workspace/global defaults only', async () => {
   await withTempNoqHome(async () => {
     saveAuthStore({
       openai: { apiKey: 'openai-key' },
       gemini: { apiKey: 'gemini-key' },
     });
+    saveGlobalConfig({
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-5.4-mini',
+    });
 
-    for (const envName of envNames) {
-      previousValues.set(envName, process.env[envName]);
-    }
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        defaultProvider: 'gemini',
+        defaultModel: 'gemini-2.5-flash',
+      }));
 
-    process.env.OPENAI_MODEL = 'gpt-5.4-mini';
-    process.env.GEMINI_MODEL = 'gemini-2.5-flash';
-    resetRuntimeEnvironmentForTests();
-
-    try {
-      await withTempWorkspace(() => {
-        assert.deepEqual(getConfiguredProviderNames(), ['gemini', 'openai']);
-      });
-    } finally {
-      for (const envName of envNames) {
-        const previousValue = previousValues.get(envName);
-        if (previousValue === undefined) {
-          delete process.env[envName];
-        } else {
-          process.env[envName] = previousValue;
-        }
-      }
-      resetRuntimeEnvironmentForTests();
-    }
+      assert.deepEqual(getConfiguredProviderNames(), ['gemini']);
+    });
   });
 });
 
