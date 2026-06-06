@@ -202,19 +202,28 @@ function busySuffix(frame: number): string {
   return '.'.repeat(frame % 4);
 }
 
-function AssistantTranscriptContent(props: { text: string }) {
+function AssistantTranscriptContent(props: {
+  text: string;
+  backgroundColor: string;
+}) {
   return (
     <markdown
       content={props.text}
       syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
       fg={openTuiTheme.color.textSoft}
-      bg={openTuiTheme.color.canvas}
+      bg={props.backgroundColor}
       conceal
+      concealCode
       internalBlockMode="top-level"
       tableOptions={{
+        style: 'grid',
+        borders: true,
+        outerBorder: true,
+        borderStyle: 'rounded',
         borderColor: openTuiTheme.color.line,
         widthMode: 'full',
         wrapMode: 'word',
+        cellPaddingX: 1,
       }}
     />
   );
@@ -293,7 +302,10 @@ function TranscriptEntry(props: {
       paddingY={0}
     >
       {props.entry.kind === 'assistant' ? (
-        <AssistantTranscriptContent text={props.entry.text} />
+        <AssistantTranscriptContent
+          text={props.entry.text}
+          backgroundColor={role().background}
+        />
       ) : systemRenderableDiff() ? (
         <SystemDiffTranscriptContent
           diffText={systemRenderableDiff()!}
