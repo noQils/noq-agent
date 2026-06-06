@@ -24,13 +24,13 @@ import {
   compactLocalTime,
   getOpenTuiMarkdownSyntaxStyle,
   isUnifiedDiff,
-  modeColor,
   openTuiTheme,
   statusColor,
   statusLabel,
   truncateMiddle,
   type OpenTuiEntryRole,
 } from './openTuiTheme';
+import { resolveTranscriptRenderMode } from './transcriptRenderMode';
 
 extend({ diff: DiffRenderable });
 
@@ -287,6 +287,7 @@ function TranscriptEntry(props: {
   const systemRenderableDiff = () => (
     props.entry.kind === 'system' ? getRenderableUnifiedDiff(props.entry.text) : null
   );
+  const renderMode = () => resolveTranscriptRenderMode(props.entry.kind, systemRenderableDiff());
 
   return (
     <box
@@ -301,12 +302,12 @@ function TranscriptEntry(props: {
       paddingX={1}
       paddingY={0}
     >
-      {props.entry.kind === 'assistant' ? (
+      {renderMode() === 'assistant-markdown' ? (
         <AssistantTranscriptContent
           text={props.entry.text}
           backgroundColor={role().background}
         />
-      ) : systemRenderableDiff() ? (
+      ) : renderMode() === 'system-diff' ? (
         <SystemDiffTranscriptContent
           diffText={systemRenderableDiff()!}
           isCompact={props.isCompact}
