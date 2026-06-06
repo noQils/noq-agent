@@ -138,10 +138,6 @@ export function statusColor(statusMessage: string | null, isBusy: boolean): stri
   return openTuiTheme.status[statusTone(statusMessage, isBusy)];
 }
 
-export function modeColor(mode: AgentMode): string {
-  return mode === 'plan' ? openTuiTheme.color.amber : openTuiTheme.color.green;
-}
-
 export function truncateMiddle(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
     return value;
