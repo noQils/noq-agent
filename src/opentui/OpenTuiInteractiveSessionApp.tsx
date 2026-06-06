@@ -317,7 +317,7 @@ function parseAssistantContent(text: string): AssistantContentBlock[] {
   return blocks;
 }
 
-function AssistantContent(props: { text: string; isCompact: boolean }) {
+function AssistantTranscriptContent(props: { text: string }) {
   const blocks = () => parseAssistantContent(props.text);
 
   return (
@@ -408,6 +408,54 @@ function AssistantContent(props: { text: string; isCompact: boolean }) {
   );
 }
 
+function SystemDiffTranscriptContent(props: {
+  diffText: string;
+  isCompact: boolean;
+  backgroundColor: string;
+}) {
+  return (
+    <Dynamic
+      component={diffComponent}
+      diff={props.diffText}
+      view="unified"
+      fg={openTuiTheme.color.textSoft}
+      syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
+      wrapMode="word"
+      showLineNumbers={!props.isCompact}
+      lineNumberFg={openTuiTheme.color.textFaint}
+      lineNumberBg={props.backgroundColor}
+      addedBg={openTuiTheme.color.diffAddedBg}
+      removedBg={openTuiTheme.color.diffRemovedBg}
+      contextBg={props.backgroundColor}
+      addedContentBg={openTuiTheme.color.diffAddedContentBg}
+      removedContentBg={openTuiTheme.color.diffRemovedContentBg}
+      contextContentBg={props.backgroundColor}
+      addedSignColor={openTuiTheme.color.green}
+      removedSignColor={openTuiTheme.color.red}
+      selectionBg={openTuiTheme.color.selectionBg}
+      selectionFg={openTuiTheme.color.selectionFg}
+    />
+  );
+}
+
+function PlainTranscriptContent(props: {
+  text: string;
+  kind: OpenTuiSessionEntryKind;
+  backgroundColor: string;
+}) {
+  return (
+    <text
+      fg={props.kind === 'system' ? openTuiTheme.color.textFaint : openTuiTheme.color.text}
+      bg={props.backgroundColor}
+      wrapMode="word"
+      selectionBg={openTuiTheme.color.selectionBg}
+      selectionFg={openTuiTheme.color.selectionFg}
+    >
+      {props.text}
+    </text>
+  );
+}
+
 function TranscriptEntry(props: {
   entry: OpenTuiSessionEntry;
   showTime: boolean;
@@ -415,7 +463,7 @@ function TranscriptEntry(props: {
 }) {
   const role = () => openTuiTheme.role[props.entry.kind];
   const timestamp = () => compactLocalTime(props.entry.createdAt);
-  const renderableDiff = () => (
+  const systemRenderableDiff = () => (
     props.entry.kind === 'system' ? getRenderableUnifiedDiff(props.entry.text) : null
   );
 
@@ -433,39 +481,19 @@ function TranscriptEntry(props: {
       paddingY={0}
     >
       {props.entry.kind === 'assistant' ? (
-        <AssistantContent text={props.entry.text} isCompact={props.isCompact} />
-      ) : renderableDiff() ? (
-        <Dynamic
-          component={diffComponent}
-          diff={renderableDiff()!}
-          view="unified"
-          fg={openTuiTheme.color.textSoft}
-          syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
-          wrapMode="word"
-          showLineNumbers={!props.isCompact}
-          lineNumberFg={openTuiTheme.color.textFaint}
-          lineNumberBg={role().background}
-          addedBg={openTuiTheme.color.diffAddedBg}
-          removedBg={openTuiTheme.color.diffRemovedBg}
-          contextBg={role().background}
-          addedContentBg={openTuiTheme.color.diffAddedContentBg}
-          removedContentBg={openTuiTheme.color.diffRemovedContentBg}
-          contextContentBg={role().background}
-          addedSignColor={openTuiTheme.color.green}
-          removedSignColor={openTuiTheme.color.red}
-          selectionBg={openTuiTheme.color.selectionBg}
-          selectionFg={openTuiTheme.color.selectionFg}
+        <AssistantTranscriptContent text={props.entry.text} />
+      ) : systemRenderableDiff() ? (
+        <SystemDiffTranscriptContent
+          diffText={systemRenderableDiff()!}
+          isCompact={props.isCompact}
+          backgroundColor={role().background}
         />
       ) : (
-        <text
-          fg={props.entry.kind === 'system' ? openTuiTheme.color.textFaint : openTuiTheme.color.text}
-          bg={role().background}
-          wrapMode="word"
-          selectionBg={openTuiTheme.color.selectionBg}
-          selectionFg={openTuiTheme.color.selectionFg}
-        >
-          {props.entry.text}
-        </text>
+        <PlainTranscriptContent
+          text={props.entry.text}
+          kind={props.entry.kind}
+          backgroundColor={role().background}
+        />
       )}
     </box>
   );
