@@ -5,7 +5,12 @@ import path from 'node:path';
 
 import { createEffect, createSignal, For, onCleanup, type Accessor } from 'solid-js';
 
-import { DiffRenderable, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
+import {
+  DiffRenderable,
+  MacOSScrollAccel,
+  type ScrollBoxRenderable,
+  type TextareaRenderable,
+} from '@opentui/core';
 import { parsePatch } from 'diff';
 import {
   Dynamic,
@@ -696,6 +701,7 @@ function PermissionPromptPanel(props: {
   onAction: (action: PermissionActionId) => void;
   previewScrollRef: (scrollbox: ScrollBoxRenderable) => void;
 }) {
+  const previewScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3 });
   const targetLabel = () => getPermissionFileLabel(props.request);
   const pathLabel = () => truncateMiddle(getPermissionPathLabel(props.request), props.targetMaxLength);
   const preview = () => formatPermissionPreview(
@@ -838,6 +844,7 @@ function PermissionPromptPanel(props: {
           width="100%"
           flexGrow={1}
           scrollY
+          scrollAcceleration={previewScrollAcceleration}
           backgroundColor={openTuiTheme.color.canvas}
           contentOptions={{
             backgroundColor: openTuiTheme.color.canvas,
@@ -990,6 +997,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const dimensions = useTerminalDimensions();
   const [busyFrame, setBusyFrame] = createSignal(0);
   const [selectedPermissionAction, setSelectedPermissionAction] = createSignal<PermissionActionId>('allow_once');
+  const transcriptScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3.5 });
   let cachedSelectionText = '';
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
   let composerTextarea: TextareaRenderable | null = null;
@@ -1302,6 +1310,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           stickyScroll
           stickyStart="bottom"
           viewportCulling
+          scrollAcceleration={transcriptScrollAcceleration}
           backgroundColor={openTuiTheme.color.canvas}
           contentOptions={{
             backgroundColor: openTuiTheme.color.canvas,
