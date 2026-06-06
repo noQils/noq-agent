@@ -61,13 +61,6 @@ const maxRenderedEntries = 200;
 const diffComponent: any = 'diff';
 let copiedSelectionText = '';
 
-type AssistantContentBlock =
-  | { type: 'heading'; text: string }
-  | { type: 'paragraph'; text: string }
-  | { type: 'list'; items: string[] }
-  | { type: 'code'; language: string; content: string }
-  | { type: 'table'; lines: string[] };
-
 interface CommandHint {
   key: string;
   value?: string;
@@ -209,202 +202,21 @@ function busySuffix(frame: number): string {
   return '.'.repeat(frame % 4);
 }
 
-function isFenceLine(line: string): boolean {
-  return line.trim().startsWith('```');
-}
-
-function isListLine(line: string): boolean {
-  return /^\s*[-*]\s+/.test(line);
-}
-
-function parseListItem(line: string): string {
-  return line.replace(/^\s*[-*]\s+/, '').trim();
-}
-
-function isHeadingLine(line: string): boolean {
-  return /^#{1,6}\s+\S/.test(line);
-}
-
-function parseHeading(line: string): string {
-  return line.replace(/^#{1,6}\s+/, '').trim();
-}
-
-function isTableSeparator(line: string): boolean {
-  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
-}
-
-function isTableStart(lines: string[], index: number): boolean {
-  const line = lines[index] ?? '';
-  const nextLine = lines[index + 1] ?? '';
-  return line.includes('|') && isTableSeparator(nextLine);
-}
-
-function parseAssistantContent(text: string): AssistantContentBlock[] {
-  const lines = text.replaceAll('\r\n', '\n').split('\n');
-  const blocks: AssistantContentBlock[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index] ?? '';
-
-    if (line.trim().length === 0) {
-      index += 1;
-      continue;
-    }
-
-    if (isFenceLine(line)) {
-      const language = line.trim().slice(3).trim() || 'text';
-      const codeLines: string[] = [];
-      index += 1;
-
-      while (index < lines.length && !isFenceLine(lines[index] ?? '')) {
-        codeLines.push(lines[index] ?? '');
-        index += 1;
-      }
-
-      if (index < lines.length) {
-        index += 1;
-      }
-
-      blocks.push({ type: 'code', language, content: codeLines.join('\n') });
-      continue;
-    }
-
-    if (isHeadingLine(line)) {
-      blocks.push({ type: 'heading', text: parseHeading(line) });
-      index += 1;
-      continue;
-    }
-
-    if (isListLine(line)) {
-      const items: string[] = [];
-      while (index < lines.length && isListLine(lines[index] ?? '')) {
-        items.push(parseListItem(lines[index] ?? ''));
-        index += 1;
-      }
-
-      blocks.push({ type: 'list', items });
-      continue;
-    }
-
-    if (isTableStart(lines, index)) {
-      const tableLines: string[] = [];
-      while (index < lines.length && (lines[index] ?? '').includes('|')) {
-        tableLines.push((lines[index] ?? '').trim());
-        index += 1;
-      }
-
-      blocks.push({ type: 'table', lines: tableLines });
-      continue;
-    }
-
-    const paragraphLines: string[] = [];
-    while (
-      index < lines.length
-      && (lines[index] ?? '').trim().length > 0
-      && !isFenceLine(lines[index] ?? '')
-      && !isHeadingLine(lines[index] ?? '')
-      && !isListLine(lines[index] ?? '')
-      && !isTableStart(lines, index)
-    ) {
-      paragraphLines.push((lines[index] ?? '').trim());
-      index += 1;
-    }
-
-    blocks.push({ type: 'paragraph', text: paragraphLines.join(' ') });
-  }
-
-  return blocks;
-}
-
 function AssistantTranscriptContent(props: { text: string }) {
-  const blocks = () => parseAssistantContent(props.text);
-
   return (
-    <box flexDirection="column" gap={1}>
-      <For each={blocks()}>
-        {(block) => {
-          if (block.type === 'heading') {
-            return (
-              <text fg={openTuiTheme.color.text} wrapMode="word">
-                {block.text}
-              </text>
-            );
-          }
-
-          if (block.type === 'list') {
-            return (
-              <box flexDirection="column">
-                <For each={block.items}>
-                  {(item) => (
-                    <box flexDirection="row" gap={1}>
-                      <text fg={openTuiTheme.color.teal}>-</text>
-                      <text fg={openTuiTheme.color.textSoft} wrapMode="word" flexGrow={1}>
-                        {item}
-                      </text>
-                    </box>
-                  )}
-                </For>
-              </box>
-            );
-          }
-
-          if (block.type === 'code') {
-            return (
-              <box
-                border
-                borderStyle="rounded"
-                borderColor={openTuiTheme.color.line}
-                backgroundColor={openTuiTheme.color.panelRaised}
-                paddingX={1}
-                paddingY={0}
-                title={block.language}
-              >
-                <code
-                  content={block.content}
-                  filetype={block.language}
-                  syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
-                  width="100%"
-                  fg={openTuiTheme.color.textSoft}
-                  bg={openTuiTheme.color.panelRaised}
-                  drawUnstyledText
-                  wrapMode="none"
-                  selectionBg={openTuiTheme.color.selectionBg}
-                  selectionFg={openTuiTheme.color.selectionFg}
-                />
-              </box>
-            );
-          }
-
-          if (block.type === 'table') {
-            return (
-              <box
-                border
-                borderStyle="rounded"
-                borderColor={openTuiTheme.color.line}
-                backgroundColor={openTuiTheme.color.panelRaised}
-                flexDirection="column"
-                paddingX={1}
-              >
-                <For each={block.lines}>
-                  {(tableLine) => (
-                    <text fg={openTuiTheme.color.textSoft} truncate>
-                      {tableLine}
-                    </text>
-                  )}
-                </For>
-              </box>
-            );
-          }
-
-          return (
-            <text fg={openTuiTheme.color.textSoft} wrapMode="word">
-              {block.text}
-            </text>
-          );
-        }}
-      </For>
-    </box>
+    <markdown
+      content={props.text}
+      syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
+      fg={openTuiTheme.color.textSoft}
+      bg={openTuiTheme.color.canvas}
+      conceal
+      internalBlockMode="top-level"
+      tableOptions={{
+        borderColor: openTuiTheme.color.line,
+        widthMode: 'full',
+        wrapMode: 'word',
+      }}
+    />
   );
 }
 
