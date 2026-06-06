@@ -183,7 +183,7 @@ function commandHints(isCompact: boolean): CommandHint[] {
       { key: '/connect' },
       { key: '/models' },
       { key: '/exit' }, 
-      { key: 'Ctrl+O', value: 'newline'},];
+      { key: 'ctrl+o', value: 'newline'},];
   }
 
   return [
@@ -194,7 +194,7 @@ function commandHints(isCompact: boolean): CommandHint[] {
     { key: '/diff' },
     { key: '/undo' },
     { key: '/exit' },
-    { key: 'Ctrl+O', value: 'newline'},
+    { key: 'ctrl+o', value: 'newline'},
   ];
 }
 
@@ -1198,7 +1198,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return isNarrow() ? 'Waiting...' : 'Waiting for the current turn to finish...';
     }
 
-    return isNarrow() ? 'Message + Enter' : 'Type a message and press Enter (Ctrl+O for newline)';
+    return isNarrow() ? 'Message + Enter' : 'Type a message and press Enter (ctrl+o for newline)';
   };
   const sessionLabel = () => truncateMiddle(props.sessionId, isNarrow() ? 18 : 32);
   const composerTextWidth = () => Math.max(12, dimensions().width - 8);
