@@ -14,7 +14,7 @@ import {
   getRuntimeSettings,
   isDebugLoggingEnabled,
   setDebugLogFilePath,
-} from '../src/runtimeSettings';
+} from '../src/config/runtimeSettings';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
 
 const settingNames = [

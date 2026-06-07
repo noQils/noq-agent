@@ -1,4 +1,4 @@
-import { debugLog, getProviderTimeoutMs } from '../../runtimeSettings';
+import { debugLog, getProviderTimeoutMs } from '../../config/runtimeSettings';
 
 function describeProviderError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

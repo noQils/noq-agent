@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { resetConfigCache } from '../src/config';
+import { resetConfigCache } from '../src/config/config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from '../src/permissions/approvals';
 import {
   beginSessionChangeTracking,

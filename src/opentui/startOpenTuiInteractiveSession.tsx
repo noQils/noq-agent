@@ -6,7 +6,7 @@ import { render, useRenderer } from '@opentui/solid';
 import { CliRenderEvents } from '@opentui/core';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
-import { resetConfigCache } from '../config';
+import { resetConfigCache } from '../config/config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from '../permissions/approvals';
 import {
   resetPermissionPromptHandler,
@@ -36,7 +36,7 @@ import {
   saveGlobalModelSelection,
   saveProviderConnection,
 } from '../setupCommands';
-import { setDebugLogFilePath } from '../runtimeSettings';
+import { setDebugLogFilePath } from '../config/runtimeSettings';
 import { createOpenTuiRenderer } from './createOpenTuiRenderer';
 import {
   applyOpenTuiTerminalBackground,

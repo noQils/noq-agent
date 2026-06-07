@@ -1,11 +1,11 @@
 import OpenAI from 'openai';
 import { Ollama } from 'ollama';
 
-import { loadAuthStore, saveAuthStore, type ProviderAuthRecord } from './authStore';
-import { resetConfigCache } from './config';
-import { loadGlobalConfig, saveGlobalConfig } from './globalConfig';
-import { getAuthStorePath, getGlobalConfigPath } from './noqHome';
-import { getConfiguredProviderNames, getProviderSettings } from './providerSettings';
+import { loadAuthStore, saveAuthStore, type ProviderAuthRecord } from './config/authStore';
+import { resetConfigCache } from './config/config';
+import { loadGlobalConfig, saveGlobalConfig } from './config/globalConfig';
+import { getAuthStorePath, getGlobalConfigPath } from './config/noqHome';
+import { getConfiguredProviderNames, getProviderSettings } from './config/providerSettings';
 import { providerNames, type ProviderName } from './providers/types';
 
 export const connectProviderChoices: ProviderName[] = [...providerNames];

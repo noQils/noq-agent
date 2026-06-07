@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { getProjectFilePaths, resolveProjectPath } from '../fileUtils';
-import { debugLog } from '../runtimeSettings';
+import { debugLog } from '../config/runtimeSettings';
 
 export interface SessionFileChange {
   filePath: string;

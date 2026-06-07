@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 import { isHardBlockedCommand, normalizeCommand } from '../commandPolicy';
 import { checkIsDirectory } from '../fileUtils';
-import { debugLog } from '../runtimeSettings';
+import { debugLog } from '../config/runtimeSettings';
 import { InternalTool } from './index';
 
 const maxOutputLength = 6000;

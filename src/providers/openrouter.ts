@@ -29,8 +29,8 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getProviderModelSetting, getProviderSettings, getRequiredProviderApiKey } from '../providerSettings';
-import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
+import { getProviderModelSetting, getProviderSettings, getRequiredProviderApiKey } from '../config/providerSettings';
+import { debugLog, getProviderMaxToolRounds } from '../config/runtimeSettings';
 
 function getApiKey(): string {
   return getRequiredProviderApiKey('openrouter');

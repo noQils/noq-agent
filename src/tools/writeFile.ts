@@ -1,6 +1,6 @@
 import { InternalTool } from './index';
 import { checkPathExists, writeFileContent, ensureParentDirectory, resolveProjectPath } from '../fileUtils';
-import { debugLog } from '../runtimeSettings';
+import { debugLog } from '../config/runtimeSettings';
 import path from 'node:path';
 
 // Define the write_file tool

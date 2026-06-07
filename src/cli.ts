@@ -3,7 +3,7 @@ import path from 'node:path';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { isAgentMode, type AgentMode } from './agentMode';
-import { getConfig } from './config';
+import { getConfig } from './config/config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';
 import {
   createSessionWithGeneratedId,

@@ -4,12 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { saveAuthStore } from '../src/authStore';
+import { saveAuthStore } from '../src/config/authStore';
 import { isHardBlockedCommand, resolveCommandPermission } from '../src/commandPolicy';
-import { loadConfig } from '../src/config';
+import { loadConfig } from '../src/config/config';
 import { evaluatePermission } from '../src/permissions/evaluate';
-import { saveGlobalConfig } from '../src/globalConfig';
-import { getNoqHomeDirectory } from '../src/noqHome';
+import { saveGlobalConfig } from '../src/config/globalConfig';
+import { getNoqHomeDirectory } from '../src/config/noqHome';
 import { allowPermissionForSession, setPermissionApprovalSession } from '../src/permissions/approvals';
 import {
   buildMissingProviderError,
@@ -17,7 +17,7 @@ import {
   getExplicitProviderNameSetting,
   getProviderSettings,
   getRequiredProviderApiKey,
-} from '../src/providerSettings';
+} from '../src/config/providerSettings';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
 import { getSessionApprovedExternalDirectories, getSessionFilePath } from '../src/session/sessionStore';
 import { runCommand } from '../src/tools/runCommand';

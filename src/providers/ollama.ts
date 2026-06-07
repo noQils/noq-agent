@@ -18,8 +18,8 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getProviderModelSetting } from '../providerSettings';
-import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
+import { getProviderModelSetting } from '../config/providerSettings';
+import { debugLog, getProviderMaxToolRounds } from '../config/runtimeSettings';
 
 // Helper function to convert internal tool definitions to the format expected by Ollama
 function toOllamaTool(internalTools: InternalTool[]) {

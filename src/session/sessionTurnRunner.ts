@@ -13,7 +13,7 @@ import {
   saveSessionPlanArtifact,
 } from './sessionStore';
 import { type Provider, type ToolMutationCallback } from '../providers/types';
-import { debugLog, getDebugLogFilePath, setDebugLogFilePath } from '../runtimeSettings';
+import { debugLog, getDebugLogFilePath, setDebugLogFilePath } from '../config/runtimeSettings';
 import { runAgentTurn } from '../workflow';
 
 export interface SessionTurnResult {

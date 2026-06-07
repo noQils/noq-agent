@@ -19,7 +19,7 @@ import {
 import { buildSessionFileDiff } from '../session/sessionDiff';
 import { getToolByName } from '../tools';
 import { type ExecutedToolCall, type ToolMutationCallback } from '../providers/types';
-import { debugLog } from '../runtimeSettings';
+import { debugLog } from '../config/runtimeSettings';
 
 export interface ToolExecutionResult {
   output: string;

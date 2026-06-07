@@ -4,9 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { loadAuthStore } from '../src/authStore';
-import { resetConfigCache } from '../src/config';
-import { loadGlobalConfig } from '../src/globalConfig';
+import { loadAuthStore } from '../src/config/authStore';
+import { resetConfigCache } from '../src/config/config';
+import { loadGlobalConfig } from '../src/config/globalConfig';
 import { resolveProviderName } from '../src/providers';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
 import {
@@ -19,7 +19,7 @@ import {
   saveGlobalModelSelection,
   saveProviderConnection,
 } from '../src/setupCommands';
-import { saveAuthStore } from '../src/authStore';
+import { saveAuthStore } from '../src/config/authStore';
 
 async function withTempNoqHome<T>(callback: () => Promise<T> | T): Promise<T> {
   const previousNoqHome = process.env.NOQ_HOME;

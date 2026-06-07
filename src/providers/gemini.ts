@@ -26,8 +26,8 @@ import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
-import { getProviderModelSetting, getRequiredProviderApiKey } from '../providerSettings';
-import { debugLog, getProviderMaxToolRounds } from '../runtimeSettings';
+import { getProviderModelSetting, getRequiredProviderApiKey } from '../config/providerSettings';
+import { debugLog, getProviderMaxToolRounds } from '../config/runtimeSettings';
 
 // Helper function to retrieve the API key from environment variables, with error handling if the key is not defined
 function getApiKey(): string {

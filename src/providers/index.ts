@@ -1,10 +1,10 @@
-import { getConfig } from '../config';
-import { debugLog } from '../runtimeSettings';
+import { getConfig } from '../config/config';
+import { debugLog } from '../config/runtimeSettings';
 import {
   buildMissingProviderError,
   getConfiguredProviderNames,
   getExplicitProviderNameSetting,
-} from '../providerSettings';
+} from '../config/providerSettings';
 import { chat as geminiChat } from './gemini';
 import { chat as ollamaChat } from './ollama';
 import { chat as openAIChat } from './openai';

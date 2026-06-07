@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
-import { getGlobalSessionsDirectoryPath } from '../noqHome';
+import { getGlobalSessionsDirectoryPath } from '../config/noqHome';
 import { buildReferencedPathGroups } from '../pathReferenceHints';
 import { type PermissionScope } from '../permissions/types';
 import {

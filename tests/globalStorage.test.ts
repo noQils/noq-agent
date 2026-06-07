@@ -4,15 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { type AuthStore, loadAuthStore, saveAuthStore } from '../src/authStore';
-import { type GlobalConfig, loadGlobalConfig, saveGlobalConfig } from '../src/globalConfig';
+import { type AuthStore, loadAuthStore, saveAuthStore } from '../src/config/authStore';
+import { type GlobalConfig, loadGlobalConfig, saveGlobalConfig } from '../src/config/globalConfig';
 import {
   ensureNoqHomeDirectory,
   getAuthStorePath,
   getGlobalConfigPath,
   getGlobalSessionsDirectoryPath,
   getNoqHomeDirectory,
-} from '../src/noqHome';
+} from '../src/config/noqHome';
 
 function withNoqHome<T>(callback: (root: string) => T): T {
   const previousNoqHome = process.env.NOQ_HOME;

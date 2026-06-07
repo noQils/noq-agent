@@ -13,7 +13,7 @@ import {
 import { getSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
-import { debugLog } from './runtimeSettings';
+import { debugLog } from './config/runtimeSettings';
 import { getToolsForMode } from './tools';
 import { formatTodoItems, hasTodoItems, resetTodoState } from './todoState';
 
