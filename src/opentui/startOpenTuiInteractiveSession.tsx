@@ -23,8 +23,8 @@ import {
   saveSessionTuiEntries,
   saveSessionTuiMode,
   undoLastSessionSnapshot,
-} from '../sessionStore';
-import { runSessionTurn } from '../sessionTurnRunner';
+} from '../session/sessionStore';
+import { runSessionTurn } from '../session/sessionTurnRunner';
 import {
   connectProviderChoices,
   getModelChoices,

@@ -19,7 +19,7 @@ import {
   getRequiredProviderApiKey,
 } from '../src/providerSettings';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
-import { getSessionApprovedExternalDirectories, getSessionFilePath } from '../src/sessionStore';
+import { getSessionApprovedExternalDirectories, getSessionFilePath } from '../src/session/sessionStore';
 import { runCommand } from '../src/tools/runCommand';
 import { withTempWorkspace } from './helpers/tempWorkspace';
 

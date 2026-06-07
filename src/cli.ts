@@ -10,8 +10,8 @@ import {
   getLatestSessionDiff,
   loadExistingSession,
   undoLastSessionSnapshot,
-} from './sessionStore';
-import { runSessionTurn } from './sessionTurnRunner';
+} from './session/sessionStore';
+import { runSessionTurn } from './session/sessionTurnRunner';
 
 export type InteractiveLaunchMode = 'terminal' | 'popup';
 export type CliAction = 'chat' | 'diff' | 'undo';

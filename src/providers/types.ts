@@ -1,7 +1,7 @@
 import { type AgentMode } from '../agentMode';
 import { type InternalTool } from '../tools';
 import { type PermissionScope } from '../permissions/types';
-import { type SessionFileChange } from '../sessionChangeTracker';
+import { type SessionFileChange } from '../session/sessionChangeTracker';
 
 export const providerNames = ['ollama', 'gemini', 'openai', 'openrouter'] as const;
 export type ProviderName = typeof providerNames[number];

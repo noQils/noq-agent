@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { runCli } from './cli';
-import { launchSessionWindow } from './sessionWindowLauncher';
+import { launchSessionWindow } from './session/sessionWindowLauncher';
 import { startOpenTuiInteractiveSession } from './opentui/startOpenTuiInteractiveSession';
 
 async function main(): Promise<void> {

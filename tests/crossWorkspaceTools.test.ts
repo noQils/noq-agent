@@ -10,7 +10,7 @@ import {
   beginSessionChangeTracking,
   finishSessionChangeTracking,
   resetSessionChangeTracking,
-} from '../src/sessionChangeTracker';
+} from '../src/session/sessionChangeTracker';
 import { executeToolCall } from '../src/runtime/executeToolCall';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
 import { withTempWorkspace } from './helpers/tempWorkspace';

@@ -15,8 +15,8 @@ import {
   recordMutationTargets,
   recordWorkspaceMutationChanges,
   type MutationChangeTrackingSnapshot,
-} from '../sessionChangeTracker';
-import { buildSessionFileDiff } from '../sessionDiff';
+} from '../session/sessionChangeTracker';
+import { buildSessionFileDiff } from '../session/sessionDiff';
 import { getToolByName } from '../tools';
 import { type ExecutedToolCall, type ToolMutationCallback } from '../providers/types';
 import { debugLog } from '../runtimeSettings';

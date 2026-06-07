@@ -3,7 +3,7 @@ import path from 'node:path';
 import { resolveCommandPermission } from '../commandPolicy';
 import { getConfig } from '../config';
 import { getCurrentPermissionSessionId } from './approvals';
-import { getSessionApprovedExternalDirectories } from '../sessionStore';
+import { getSessionApprovedExternalDirectories } from '../session/sessionStore';
 import { type PermissionOutcome, type PermissionRequest, type PermissionScope } from './types';
 
 export interface PermissionDecision {

@@ -11,7 +11,7 @@ import {
   type InteractiveSessionOptions,
   type ResumeWorkingDirectoryChoice,
 } from '../src/cli';
-import { getSessionFilePath } from '../src/sessionStore';
+import { getSessionFilePath } from '../src/session/sessionStore';
 
 async function withTempNoqHome<T>(callback: () => Promise<T> | T): Promise<T> {
   const previousNoqHome = process.env.NOQ_HOME;

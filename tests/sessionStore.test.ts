@@ -15,7 +15,7 @@ import {
   loadExistingSession,
   loadOrCreateSession,
   undoLastSessionSnapshot,
-} from '../src/sessionStore';
+} from '../src/session/sessionStore';
 import {
   allowPermissionForSession,
   isPermissionPreApproved,

@@ -4,7 +4,7 @@ import {
   appendSessionPermissionApproval,
   getSessionPermissionApprovals,
   type SessionPermissionApproval,
-} from '../sessionStore';
+} from '../session/sessionStore';
 import { type PermissionRequest, type PermissionScope } from './types';
 
 type StoredPermissionApproval = {

@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { runSessionTurn } from '../src/sessionTurnRunner';
-import { getSessionFilePath } from '../src/sessionStore';
+import { runSessionTurn } from '../src/session/sessionTurnRunner';
+import { getSessionFilePath } from '../src/session/sessionStore';
 import { type ChatMessage, type ExecutedToolCall, type Provider } from '../src/providers/types';
 import { withTempWorkspace } from './helpers/tempWorkspace';
 
