@@ -17,7 +17,7 @@ function estimateWrappedLineCount(value: string, availableWidth: number): number
 export function Composer(props: {
   inputValue: string;
   isBusy: boolean;
-  hasPermissionRequest: boolean;
+  hasModalOverlay: boolean;
   isNarrow: boolean;
   isCompact: boolean;
   isMediumTall: boolean;
@@ -49,8 +49,8 @@ export function Composer(props: {
     props.isBusy ? openTuiTheme.color.amber : openTuiTheme.color.teal
   );
   const placeholder = () => {
-    if (props.hasPermissionRequest) {
-      return props.isNarrow ? 'Choose O / S / D' : 'Choose permission: O / S / D';
+    if (props.hasModalOverlay) {
+      return props.isNarrow ? 'Use popup controls' : 'Use the popup controls above';
     }
 
     if (props.isBusy) {
@@ -89,7 +89,7 @@ export function Composer(props: {
         }}
         initialValue={props.inputValue}
         placeholder={placeholder()}
-        focused={!props.isBusy && !props.hasPermissionRequest}
+        focused={!props.isBusy && !props.hasModalOverlay}
         flexGrow={1}
         height={composerVisibleLines()}
         wrapMode="word"
@@ -109,12 +109,12 @@ export function Composer(props: {
           { name: 'o', ctrl: true, action: 'newline' },
         ]}
         onContentChange={() => {
-          if (!props.hasPermissionRequest) {
+          if (!props.hasModalOverlay) {
             props.onInput(textareaRef?.plainText ?? '');
           }
         }}
         onSubmit={() => {
-          if (!props.hasPermissionRequest) {
+          if (!props.hasModalOverlay) {
             props.onSubmit();
           }
         }}

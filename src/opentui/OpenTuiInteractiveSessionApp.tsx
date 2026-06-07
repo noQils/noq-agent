@@ -22,10 +22,11 @@ import { type PermissionRequest } from '../permissions/types';
 import { CommandRail } from './components/CommandRail';
 import { Composer } from './components/Composer';
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
+import { PermissionsPanel } from './components/PermissionsPanel';
 import { SessionHeader } from './components/SessionHeader';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
-import { type OpenTuiSessionEntry } from './openTuiTypes';
+import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 interface OpenTuiInteractiveSessionAppProps {
   sessionId: string;
@@ -35,10 +36,14 @@ interface OpenTuiInteractiveSessionAppProps {
   isBusy: Accessor<boolean>;
   statusMessage: Accessor<string | null>;
   permissionRequest: Accessor<PermissionRequest | null>;
+  permissionsEditorOpen: Accessor<boolean>;
+  permissionItems: Accessor<OpenTuiPermissionItem[]>;
   onInput: (value: string) => void;
   onSubmit: () => void;
   onExit: () => void;
   onPermissionDecision: (decision: PermissionPromptDecision) => void;
+  onClosePermissionsEditor: () => void;
+  onCyclePermissionItem: (index: number) => void;
 }
 
 type PermissionActionId = PermissionPromptDecision;
@@ -101,9 +106,11 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const dimensions = useTerminalDimensions();
   const [busyFrame, setBusyFrame] = createSignal(0);
   const [selectedPermissionAction, setSelectedPermissionAction] = createSignal<PermissionActionId>('allow_once');
+  const [selectedPermissionItemIndex, setSelectedPermissionItemIndex] = createSignal(0);
   const transcriptScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3.5 });
   let cachedSelectionText = '';
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
+  let permissionsScrollBox: ScrollBoxRenderable | null = null;
   let composerTextarea: TextareaRenderable | null = null;
 
   useSelectionHandler((selection) => {
@@ -166,6 +173,18 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
   const scrollPermissionPreview = (direction: -1 | 1): void => {
     permissionPreviewScrollBox?.scrollBy(direction * 3, 'step');
+    renderer.requestRender();
+  };
+
+  const moveSelectedPermissionItem = (direction: -1 | 1): void => {
+    const items = props.permissionItems();
+    if (items.length === 0) {
+      return;
+    }
+
+    const nextIndex = (selectedPermissionItemIndex() + direction + items.length) % items.length;
+    setSelectedPermissionItemIndex(nextIndex);
+    permissionsScrollBox?.scrollBy(direction, 'step');
     renderer.requestRender();
   };
 
@@ -244,6 +263,35 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return;
     }
 
+    if (props.permissionsEditorOpen()) {
+      if (keyName === 'up') {
+        moveSelectedPermissionItem(-1);
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (keyName === 'down') {
+        moveSelectedPermissionItem(1);
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (keyName === 'enter' || keyName === 'return') {
+        props.onCyclePermissionItem(selectedPermissionItemIndex());
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (keyName === 'escape') {
+        props.onClosePermissionsEditor();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      stopPermissionKeyEvent(key);
+      return;
+    }
+
     if (keyName === 'escape') {
       props.onExit();
     }
@@ -253,6 +301,13 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     if (props.permissionRequest()) {
       setSelectedPermissionAction('allow_once');
       permissionPreviewScrollBox?.scrollTo(0);
+    }
+  });
+
+  createEffect(() => {
+    if (props.permissionsEditorOpen()) {
+      setSelectedPermissionItemIndex(0);
+      permissionsScrollBox?.scrollTo(0);
     }
   });
 
@@ -288,6 +343,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const resolvedStatusLabel = () => statusLabel(props.statusMessage(), props.isBusy());
   const resolvedStatusColor = () => statusColor(props.statusMessage(), props.isBusy());
   const hasPermissionRequest = () => props.permissionRequest() !== null;
+  const hasModalOverlay = () => hasPermissionRequest() || props.permissionsEditorOpen();
   const animatedStatus = () => (
     props.isBusy()
       ? `${resolvedStatusLabel()}${busySuffix(busyFrame())}`
@@ -363,10 +419,30 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         </box>
       ) : null}
 
+      {props.permissionsEditorOpen() ? (
+        <box
+          position="absolute"
+          top={permissionModalInsetY()}
+          right={permissionModalInsetX()}
+          bottom={permissionModalInsetY()}
+          left={permissionModalInsetX()}
+          zIndex={1}
+        >
+          <PermissionsPanel
+            items={props.permissionItems()}
+            selectedIndex={selectedPermissionItemIndex()}
+            onCycle={() => props.onCyclePermissionItem(selectedPermissionItemIndex())}
+            scrollRef={(scrollbox) => {
+              permissionsScrollBox = scrollbox;
+            }}
+          />
+        </box>
+      ) : null}
+
       <Composer
         inputValue={props.inputValue()}
         isBusy={props.isBusy()}
-        hasPermissionRequest={hasPermissionRequest()}
+        hasModalOverlay={hasModalOverlay()}
         isNarrow={isNarrow()}
         isCompact={isCompact()}
         isMediumTall={isMediumTall()}

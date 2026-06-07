@@ -13,6 +13,7 @@ function commandHints(isCompact: boolean): CommandHint[] {
   if (isCompact) {
     return [
       { key: '/mode' },
+      { key: '/permissions' },
       { key: '/connect' },
       { key: '/models' },
       { key: '/exit' },
@@ -22,6 +23,7 @@ function commandHints(isCompact: boolean): CommandHint[] {
 
   return [
     { key: '/mode', value: 'plan|build' },
+    { key: '/permissions' },
     { key: '/connect' },
     { key: '/models' },
     { key: '/plan', value: 'show' },

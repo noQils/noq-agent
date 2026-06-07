@@ -6,6 +6,11 @@ import { render, useRenderer } from '@opentui/solid';
 import { CliRenderEvents } from '@opentui/core';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
+import {
+  isRuleBasedCommandPermission,
+  resolveCommandPermission,
+} from '../commandPolicy';
+import { getConfig } from '../config/config';
 import { resetConfigCache } from '../config/config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from '../permissions/approvals';
 import {
@@ -13,15 +18,17 @@ import {
   setPermissionPromptHandler,
   type PermissionPromptDecision,
 } from '../permissions/prompt';
-import { type PermissionRequest } from '../permissions/types';
+import { type PermissionOutcome, type PermissionRequest, type PermissionScope } from '../permissions/types';
 import {
   formatLatestSessionPlan,
   generateUniqueSessionId,
   getLatestSessionDiff,
   getSessionDebugLogPath,
+  getSessionPermissionOverrides,
   loadSessionTuiState,
   saveSessionTuiEntries,
   saveSessionTuiMode,
+  setSessionPermissionOverride,
   undoLastSessionSnapshot,
 } from '../session/sessionStore';
 import { runSessionTurn } from '../session/sessionTurnRunner';
@@ -45,7 +52,7 @@ import {
 import {
   OpenTuiInteractiveSessionApp,
 } from './OpenTuiInteractiveSessionApp';
-import { type OpenTuiSessionEntry } from './openTuiTypes';
+import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
@@ -57,6 +64,7 @@ type SlashCommand =
   | { type: 'invalid' }
   | { type: 'connect' }
   | { type: 'models' }
+  | { type: 'permissions' }
   | { type: 'exit' }
   | { type: 'diff' }
   | { type: 'undo' }
@@ -88,6 +96,17 @@ type SetupFlow =
     };
 
 type ProviderName = typeof connectProviderChoices[number];
+const permissionScopes: PermissionScope[] = [
+  'todo',
+  'read',
+  'edit',
+  'list',
+  'glob',
+  'grep',
+  'bash',
+  'external_directory',
+];
+const permissionCycle: PermissionOutcome[] = ['ask', 'allow', 'deny'];
 
 function appendEntry(
   entries: OpenTuiSessionEntry[],
@@ -137,6 +156,57 @@ function printModeChange(mode: AgentMode): string {
   return `Switched to ${mode} mode.`;
 }
 
+function formatPermissionScopeLabel(scope: PermissionScope): string {
+  return scope.replaceAll('_', ' ');
+}
+
+function getBashWorkspaceOutcome(): PermissionOutcome {
+  const bashPermission = getConfig().permission.bash;
+  if (typeof bashPermission === 'string') {
+    return bashPermission;
+  }
+
+  return resolveCommandPermission('*', bashPermission).outcome;
+}
+
+function getPermissionsEditorItems(sessionId: string | null): OpenTuiPermissionItem[] {
+  const config = getConfig();
+  const sessionOverrides = sessionId ? getSessionPermissionOverrides(sessionId) : {};
+
+  return permissionScopes.map((scope) => {
+    const sessionOverride = sessionOverrides[scope];
+
+    if (scope === 'bash') {
+      const outcome = sessionOverride ?? getBashWorkspaceOutcome();
+      const source = sessionOverride
+        ? 'session'
+        : (isRuleBasedCommandPermission(config.permission.bash) ? 'workspace_rules' : 'workspace');
+      const description = sessionOverride
+        ? 'Session-wide shell mode'
+        : (source === 'workspace_rules' ? 'Workspace bash rules fallback' : 'Workspace shell mode');
+
+      return {
+        scope,
+        outcome,
+        source,
+        description,
+      };
+    }
+
+    return {
+      scope,
+      outcome: sessionOverride ?? config.permission[scope],
+      source: sessionOverride ? 'session' : 'workspace',
+      description: sessionOverride ? 'Session override active' : 'Workspace config default',
+    };
+  });
+}
+
+function getNextPermissionOutcome(outcome: PermissionOutcome): PermissionOutcome {
+  const currentIndex = permissionCycle.indexOf(outcome);
+  return permissionCycle[(currentIndex + 1) % permissionCycle.length] ?? 'ask';
+}
+
 function isModeCommand(inputLine: string): boolean {
   return inputLine === '/mode' || inputLine.startsWith('/mode ');
 }
@@ -148,6 +218,10 @@ function parseSlashCommand(inputLine: string): SlashCommand {
 
   if (inputLine === '/models') {
     return { type: 'models' };
+  }
+
+  if (inputLine === '/permissions') {
+    return { type: 'permissions' };
   }
 
   if (inputLine === '/exit' || inputLine === '/quit') {
@@ -258,10 +332,14 @@ function SessionRoot(props: {
   isBusy: () => boolean;
   statusMessage: () => string | null;
   permissionRequest: () => PermissionRequest | null;
+  permissionsEditorOpen: () => boolean;
+  permissionItems: () => OpenTuiPermissionItem[];
   onInput: (value: string) => void;
   onSubmit: () => void;
   onExit: () => void;
   onPermissionDecision: (decision: PermissionPromptDecision) => void;
+  onClosePermissionsEditor: () => void;
+  onCyclePermissionItem: (index: number) => void;
 }) {
   useRenderer();
 
@@ -274,10 +352,14 @@ function SessionRoot(props: {
       isBusy={props.isBusy}
       statusMessage={props.statusMessage}
       permissionRequest={props.permissionRequest}
+      permissionsEditorOpen={props.permissionsEditorOpen}
+      permissionItems={props.permissionItems}
       onInput={props.onInput}
       onSubmit={props.onSubmit}
       onExit={props.onExit}
       onPermissionDecision={props.onPermissionDecision}
+      onClosePermissionsEditor={props.onClosePermissionsEditor}
+      onCyclePermissionItem={props.onCyclePermissionItem}
     />
   );
 }
@@ -316,6 +398,7 @@ export async function startOpenTuiInteractiveSession(
   const [isBusy, setIsBusy] = createSignal(false);
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
   const [permissionRequest, setPermissionRequest] = createSignal<PermissionRequest | null>(null);
+  const [permissionsEditorOpen, setPermissionsEditorOpen] = createSignal(false);
   const [activeSessionId, setActiveSessionId] = createSignal<string | null>(sessionId ?? null);
   const [setupFlow, setSetupFlow] = createSignal<SetupFlow | null>(null);
 
@@ -379,6 +462,31 @@ export async function startOpenTuiInteractiveSession(
     }
   };
 
+  const permissionItems = (): OpenTuiPermissionItem[] => getPermissionsEditorItems(activeSessionId());
+
+  const closePermissionsEditor = (): void => {
+    setPermissionsEditorOpen(false);
+    if (!isBusy()) {
+      setStatusMessage('Ready');
+    }
+    renderer.requestRender();
+  };
+
+  const cycleSelectedPermissionItem = (selectedIndex: number): void => {
+    const items = permissionItems();
+    const targetItem = items[selectedIndex];
+    if (!targetItem) {
+      return;
+    }
+
+    const resolvedSessionId = ensureActiveSessionId();
+    const nextOutcome = getNextPermissionOutcome(targetItem.outcome);
+    setSessionPermissionOverride(resolvedSessionId, targetItem.scope, nextOutcome);
+    appendTranscriptEntry('system', `Session permission updated: ${targetItem.scope} -> ${nextOutcome}.`);
+    setStatusMessage(`Permissions: ${formatPermissionScopeLabel(targetItem.scope)} = ${nextOutcome}`);
+    renderer.requestRender();
+  };
+
   const exitSession = (): void => {
     shouldPrintHint = activeSessionId() !== null;
     if (isDestroyed) {
@@ -434,6 +542,11 @@ export async function startOpenTuiInteractiveSession(
         setStatusMessage('Setup: choose model provider');
         return true;
       }
+
+      case 'permissions':
+        setPermissionsEditorOpen(true);
+        setStatusMessage('Permissions editor');
+        return true;
 
       case 'exit':
         exitSession();
@@ -649,6 +762,10 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
+    if (permissionsEditorOpen()) {
+      return;
+    }
+
     if (isBusy()) {
       return;
     }
@@ -730,12 +847,16 @@ export async function startOpenTuiInteractiveSession(
           isBusy={isBusy}
           statusMessage={statusMessage}
           permissionRequest={permissionRequest}
+          permissionsEditorOpen={permissionsEditorOpen}
+          permissionItems={permissionItems}
           onInput={setInputValue}
           onSubmit={() => {
             void handleSubmit();
           }}
           onExit={exitSession}
           onPermissionDecision={resolveActivePermissionPrompt}
+          onClosePermissionsEditor={closePermissionsEditor}
+          onCyclePermissionItem={cycleSelectedPermissionItem}
         />
       ),
       renderer,

@@ -91,6 +91,7 @@ Interactive session startup:
   Popup window mode currently launches a separate terminal window on Windows.
 
 Interactive session commands:
+  /permissions
   /connect
   /models
   /mode plan
