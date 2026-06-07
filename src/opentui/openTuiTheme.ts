@@ -67,6 +67,7 @@ export const openTuiTheme = {
 } as const;
 
 let markdownSyntaxStyle: SyntaxStyle | null = null;
+let diffSyntaxStyle: SyntaxStyle | null = null;
 
 export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
   if (!markdownSyntaxStyle) {
@@ -108,6 +109,27 @@ export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
   }
 
   return markdownSyntaxStyle;
+}
+
+export function getOpenTuiDiffSyntaxStyle(): SyntaxStyle {
+  if (!diffSyntaxStyle) {
+    diffSyntaxStyle = SyntaxStyle.fromStyles({
+      default: { fg: openTuiTheme.color.text },
+      text: { fg: openTuiTheme.color.text },
+      punctuation: { fg: openTuiTheme.color.textSoft },
+      keyword: { fg: openTuiTheme.color.violet },
+      string: { fg: openTuiTheme.color.green },
+      number: { fg: openTuiTheme.color.amber },
+      comment: { fg: openTuiTheme.color.textMuted, italic: true },
+      function: { fg: openTuiTheme.color.cyanStrong },
+      variable: { fg: openTuiTheme.color.text },
+      operator: { fg: openTuiTheme.color.textSoft },
+      inserted: { fg: openTuiTheme.color.green },
+      deleted: { fg: openTuiTheme.color.red },
+    });
+  }
+
+  return diffSyntaxStyle;
 }
 
 export function statusLabel(statusMessage: string | null, isBusy: boolean): string {

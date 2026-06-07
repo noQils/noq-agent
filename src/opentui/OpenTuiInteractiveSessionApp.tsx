@@ -26,6 +26,7 @@ import { type PermissionPromptDecision } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
 import {
   cappedEntries,
+  getOpenTuiDiffSyntaxStyle,
   compactLocalTime,
   getOpenTuiMarkdownSyntaxStyle,
   isUnifiedDiff,
@@ -327,7 +328,7 @@ function SystemDiffTranscriptContent(props: {
       filetype={props.filetype}
       view="unified"
       fg={openTuiTheme.color.textSoft}
-      syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
+      syntaxStyle={getOpenTuiDiffSyntaxStyle()}
       wrapMode="word"
       showLineNumbers={!props.isCompact}
       lineNumberFg={openTuiTheme.color.textFaint}
