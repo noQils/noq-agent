@@ -44,8 +44,8 @@ import {
 } from './openTuiTerminalAppearance';
 import {
   OpenTuiInteractiveSessionApp,
-  type OpenTuiSessionEntry,
 } from './OpenTuiInteractiveSessionApp';
+import { type OpenTuiSessionEntry } from './openTuiTypes';
 
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
