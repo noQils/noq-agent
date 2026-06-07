@@ -76,6 +76,11 @@ interface ParsedUnifiedDiffPatch {
   newFileName?: string;
 }
 
+interface RenderableUnifiedDiff {
+  diffText: string;
+  filetype?: string;
+}
+
 const diffFiletypeByExtension: Record<string, string> = {
   cjs: 'javascript',
   css: 'css',
@@ -231,19 +236,25 @@ function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | u
   return diffFiletypeByExtension[extension];
 }
 
-function getRenderableUnifiedDiff(text: string): string | null {
+function buildRenderableUnifiedDiff(diffText: string, filetype: string | undefined): RenderableUnifiedDiff {
+  return filetype
+    ? { diffText, filetype }
+    : { diffText };
+}
+
+function getRenderableUnifiedDiff(text: string): RenderableUnifiedDiff | null {
   if (!isUnifiedDiff(text)) {
     return null;
   }
 
   try {
-    inferUnifiedDiffFiletype(parsePatch(text) as ParsedUnifiedDiffPatch[]);
-    return text;
+    const patches = parsePatch(text) as ParsedUnifiedDiffPatch[];
+    return buildRenderableUnifiedDiff(text, inferUnifiedDiffFiletype(patches));
   } catch {
     const healedDiff = healUnifiedDiffForRender(text);
     try {
-      inferUnifiedDiffFiletype(parsePatch(healedDiff) as ParsedUnifiedDiffPatch[]);
-      return healedDiff;
+      const patches = parsePatch(healedDiff) as ParsedUnifiedDiffPatch[];
+      return buildRenderableUnifiedDiff(healedDiff, inferUnifiedDiffFiletype(patches));
     } catch {
       return null;
     }
@@ -305,6 +316,7 @@ function AssistantTranscriptContent(props: {
 
 function SystemDiffTranscriptContent(props: {
   diffText: string;
+  filetype?: string;
   isCompact: boolean;
   backgroundColor: string;
 }) {
@@ -312,6 +324,7 @@ function SystemDiffTranscriptContent(props: {
     <Dynamic
       component={diffComponent}
       diff={props.diffText}
+      filetype={props.filetype}
       view="unified"
       fg={openTuiTheme.color.textSoft}
       syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
@@ -361,7 +374,7 @@ function TranscriptEntry(props: {
   const systemRenderableDiff = () => (
     props.entry.kind === 'system' ? getRenderableUnifiedDiff(props.entry.text) : null
   );
-  const renderMode = () => resolveTranscriptRenderMode(props.entry.kind, systemRenderableDiff());
+  const renderMode = () => resolveTranscriptRenderMode(props.entry.kind, systemRenderableDiff()?.diffText ?? null);
 
   return (
     <box
@@ -383,7 +396,10 @@ function TranscriptEntry(props: {
         />
       ) : renderMode() === 'system-diff' ? (
         <SystemDiffTranscriptContent
-          diffText={systemRenderableDiff()!}
+          diffText={systemRenderableDiff()!.diffText}
+          {...(systemRenderableDiff()!.filetype
+            ? { filetype: systemRenderableDiff()!.filetype }
+            : {})}
           isCompact={props.isCompact}
           backgroundColor={role().background}
         />
