@@ -71,6 +71,31 @@ interface CommandHint {
   value?: string;
 }
 
+interface ParsedUnifiedDiffPatch {
+  oldFileName?: string;
+  newFileName?: string;
+}
+
+const diffFiletypeByExtension: Record<string, string> = {
+  cjs: 'javascript',
+  css: 'css',
+  htm: 'html',
+  html: 'html',
+  js: 'javascript',
+  json: 'json',
+  jsx: 'javascript',
+  markdown: 'markdown',
+  md: 'markdown',
+  mjs: 'javascript',
+  mts: 'typescript',
+  py: 'python',
+  sh: 'bash',
+  ts: 'typescript',
+  tsx: 'typescript',
+  yaml: 'yaml',
+  yml: 'yaml',
+};
+
 function runClipboardWriter(command: string, args: string[], text: string): boolean {
   try {
     const result = spawnSync(command, args, {
@@ -162,18 +187,62 @@ function healUnifiedDiffForRender(text: string): string {
   return healedLines.join('\n');
 }
 
+function normalizeDiffFilePath(filePath: string | undefined): string | null {
+  if (!filePath) {
+    return null;
+  }
+
+  const trimmedPath = filePath.trim();
+  if (trimmedPath.length === 0 || trimmedPath === '/dev/null') {
+    return null;
+  }
+
+  return trimmedPath.replace(/^(?:a|b)\//, '');
+}
+
+function getDiffFileExtension(filePath: string | null): string | null {
+  if (!filePath) {
+    return null;
+  }
+
+  const basename = path.posix.basename(filePath.replaceAll('\\', '/'));
+  const extensionIndex = basename.lastIndexOf('.');
+  if (extensionIndex <= 0 || extensionIndex === basename.length - 1) {
+    return null;
+  }
+
+  return basename.slice(extensionIndex + 1).toLowerCase();
+}
+
+function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | undefined {
+  const firstPatch = patches[0];
+  if (!firstPatch) {
+    return undefined;
+  }
+
+  const normalizedPath = normalizeDiffFilePath(firstPatch.newFileName)
+    ?? normalizeDiffFilePath(firstPatch.oldFileName);
+  const extension = getDiffFileExtension(normalizedPath);
+
+  if (!extension) {
+    return undefined;
+  }
+
+  return diffFiletypeByExtension[extension];
+}
+
 function getRenderableUnifiedDiff(text: string): string | null {
   if (!isUnifiedDiff(text)) {
     return null;
   }
 
   try {
-    parsePatch(text);
+    inferUnifiedDiffFiletype(parsePatch(text) as ParsedUnifiedDiffPatch[]);
     return text;
   } catch {
     const healedDiff = healUnifiedDiffForRender(text);
     try {
-      parsePatch(healedDiff);
+      inferUnifiedDiffFiletype(parsePatch(healedDiff) as ParsedUnifiedDiffPatch[]);
       return healedDiff;
     } catch {
       return null;
