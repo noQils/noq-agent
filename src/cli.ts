@@ -1,5 +1,6 @@
 import readline from 'node:readline/promises';
 import path from 'node:path';
+import fs from 'node:fs';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { isAgentMode, type AgentMode } from './agentMode';
@@ -101,8 +102,24 @@ Interactive session commands:
 `);
 }
 
+function getPackageVersion(): string {
+  const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
+
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
+      version?: unknown;
+    };
+
+    return typeof packageJson.version === 'string'
+      ? packageJson.version
+      : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 function printVersion() {
-  console.log('1.0.0');
+  console.log(getPackageVersion());
 }
 
 function printSessionContinuationHint(sessionId: string): void {
