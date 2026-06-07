@@ -36,7 +36,7 @@ function getCandidateEnvFiles(): string[] {
   return Array.from(new Set(candidates));
 }
 
-export function initializeRuntimeEnvironment(): void {
+function initializeRuntimeEnvironment(): void {
   if (runtimeEnvironmentInitialized) {
     return;
   }
@@ -59,28 +59,10 @@ export function initializeRuntimeEnvironment(): void {
   runtimeEnvironmentInitialized = true;
 }
 
-export function getLoadedEnvFiles(): string[] {
-  initializeRuntimeEnvironment();
-  return [...loadedEnvFiles];
-}
-
 export function getRuntimeEnvVar(name: string): string | undefined {
   initializeRuntimeEnvironment();
   const value = process.env[name];
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-}
-
-export function getRequiredRuntimeEnvVar(name: string, label?: string): string {
-  const value = getRuntimeEnvVar(name);
-  if (!value) {
-    throw new Error(
-      `${label ?? name} is not configured. ` +
-      `Set it in your shell environment, ${path.join(getNoqHomeDirectory(), '.env')}, ` +
-      `or a workspace file like .noq/.env.`,
-    );
-  }
-
-  return value;
 }
 
 export function resetRuntimeEnvironmentForTests(): void {
