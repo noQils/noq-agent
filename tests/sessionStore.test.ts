@@ -12,8 +12,10 @@ import {
   getSessionDebugLogPath,
   getSessionFilePath,
   getSessionPermissionApprovals,
+  getSessionPermissionOverrides,
   loadExistingSession,
   loadOrCreateSession,
+  setSessionPermissionOverride,
   undoLastSessionSnapshot,
 } from '../src/session/sessionStore';
 import {
@@ -70,6 +72,7 @@ test('new sessions are stored in a per-session directory', async () => {
       assert.equal(session.id, 'folder-session');
       assert.equal(session.workspaceRoot, workspace.root);
       assert.deepEqual(session.approvedExternalDirectories, []);
+      assert.deepEqual(session.permissionOverrides, {});
       assert.equal(
         getSessionFilePath('folder-session'),
         path.join(process.env.NOQ_HOME!, 'sessions', 'folder-session', 'session.json'),
@@ -107,6 +110,49 @@ test('older sessions without approved external directories load with an empty de
       const session = loadExistingSession('older-session');
 
       assert.deepEqual(session.approvedExternalDirectories, []);
+      assert.deepEqual(session.permissionOverrides, {});
+    });
+  });
+});
+
+test('session permission overrides are normalized and exposed on load', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      const sessionFilePath = getSessionFilePath('permission-overrides-session');
+      fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
+      fs.writeFileSync(
+        sessionFilePath,
+        JSON.stringify({
+          id: 'permission-overrides-session',
+          workspaceRoot: workspace.root,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          turns: [],
+          snapshots: [],
+          permissionApprovals: [],
+          permissionOverrides: {
+            edit: 'allow',
+            bash: 'deny',
+            invalid_scope: 'allow',
+            read: 'maybe',
+          },
+          latestPlanArtifact: null,
+          tuiState: { mode: null, entries: [] },
+          approvedExternalDirectories: [],
+        }),
+        'utf-8',
+      );
+
+      const session = loadExistingSession('permission-overrides-session');
+
+      assert.deepEqual(session.permissionOverrides, {
+        edit: 'allow',
+        bash: 'deny',
+      });
+      assert.deepEqual(getSessionPermissionOverrides('permission-overrides-session'), {
+        edit: 'allow',
+        bash: 'deny',
+      });
     });
   });
 });
@@ -326,6 +372,26 @@ test('session permission approvals persist across approval state resets', async 
       setPermissionApprovalSession('approval-session');
 
       assert.equal(isPermissionPreApproved(request), true);
+    });
+  });
+});
+
+test('session permission overrides persist across reloads', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(() => {
+      setSessionPermissionOverride('override-persist-session', 'edit', 'allow');
+      setSessionPermissionOverride('override-persist-session', 'bash', 'ask');
+
+      const session = loadExistingSession('override-persist-session');
+
+      assert.deepEqual(session.permissionOverrides, {
+        edit: 'allow',
+        bash: 'ask',
+      });
+      assert.deepEqual(getSessionPermissionOverrides('override-persist-session'), {
+        edit: 'allow',
+        bash: 'ask',
+      });
     });
   });
 });

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { isAgentMode, type AgentMode } from '../agentMode';
 import { getGlobalSessionsDirectoryPath } from '../config/noqHome';
 import { buildReferencedPathGroups } from '../analysis/pathReferenceHints';
-import { type PermissionScope } from '../permissions/types';
+import { type PermissionOutcome, type PermissionScope } from '../permissions/types';
 import {
   type ChatMessage,
   type ExecutedToolCall,
@@ -55,6 +55,8 @@ export interface SessionPermissionApproval {
   targetPattern: string;
 }
 
+export type SessionPermissionOverrides = Partial<Record<PermissionScope, PermissionOutcome>>;
+
 export interface SessionPlanArtifact {
   createdAt: string;
   userPrompt: string;
@@ -85,6 +87,7 @@ export interface AgentSession {
   turns: SessionTurn[];
   snapshots: SessionSnapshot[];
   permissionApprovals: SessionPermissionApproval[];
+  permissionOverrides: SessionPermissionOverrides;
   latestPlanArtifact: SessionPlanArtifact | null;
   tuiState: SessionTuiState;
   approvedExternalDirectories: string[];
@@ -322,6 +325,25 @@ function normalizePermissionApprovals(approvals: unknown): SessionPermissionAppr
   });
 }
 
+function normalizePermissionOverrides(overrides: unknown): SessionPermissionOverrides {
+  if (!isRecord(overrides)) {
+    return {};
+  }
+
+  const normalizedOverrides: SessionPermissionOverrides = {};
+
+  for (const [scope, outcome] of Object.entries(overrides)) {
+    if (
+      isPermissionScope(scope)
+      && (outcome === 'allow' || outcome === 'ask' || outcome === 'deny')
+    ) {
+      normalizedOverrides[scope] = outcome;
+    }
+  }
+
+  return normalizedOverrides;
+}
+
 function normalizeSessionPlanArtifact(artifact: unknown): SessionPlanArtifact | null {
   if (!isRecord(artifact)) {
     return null;
@@ -413,6 +435,7 @@ function createEmptySession(sessionId: string, workspaceRoot = process.cwd()): A
     turns: [],
     snapshots: [],
     permissionApprovals: [],
+    permissionOverrides: {},
     latestPlanArtifact: null,
     tuiState: createEmptyTuiState(),
     approvedExternalDirectories: [],
@@ -567,6 +590,7 @@ function parseSessionFile(sessionId: string, sessionFilePath: string): AgentSess
     turns: normalizeSessionTurns(session.turns),
     snapshots: normalizeSessionSnapshots(session.snapshots),
     permissionApprovals: normalizePermissionApprovals(session.permissionApprovals),
+    permissionOverrides: normalizePermissionOverrides(session.permissionOverrides),
     latestPlanArtifact: normalizeSessionPlanArtifact(session.latestPlanArtifact),
     tuiState: normalizeTuiState(session.tuiState),
     approvedExternalDirectories: normalizeApprovedExternalDirectories(session.approvedExternalDirectories),
@@ -640,9 +664,29 @@ export function getSessionPermissionApprovals(sessionId: string): SessionPermiss
   return session.permissionApprovals;
 }
 
+export function getSessionPermissionOverrides(sessionId: string): SessionPermissionOverrides {
+  const session = loadOrCreateSession(sessionId);
+  return { ...session.permissionOverrides };
+}
+
 export function getSessionApprovedExternalDirectories(sessionId: string): string[] {
   const session = loadOrCreateSession(sessionId);
   return session.approvedExternalDirectories;
+}
+
+export function setSessionPermissionOverride(
+  sessionId: string,
+  scope: PermissionScope,
+  outcome: PermissionOutcome,
+): AgentSession {
+  const session = loadOrCreateSession(sessionId);
+  session.permissionOverrides = {
+    ...session.permissionOverrides,
+    [scope]: outcome,
+  };
+  session.updatedAt = createTimestamp();
+  saveSession(session);
+  return session;
 }
 
 export function appendSessionApprovedExternalDirectory(
