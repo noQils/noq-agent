@@ -1,4 +1,4 @@
-import { goToDefinition } from '../definitionService';
+import { goToDefinition } from '../analysis/definitionService';
 import { InternalTool } from './index';
 
 export const goToDefinitionTool: InternalTool = {

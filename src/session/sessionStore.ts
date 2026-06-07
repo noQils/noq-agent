@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
 import { getGlobalSessionsDirectoryPath } from '../config/noqHome';
-import { buildReferencedPathGroups } from '../pathReferenceHints';
+import { buildReferencedPathGroups } from '../analysis/pathReferenceHints';
 import { type PermissionScope } from '../permissions/types';
 import {
   type ChatMessage,

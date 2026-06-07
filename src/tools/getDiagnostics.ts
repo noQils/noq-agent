@@ -1,5 +1,5 @@
-import { getDiagnostics } from '../diagnosticsService';
-import { type DiagnosticLanguage } from '../diagnosticsTypes';
+import { getDiagnostics } from '../analysis/diagnosticsService';
+import { type DiagnosticLanguage } from '../analysis/diagnosticsTypes';
 import { InternalTool } from './index';
 
 const defaultMaxDiagnostics = 100;

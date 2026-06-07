@@ -11,7 +11,7 @@ import {
   type ToolMutationCallback,
 } from './providers/types';
 import { getSystemPrompt } from './systemPrompt';
-import { buildReferencedPathGroups } from './pathReferenceHints';
+import { buildReferencedPathGroups } from './analysis/pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
 import { debugLog } from './config/runtimeSettings';
 import { getToolsForMode } from './tools';

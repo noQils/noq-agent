@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { type FormattedDefinitionLocation } from '../definitionTypes';
-import { type FormattedDiagnostic } from '../diagnosticsTypes';
+import { type FormattedDefinitionLocation } from '../analysis/definitionTypes';
+import { type FormattedDiagnostic } from '../analysis/diagnosticsTypes';
 import { resolveProjectPath } from '../fileUtils';
 import {
   ensureFileExists,
