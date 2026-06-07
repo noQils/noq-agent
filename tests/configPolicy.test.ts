@@ -19,7 +19,11 @@ import {
   getRequiredProviderApiKey,
 } from '../src/config/providerSettings';
 import { resetRuntimeEnvironmentForTests } from '../src/runtimeEnv';
-import { getSessionApprovedExternalDirectories, getSessionFilePath } from '../src/session/sessionStore';
+import {
+  getSessionApprovedExternalDirectories,
+  getSessionFilePath,
+  setSessionPermissionOverride,
+} from '../src/session/sessionStore';
 import { runCommand } from '../src/tools/runCommand';
 import { withTempWorkspace } from './helpers/tempWorkspace';
 
@@ -460,6 +464,182 @@ test('session approval persists approved external command cwd after reload', asy
 
       assert.equal(decision.scope, 'bash');
       assert.equal(decision.outcome, 'allow');
+    });
+  });
+});
+
+test('session override replaces workspace permission for non-bash scopes', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          edit: 'deny',
+        },
+      }));
+
+      setPermissionApprovalSession('edit-override-session');
+      setSessionPermissionOverride('edit-override-session', 'edit', 'allow');
+
+      const decision = evaluatePermission({
+        scope: 'edit',
+        toolName: 'write_file',
+        target: workspace.path('src', 'file.ts'),
+        args: {
+          filePath: workspace.path('src', 'file.ts'),
+        },
+      });
+
+      assert.equal(decision.scope, 'edit');
+      assert.equal(decision.outcome, 'allow');
+      assert.match(decision.reason, /Session override/);
+    });
+  });
+});
+
+test('session bash allow override bypasses workspace rule-based deny', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          bash: {
+            '*': 'deny',
+            'npm test*': 'deny',
+          },
+        },
+      }));
+
+      setPermissionApprovalSession('bash-allow-session');
+      setSessionPermissionOverride('bash-allow-session', 'bash', 'allow');
+
+      const decision = evaluatePermission({
+        scope: 'bash',
+        toolName: 'run_command',
+        target: 'npm test -- --watch=false',
+        args: {
+          command: 'npm test -- --watch=false',
+        },
+      });
+
+      assert.equal(decision.scope, 'bash');
+      assert.equal(decision.outcome, 'allow');
+      assert.match(decision.reason, /Session override sets "bash" to "allow"/);
+    });
+  });
+});
+
+test('session bash deny override replaces workspace allow', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          bash: 'allow',
+        },
+      }));
+
+      setPermissionApprovalSession('bash-deny-session');
+      setSessionPermissionOverride('bash-deny-session', 'bash', 'deny');
+
+      const decision = evaluatePermission({
+        scope: 'bash',
+        toolName: 'run_command',
+        target: 'git status',
+        args: {
+          command: 'git status',
+        },
+      });
+
+      assert.equal(decision.scope, 'bash');
+      assert.equal(decision.outcome, 'deny');
+      assert.match(decision.reason, /Session override sets "bash" to "deny"/);
+    });
+  });
+});
+
+test('session bash ask override keeps rule-based command matching', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          bash: {
+            '*': 'ask',
+            'npm *': 'deny',
+            'npm test*': 'allow',
+          },
+        },
+      }));
+
+      setPermissionApprovalSession('bash-ask-rules-session');
+      setSessionPermissionOverride('bash-ask-rules-session', 'bash', 'ask');
+
+      const decision = evaluatePermission({
+        scope: 'bash',
+        toolName: 'run_command',
+        target: 'npm test -- --watch=false',
+        args: {
+          command: 'npm test -- --watch=false',
+        },
+      });
+
+      assert.equal(decision.scope, 'bash');
+      assert.equal(decision.outcome, 'allow');
+      assert.match(decision.reason, /Session override sets "bash" to "ask"/);
+      assert.match(decision.reason, /npm test\*/);
+    });
+  });
+});
+
+test('session bash ask override forces interactive approval when workspace bash is scalar', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          bash: 'allow',
+        },
+      }));
+
+      setPermissionApprovalSession('bash-ask-scalar-session');
+      setSessionPermissionOverride('bash-ask-scalar-session', 'bash', 'ask');
+
+      const decision = evaluatePermission({
+        scope: 'bash',
+        toolName: 'run_command',
+        target: 'git status',
+        args: {
+          command: 'git status',
+        },
+      });
+
+      assert.equal(decision.scope, 'bash');
+      assert.equal(decision.outcome, 'ask');
+      assert.match(decision.reason, /requires interactive approval/);
+    });
+  });
+});
+
+test('session external_directory override replaces workspace outside-path behavior', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      workspace.writeFile('noq-agent.json', JSON.stringify({
+        permission: {
+          external_directory: 'deny',
+        },
+      }));
+
+      setPermissionApprovalSession('external-dir-override-session');
+      setSessionPermissionOverride('external-dir-override-session', 'external_directory', 'allow');
+
+      const decision = evaluatePermission({
+        scope: 'read',
+        toolName: 'read_file',
+        target: workspace.path('..', 'outside.txt'),
+        args: {
+          filePath: workspace.path('..', 'outside.txt'),
+        },
+      });
+
+      assert.equal(decision.scope, 'external_directory');
+      assert.equal(decision.outcome, 'allow');
+      assert.match(decision.reason, /session override sets "external_directory" to "allow"/i);
     });
   });
 });

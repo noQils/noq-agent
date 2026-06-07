@@ -1,9 +1,15 @@
 import path from 'node:path';
 
-import { resolveCommandPermission } from '../commandPolicy';
+import {
+  isRuleBasedCommandPermission,
+  resolveCommandPermission,
+} from '../commandPolicy';
 import { getConfig } from '../config/config';
 import { getCurrentPermissionSessionId } from './approvals';
-import { getSessionApprovedExternalDirectories } from '../session/sessionStore';
+import {
+  getSessionApprovedExternalDirectories,
+  getSessionPermissionOverrides,
+} from '../session/sessionStore';
 import { type PermissionOutcome, type PermissionRequest, type PermissionScope } from './types';
 
 export interface PermissionDecision {
@@ -31,6 +37,15 @@ function getApprovedExternalDirectories(): string[] {
   }
 
   return getSessionApprovedExternalDirectories(sessionId);
+}
+
+function getSessionPermissionOverride(scope: PermissionScope): PermissionOutcome | undefined {
+  const sessionId = getCurrentPermissionSessionId();
+  if (!sessionId) {
+    return undefined;
+  }
+
+  return getSessionPermissionOverrides(sessionId)[scope];
 }
 
 function isAllowedPathTarget(targetPath: string): boolean {
@@ -107,11 +122,14 @@ function getExternalDirectoryDecision(request: PermissionRequest): PermissionDec
   const config = getConfig();
   const pathTarget = getFirstDisallowedPathTarget(request);
   if (pathTarget) {
-    const outcome = config.permission.external_directory;
+    const sessionOverride = getSessionPermissionOverride('external_directory');
+    const outcome = sessionOverride ?? config.permission.external_directory;
     return {
       outcome,
       scope: 'external_directory',
-      reason: `Path "${pathTarget}" resolves outside the workspace, so "external_directory" is configured as "${outcome}".`,
+      reason: sessionOverride
+        ? `Path "${pathTarget}" resolves outside the workspace, and the session override sets "external_directory" to "${outcome}".`
+        : `Path "${pathTarget}" resolves outside the workspace, so "external_directory" is configured as "${outcome}".`,
     };
   }
 
@@ -127,6 +145,37 @@ export function evaluatePermission(request: PermissionRequest): PermissionDecisi
   }
 
   if (request.scope === 'bash') {
+    const sessionOverride = getSessionPermissionOverride('bash');
+
+    if (sessionOverride === 'allow' || sessionOverride === 'deny') {
+      return {
+        outcome: sessionOverride,
+        scope: request.scope,
+        reason: `Session override sets "bash" to "${sessionOverride}" for command "${request.target}".`,
+      };
+    }
+
+    if (sessionOverride === 'ask') {
+      if (isRuleBasedCommandPermission(config.permission.bash)) {
+        const commandDecision = resolveCommandPermission(request.target, config.permission.bash);
+        const reason = commandDecision.matchedPattern
+          ? `Session override sets "bash" to "ask", so command "${request.target}" uses bash rule "${commandDecision.matchedPattern}" with outcome "${commandDecision.outcome}".`
+          : `Session override sets "bash" to "ask", and no specific bash rule matched command "${request.target}", so the fallback outcome is "${commandDecision.outcome}".`;
+
+        return {
+          outcome: commandDecision.outcome,
+          scope: request.scope,
+          reason,
+        };
+      }
+
+      return {
+        outcome: 'ask',
+        scope: request.scope,
+        reason: `Session override sets "bash" to "ask", so command "${request.target}" requires interactive approval.`,
+      };
+    }
+
     const commandDecision = resolveCommandPermission(request.target, config.permission.bash);
     const reason = commandDecision.matchedPattern
       ? `Command "${request.target}" matched bash permission rule "${commandDecision.matchedPattern}" with outcome "${commandDecision.outcome}".`
@@ -139,11 +188,15 @@ export function evaluatePermission(request: PermissionRequest): PermissionDecisi
     };
   }
 
-  const outcome = config.permission[request.scope] as PermissionOutcome;
+  const sessionOverride = getSessionPermissionOverride(request.scope);
+  const configuredOutcome = config.permission[request.scope] as PermissionOutcome;
+  const outcome = sessionOverride ?? configuredOutcome;
 
   return {
     outcome,
     scope: request.scope,
-    reason: `Permission scope "${request.scope}" is configured as "${outcome}" for tool "${request.toolName}".`,
+    reason: sessionOverride
+      ? `Session override sets permission scope "${request.scope}" to "${outcome}" for tool "${request.toolName}".`
+      : `Permission scope "${request.scope}" is configured as "${outcome}" for tool "${request.toolName}".`,
   };
 }

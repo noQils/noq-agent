@@ -4,6 +4,7 @@ import path from 'node:path';
 import { isAgentMode, type AgentMode } from '../agentMode';
 import { getGlobalSessionsDirectoryPath } from '../config/noqHome';
 import { buildReferencedPathGroups } from '../analysis/pathReferenceHints';
+import { resetPermissionDecisionCache } from '../permissions/decisionCache';
 import { type PermissionOutcome, type PermissionScope } from '../permissions/types';
 import {
   type ChatMessage,
@@ -686,6 +687,7 @@ export function setSessionPermissionOverride(
   };
   session.updatedAt = createTimestamp();
   saveSession(session);
+  resetPermissionDecisionCache();
   return session;
 }
 

@@ -4,6 +4,11 @@ import {
   allowPermissionOnce,
   isPermissionPreApproved,
 } from '../permissions/approvals';
+import {
+  getCachedPermissionDecision,
+  resetPermissionDecisionCache as resetSharedPermissionDecisionCache,
+  setCachedPermissionDecision,
+} from '../permissions/decisionCache';
 import { evaluatePermission, getExternalDirectoryApprovalTarget } from '../permissions/evaluate';
 import { promptForPermission } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
@@ -30,8 +35,6 @@ export interface ToolExecutionOptions {
   mode?: AgentMode;
   onMutation?: ToolMutationCallback;
 }
-
-const permissionDecisionCache = new Map<string, boolean>();
 
 function getPermissionRequestCacheKey(request: PermissionRequest): string {
   return canonicalizeArgsValue({
@@ -83,7 +86,7 @@ function buildPermissionRequest(
 }
 
 export function resetPermissionDecisionCache(): void {
-  permissionDecisionCache.clear();
+  resetSharedPermissionDecisionCache();
 }
 
 function getMutationTargets(
@@ -270,7 +273,7 @@ export async function executeToolCall(
 
   if (permissionDecision.outcome === 'ask') {
     const cacheKey = getPermissionRequestCacheKey(permissionRequest);
-    const cachedDecision = permissionDecisionCache.get(cacheKey);
+    const cachedDecision = getCachedPermissionDecision(cacheKey);
     let allowed = cachedDecision ?? false;
     const approvalRequest = getApprovalRequest(permissionRequest, permissionDecision.scope);
     debugLog('Tool permission requires approval:', {
@@ -307,7 +310,7 @@ export async function executeToolCall(
       }
     }
 
-    permissionDecisionCache.set(cacheKey, allowed);
+    setCachedPermissionDecision(cacheKey, allowed);
 
     if (!allowed) {
       const error =
