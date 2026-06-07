@@ -220,14 +220,9 @@ function getDiffFileExtension(filePath: string | null): string | null {
   return basename.slice(extensionIndex + 1).toLowerCase();
 }
 
-function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | undefined {
-  const firstPatch = patches[0];
-  if (!firstPatch) {
-    return undefined;
-  }
-
-  const normalizedPath = normalizeDiffFilePath(firstPatch.newFileName)
-    ?? normalizeDiffFilePath(firstPatch.oldFileName);
+function inferPatchFiletype(patch: ParsedUnifiedDiffPatch): string | undefined {
+  const normalizedPath = normalizeDiffFilePath(patch.newFileName)
+    ?? normalizeDiffFilePath(patch.oldFileName);
   const extension = getDiffFileExtension(normalizedPath);
 
   if (!extension) {
@@ -235,6 +230,19 @@ function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | u
   }
 
   return diffFiletypeByExtension[extension];
+}
+
+function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | undefined {
+  const firstPatch = patches[0];
+  if (!firstPatch) {
+    return undefined;
+  }
+
+  if (patches.length > 1) {
+    return undefined;
+  }
+
+  return inferPatchFiletype(firstPatch);
 }
 
 function buildRenderableUnifiedDiff(diffText: string, filetype: string | undefined): RenderableUnifiedDiff {
