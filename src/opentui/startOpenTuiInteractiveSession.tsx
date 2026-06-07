@@ -5,12 +5,7 @@ import { createSignal } from 'solid-js';
 import { render, useRenderer } from '@opentui/solid';
 import { CliRenderEvents } from '@opentui/core';
 
-import { isAgentMode, type AgentMode } from '../agentMode';
-import {
-  isRuleBasedCommandPermission,
-  resolveCommandPermission,
-} from '../commandPolicy';
-import { getConfig } from '../config/config';
+import { type AgentMode } from '../agentMode';
 import { resetConfigCache } from '../config/config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from '../permissions/approvals';
 import {
@@ -18,13 +13,12 @@ import {
   setPermissionPromptHandler,
   type PermissionPromptDecision,
 } from '../permissions/prompt';
-import { type PermissionOutcome, type PermissionRequest, type PermissionScope } from '../permissions/types';
+import { type PermissionRequest } from '../permissions/types';
 import {
   formatLatestSessionPlan,
   generateUniqueSessionId,
   getLatestSessionDiff,
   getSessionDebugLogPath,
-  getSessionPermissionOverrides,
   loadSessionTuiState,
   saveSessionTuiEntries,
   saveSessionTuiMode,
@@ -52,24 +46,19 @@ import {
 import {
   OpenTuiInteractiveSessionApp,
 } from './OpenTuiInteractiveSessionApp';
+import {
+  formatPermissionScopeLabel,
+  getNextPermissionOutcome,
+  getPermissionsEditorItems,
+  parseSlashCommand,
+  type SlashCommand,
+} from './permissionsEditorState';
 import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
   cwd?: string;
 }
-
-type SlashCommand =
-  | { type: 'none' }
-  | { type: 'invalid' }
-  | { type: 'connect' }
-  | { type: 'models' }
-  | { type: 'permissions' }
-  | { type: 'exit' }
-  | { type: 'diff' }
-  | { type: 'undo' }
-  | { type: 'plan_show' }
-  | { type: 'mode'; mode: AgentMode };
 
 type SetupFlow =
   | {
@@ -94,19 +83,7 @@ type SetupFlow =
       type: 'models_custom';
       provider: ProviderName;
     };
-
 type ProviderName = typeof connectProviderChoices[number];
-const permissionScopes: PermissionScope[] = [
-  'todo',
-  'read',
-  'edit',
-  'list',
-  'glob',
-  'grep',
-  'bash',
-  'external_directory',
-];
-const permissionCycle: PermissionOutcome[] = ['ask', 'allow', 'deny'];
 
 function appendEntry(
   entries: OpenTuiSessionEntry[],
@@ -154,104 +131,6 @@ function formatDraftCommandMessage(commandLabel: string): string {
 
 function printModeChange(mode: AgentMode): string {
   return `Switched to ${mode} mode.`;
-}
-
-function formatPermissionScopeLabel(scope: PermissionScope): string {
-  return scope.replaceAll('_', ' ');
-}
-
-function getBashWorkspaceOutcome(): PermissionOutcome {
-  const bashPermission = getConfig().permission.bash;
-  if (typeof bashPermission === 'string') {
-    return bashPermission;
-  }
-
-  return resolveCommandPermission('*', bashPermission).outcome;
-}
-
-function getPermissionsEditorItems(sessionId: string | null): OpenTuiPermissionItem[] {
-  const config = getConfig();
-  const sessionOverrides = sessionId ? getSessionPermissionOverrides(sessionId) : {};
-
-  return permissionScopes.map((scope) => {
-    const sessionOverride = sessionOverrides[scope];
-
-    if (scope === 'bash') {
-      const outcome = sessionOverride ?? getBashWorkspaceOutcome();
-      const source = sessionOverride
-        ? 'session'
-        : (isRuleBasedCommandPermission(config.permission.bash) ? 'workspace_rules' : 'workspace');
-      const description = sessionOverride
-        ? 'Session-wide shell mode'
-        : (source === 'workspace_rules' ? 'Workspace bash rules fallback' : 'Workspace shell mode');
-
-      return {
-        scope,
-        outcome,
-        source,
-        description,
-      };
-    }
-
-    return {
-      scope,
-      outcome: sessionOverride ?? config.permission[scope],
-      source: sessionOverride ? 'session' : 'workspace',
-      description: sessionOverride ? 'Session override active' : 'Workspace config default',
-    };
-  });
-}
-
-function getNextPermissionOutcome(outcome: PermissionOutcome): PermissionOutcome {
-  const currentIndex = permissionCycle.indexOf(outcome);
-  return permissionCycle[(currentIndex + 1) % permissionCycle.length] ?? 'ask';
-}
-
-function isModeCommand(inputLine: string): boolean {
-  return inputLine === '/mode' || inputLine.startsWith('/mode ');
-}
-
-function parseSlashCommand(inputLine: string): SlashCommand {
-  if (inputLine === '/connect') {
-    return { type: 'connect' };
-  }
-
-  if (inputLine === '/models') {
-    return { type: 'models' };
-  }
-
-  if (inputLine === '/permissions') {
-    return { type: 'permissions' };
-  }
-
-  if (inputLine === '/exit' || inputLine === '/quit') {
-    return { type: 'exit' };
-  }
-
-  if (inputLine === '/diff') {
-    return { type: 'diff' };
-  }
-
-  if (inputLine === '/undo') {
-    return { type: 'undo' };
-  }
-
-  if (inputLine === '/plan show') {
-    return { type: 'plan_show' };
-  }
-
-  if (isModeCommand(inputLine)) {
-    const requestedMode = inputLine.slice('/mode'.length).trim();
-    if (isAgentMode(requestedMode)) {
-      return { type: 'mode', mode: requestedMode };
-    }
-
-    return { type: 'invalid' };
-  }
-
-  return inputLine.startsWith('/')
-    ? { type: 'invalid' }
-    : { type: 'none' };
 }
 
 function parsePermissionDecision(inputLine: string): PermissionPromptDecision | null {
