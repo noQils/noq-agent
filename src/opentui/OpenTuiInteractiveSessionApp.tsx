@@ -379,7 +379,6 @@ function TranscriptEntry(props: {
   isCompact: boolean;
 }) {
   const role = () => openTuiTheme.role[props.entry.kind];
-  const timestamp = () => compactLocalTime(props.entry.createdAt);
   const systemRenderableDiff = () => (
     props.entry.kind === 'system' ? getRenderableUnifiedDiff(props.entry.text) : null
   );

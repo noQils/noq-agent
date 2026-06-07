@@ -30,9 +30,9 @@ export const openTuiTheme = {
     selectionBg: '#295f66',
     selectionFg: '#f4f7fb',
     diffAddedBg: '#21382c',
-    diffAddedContentBg: '#274a36',
+    diffAddedContentBg: '#244432',
     diffRemovedBg: '#3a272c',
-    diffRemovedContentBg: '#503037',
+    diffRemovedContentBg: '#472b31',
   },
   role: {
     user: {
@@ -78,7 +78,7 @@ export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
       emphasis: { fg: openTuiTheme.color.cyanStrong, italic: true },
       heading: { fg: openTuiTheme.color.amber, bold: true },
       link: { fg: openTuiTheme.color.cyanStrong, underline: true },
-      code: { fg: openTuiTheme.color.teal, bg: openTuiTheme.color.panelRaised },
+      code: { fg: openTuiTheme.color.teal },
       markup: { fg: openTuiTheme.color.textSoft },
       'markup.heading': { fg: openTuiTheme.color.amber, bold: true },
       'markup.heading.1': { fg: openTuiTheme.color.amber, bold: true },
@@ -89,7 +89,7 @@ export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
       'markup.heading.6': { fg: openTuiTheme.color.amber, bold: true },
       'markup.strong': { fg: openTuiTheme.color.text, bold: true },
       'markup.italic': { fg: openTuiTheme.color.cyanStrong, italic: true },
-      'markup.raw': { fg: openTuiTheme.color.teal, bg: openTuiTheme.color.panelRaised },
+      'markup.raw': { fg: openTuiTheme.color.teal },
       'markup.quote': { fg: openTuiTheme.color.textMuted },
       'markup.list': { fg: openTuiTheme.color.teal },
       'markup.link': { fg: openTuiTheme.color.cyanStrong, underline: true },
@@ -115,17 +115,17 @@ export function getOpenTuiDiffSyntaxStyle(): SyntaxStyle {
   if (!diffSyntaxStyle) {
     diffSyntaxStyle = SyntaxStyle.fromStyles({
       default: { fg: openTuiTheme.color.text },
-      text: { fg: openTuiTheme.color.text },
-      punctuation: { fg: openTuiTheme.color.textSoft },
-      keyword: { fg: openTuiTheme.color.violet },
-      string: { fg: openTuiTheme.color.green },
-      number: { fg: openTuiTheme.color.amber },
+      text: { fg: '#ffd6dc' },
+      punctuation: { fg: openTuiTheme.color.cyanStrong },
+      keyword: { fg: '#ffd36f', bold: true },
+      string: { fg: '#8ff7bb' },
+      number: { fg: '#ffe082' },
       comment: { fg: openTuiTheme.color.textMuted, italic: true },
-      function: { fg: openTuiTheme.color.cyanStrong },
-      variable: { fg: openTuiTheme.color.text },
-      operator: { fg: openTuiTheme.color.textSoft },
-      inserted: { fg: openTuiTheme.color.green },
-      deleted: { fg: openTuiTheme.color.red },
+      function: { fg: '#78ddff', bold: true },
+      variable: { fg: '#fff8f2' },
+      operator: { fg: '#9cc4ff' },
+      inserted: { fg: '#5af29a', bold: true },
+      deleted: { fg: '#ff8fa1', bold: true },
     });
   }
 
