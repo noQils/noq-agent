@@ -443,8 +443,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
     if (suggestionState.query !== lastSlashCommandQuery) {
       lastSlashCommandQuery = suggestionState.query;
-      setDismissedSlashCommandQuery('');
       setSelectedSlashCommandIndex(0);
+      if (dismissedSlashCommandQuery() !== suggestionState.query) {
+        setDismissedSlashCommandQuery('');
+      }
       return;
     }
 
