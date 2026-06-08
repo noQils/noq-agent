@@ -78,7 +78,10 @@ test('getPermissionsEditorItems uses workspace values when no session override e
     const items = getPermissionsEditorItems(null);
     const editItem = items.find((item) => item.scope === 'edit');
     const bashItem = items.find((item) => item.scope === 'bash');
+    const todoItem = items.find((item) => item.scope === 'todo');
 
+    assert.equal(todoItem, undefined);
+    assert.equal(items.length, 7);
     assert.deepEqual(editItem, {
       scope: 'edit',
       outcome: 'deny',
@@ -110,7 +113,9 @@ test('getPermissionsEditorItems surfaces session overrides over workspace config
       const items = getPermissionsEditorItems('permissions-items-session');
       const editItem = items.find((item) => item.scope === 'edit');
       const bashItem = items.find((item) => item.scope === 'bash');
+      const todoItem = items.find((item) => item.scope === 'todo');
 
+      assert.equal(todoItem, undefined);
       assert.deepEqual(editItem, {
         scope: 'edit',
         outcome: 'allow',

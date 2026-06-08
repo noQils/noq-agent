@@ -21,7 +21,6 @@ export type SlashCommand =
   | { type: 'mode'; mode: 'plan' | 'build' };
 
 const permissionScopes: PermissionScope[] = [
-  'todo',
   'read',
   'edit',
   'list',
