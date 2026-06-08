@@ -27,7 +27,7 @@ import { SessionHeader } from './components/SessionHeader';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
-import { getSlashCommandSuggestions } from './permissionsEditorState';
+import { getSlashCommandInsertText, getSlashCommandSuggestions } from './permissionsEditorState';
 import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 interface OpenTuiInteractiveSessionAppProps {
@@ -110,6 +110,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const [selectedPermissionAction, setSelectedPermissionAction] = createSignal<PermissionActionId>('allow_once');
   const [selectedPermissionItemIndex, setSelectedPermissionItemIndex] = createSignal(0);
   const [selectedSlashCommandIndex, setSelectedSlashCommandIndex] = createSignal(0);
+  const [dismissedSlashCommandQuery, setDismissedSlashCommandQuery] = createSignal('');
   const transcriptScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3.5 });
   let lastSlashCommandQuery = '';
   let cachedSelectionText = '';
@@ -190,6 +191,38 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     setSelectedPermissionItemIndex(nextIndex);
     permissionsScrollBox?.scrollBy(direction, 'step');
     renderer.requestRender();
+  };
+
+  const moveSelectedSlashCommand = (direction: -1 | 1): void => {
+    const matches = getSlashCommandSuggestions(props.inputValue()).matches;
+    if (matches.length === 0) {
+      return;
+    }
+
+    const nextIndex = (selectedSlashCommandIndex() + direction + matches.length) % matches.length;
+    setSelectedSlashCommandIndex(nextIndex);
+    renderer.requestRender();
+  };
+
+  const dismissSlashCommandPopup = (): void => {
+    const { query } = getSlashCommandSuggestions(props.inputValue());
+    setDismissedSlashCommandQuery(query);
+    renderer.requestRender();
+  };
+
+  const insertSelectedSlashCommand = (): boolean => {
+    const suggestions = getSlashCommandSuggestions(props.inputValue());
+    const selectedEntry = suggestions.matches[selectedSlashCommandIndex()];
+    if (!selectedEntry) {
+      return false;
+    }
+
+    const nextValue = getSlashCommandInsertText(selectedEntry);
+    setDismissedSlashCommandQuery(nextValue);
+    props.onInput(nextValue);
+    composerTextarea?.focus();
+    renderer.requestRender();
+    return true;
   };
 
   useKeyboard((key) => {
@@ -296,6 +329,40 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return;
     }
 
+    if (slashCommandPopupVisible()) {
+      if (keyName === 'up') {
+        moveSelectedSlashCommand(-1);
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (keyName === 'down') {
+        moveSelectedSlashCommand(1);
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (keyName === 'tab') {
+        if (insertSelectedSlashCommand()) {
+          stopPermissionKeyEvent(key);
+          return;
+        }
+      }
+
+      if (keyName === 'enter' || keyName === 'return' || keyName === 'kpenter') {
+        if (insertSelectedSlashCommand()) {
+          stopPermissionKeyEvent(key);
+          return;
+        }
+      }
+
+      if (keyName === 'escape') {
+        dismissSlashCommandPopup();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+    }
+
     if (keyName === 'escape') {
       props.onExit();
     }
@@ -343,12 +410,14 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
     if (!suggestionState.visible || suggestionState.matches.length === 0) {
       lastSlashCommandQuery = '';
+      setDismissedSlashCommandQuery('');
       setSelectedSlashCommandIndex(0);
       return;
     }
 
     if (suggestionState.query !== lastSlashCommandQuery) {
       lastSlashCommandQuery = suggestionState.query;
+      setDismissedSlashCommandQuery('');
       setSelectedSlashCommandIndex(0);
       return;
     }
@@ -380,6 +449,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const slashCommandPopupVisible = () => (
     slashCommandSuggestions().visible
     && slashCommandSuggestions().matches.length > 0
+    && dismissedSlashCommandQuery() !== slashCommandSuggestions().query
     && !props.isBusy()
     && !hasModalOverlay()
   );

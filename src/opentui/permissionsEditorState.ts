@@ -120,6 +120,16 @@ function getSlashCommandDisplayText(entry: SlashCommandCatalogEntry): string {
   return entry.argsHint ? `${entry.command} ${entry.argsHint}` : entry.command;
 }
 
+export function getSlashCommandInsertText(entry: SlashCommandCatalogEntry): string {
+  if (!entry.argsHint) {
+    return entry.command;
+  }
+
+  return entry.argsHint.includes('|')
+    ? `${entry.command} `
+    : `${entry.command} ${entry.argsHint}`;
+}
+
 function isPrefixLikeMatch(candidate: string, query: string): boolean {
   return candidate.startsWith(query) || query.startsWith(`${candidate} `);
 }

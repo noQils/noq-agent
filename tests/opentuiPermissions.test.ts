@@ -10,6 +10,7 @@ import {
   getNextPermissionOutcome,
   getPermissionsEditorItems,
   getSlashCommandCatalogEntries,
+  getSlashCommandInsertText,
   getSlashCommandSuggestions,
   parseSlashCommand,
 } from '../src/opentui/permissionsEditorState';
@@ -75,6 +76,16 @@ test('getSlashCommandCatalogEntries returns the full command set and compact sub
     '/models',
     '/exit',
   ]);
+});
+
+test('getSlashCommandInsertText expands fixed commands and leaves open-ended commands ready for typing', () => {
+  const modeEntry = getSlashCommandCatalogEntries().find((entry) => entry.command === '/mode');
+  const planEntry = getSlashCommandCatalogEntries().find((entry) => entry.command === '/plan');
+  const diffEntry = getSlashCommandCatalogEntries().find((entry) => entry.command === '/diff');
+
+  assert.equal(getSlashCommandInsertText(modeEntry!), '/mode ');
+  assert.equal(getSlashCommandInsertText(planEntry!), '/plan show');
+  assert.equal(getSlashCommandInsertText(diffEntry!), '/diff');
 });
 
 test('getSlashCommandSuggestions hides suggestions for non-slash input', () => {
