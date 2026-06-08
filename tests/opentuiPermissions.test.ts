@@ -10,6 +10,7 @@ import {
   getNextPermissionOutcome,
   getPermissionsEditorItems,
   getSlashCommandCatalogEntries,
+  getSlashCommandSuggestions,
   parseSlashCommand,
 } from '../src/opentui/permissionsEditorState';
 import { setSessionPermissionOverride } from '../src/session/sessionStore';
@@ -72,6 +73,55 @@ test('getSlashCommandCatalogEntries returns the full command set and compact sub
     '/models',
     '/exit',
   ]);
+});
+
+test('getSlashCommandSuggestions hides suggestions for non-slash input', () => {
+  assert.deepEqual(getSlashCommandSuggestions('hello'), {
+    visible: false,
+    query: '',
+    matches: [],
+  });
+});
+
+test('getSlashCommandSuggestions returns all commands for a bare slash', () => {
+  const suggestions = getSlashCommandSuggestions('/');
+
+  assert.equal(suggestions.visible, true);
+  assert.equal(suggestions.query, '/');
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), [
+    '/mode',
+    '/permissions',
+    '/connect',
+    '/models',
+    '/plan',
+    '/diff',
+    '/undo',
+    '/exit',
+  ]);
+});
+
+test('getSlashCommandSuggestions prioritizes prefix matches', () => {
+  const suggestions = getSlashCommandSuggestions('/mo');
+
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode', '/models']);
+});
+
+test('getSlashCommandSuggestions supports alias prefix matches', () => {
+  const suggestions = getSlashCommandSuggestions('/qui');
+
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/exit']);
+});
+
+test('getSlashCommandSuggestions supports substring fallback on command text', () => {
+  const suggestions = getSlashCommandSuggestions('/ff');
+
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/diff']);
+});
+
+test('getSlashCommandSuggestions keeps matching commands visible while typing arguments', () => {
+  const suggestions = getSlashCommandSuggestions('/mode b');
+
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode']);
 });
 
 test('getNextPermissionOutcome cycles ask allow deny', () => {

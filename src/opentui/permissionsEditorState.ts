@@ -26,6 +26,12 @@ export interface SlashCommandCatalogEntry {
   parse: (inputLine: string) => SlashCommand | null;
 }
 
+export interface SlashCommandSuggestions {
+  visible: boolean;
+  query: string;
+  matches: SlashCommandCatalogEntry[];
+}
+
 const permissionScopes: PermissionScope[] = [
   'read',
   'edit',
@@ -101,6 +107,42 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   },
 ];
 
+function getSlashCommandDisplayText(entry: SlashCommandCatalogEntry): string {
+  return entry.argsHint ? `${entry.command} ${entry.argsHint}` : entry.command;
+}
+
+function isPrefixLikeMatch(candidate: string, query: string): boolean {
+  return candidate.startsWith(query) || query.startsWith(`${candidate} `);
+}
+
+function getSlashCommandMatchRank(entry: SlashCommandCatalogEntry, normalizedQuery: string): number | null {
+  const displayText = getSlashCommandDisplayText(entry).toLowerCase();
+  const commandText = entry.command.toLowerCase();
+  const aliasTexts = (entry.aliases ?? []).map((alias) => alias.toLowerCase());
+  const substringQuery = normalizedQuery.startsWith('/') ? normalizedQuery.slice(1) : normalizedQuery;
+
+  if (normalizedQuery === '/') {
+    return 0;
+  }
+
+  if (isPrefixLikeMatch(commandText, normalizedQuery) || displayText.startsWith(normalizedQuery)) {
+    return 0;
+  }
+
+  if (aliasTexts.some((alias) => isPrefixLikeMatch(alias, normalizedQuery))) {
+    return 1;
+  }
+
+  if (
+    displayText.includes(normalizedQuery)
+    || (substringQuery.length > 0 && displayText.includes(substringQuery))
+  ) {
+    return 2;
+  }
+
+  return null;
+}
+
 function getPermissionScopeDescription(scope: PermissionScope): string {
   switch (scope) {
     case 'read':
@@ -171,6 +213,33 @@ export function getSlashCommandCatalogEntries(options?: {
   }
 
   return slashCommandCatalog;
+}
+
+export function getSlashCommandSuggestions(input: string): SlashCommandSuggestions {
+  const query = input.trimStart().replace(/\r\n/g, '\n').split('\n')[0] ?? '';
+  if (!query.startsWith('/')) {
+    return {
+      visible: false,
+      query: '',
+      matches: [],
+    };
+  }
+
+  const normalizedQuery = query.toLowerCase();
+  const rankedMatches = slashCommandCatalog
+    .map((entry, index) => ({
+      entry,
+      index,
+      rank: getSlashCommandMatchRank(entry, normalizedQuery),
+    }))
+    .filter((match): match is { entry: SlashCommandCatalogEntry; index: number; rank: number } => match.rank !== null)
+    .sort((left, right) => left.rank - right.rank || left.index - right.index);
+
+  return {
+    visible: true,
+    query,
+    matches: rankedMatches.map((match) => match.entry),
+  };
 }
 
 export function parseSlashCommand(inputLine: string): SlashCommand {
