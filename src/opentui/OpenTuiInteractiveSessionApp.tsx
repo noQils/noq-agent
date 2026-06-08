@@ -223,8 +223,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
     const nextValue = getSlashCommandInsertText(selectedEntry);
     setDismissedSlashCommandQuery(nextValue);
-    props.onInput(nextValue);
+    composerTextarea?.setText(nextValue);
     composerTextarea?.focus();
+    composerTextarea && (composerTextarea.cursorOffset = nextValue.length);
+    props.onInput(nextValue);
     renderer.requestRender();
     return true;
   };
