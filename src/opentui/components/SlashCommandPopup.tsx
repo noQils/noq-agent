@@ -5,7 +5,7 @@ import { For } from 'solid-js';
 import { openTuiTheme } from '../openTuiTheme';
 import { type SlashCommandCatalogEntry } from '../slashCommands';
 
-const maxVisibleRows = 7;
+const maxVisibleRows = 10;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -33,6 +33,8 @@ function commandLabel(entry: SlashCommandCatalogEntry): string {
 export function SlashCommandPopup(props: {
   matches: SlashCommandCatalogEntry[];
   selectedIndex: number;
+  isMediumTall: boolean;
+  isVeryTall: boolean;
   width: number;
 }) {
   const popupWidth = () => Math.max(28, Math.min(props.width, 88));
@@ -51,22 +53,22 @@ export function SlashCommandPopup(props: {
 
     return safeSelectedIndex - startIndex;
   };
-  const commandColumnWidth = () => Math.max(12, Math.min(28, Math.floor(popupWidth() * 0.34)));
+  const slashMenuBottomMargin = () => (props.isVeryTall ? 8 : props.isMediumTall ? 7 : 6);
 
   return (
     <box
       position="absolute"
-      left={3}
-      bottom={3}
+      left={2}
+      right={0}
+      bottom={slashMenuBottomMargin()}
       zIndex={1}
-      width={popupWidth()}
-      border
+      border={["left", "right"]}
       borderStyle="rounded"
       borderColor={openTuiTheme.color.lineStrong}
-      focusedBorderColor={openTuiTheme.color.teal}
-      backgroundColor={openTuiTheme.color.panelRaised}
+      backgroundColor={openTuiTheme.color.canvas}
       flexDirection="column"
       paddingY={0}
+      overflow="hidden"
     >
       <box
         width="100%"
@@ -76,9 +78,6 @@ export function SlashCommandPopup(props: {
         backgroundColor={openTuiTheme.color.rail}
       >
         <text fg={openTuiTheme.color.amber}>commands</text>
-        <text fg={openTuiTheme.color.textFaint}>
-          {`${Math.min(props.matches.length, maxVisibleRows)}/${props.matches.length}`}
-        </text>
       </box>
 
       <For each={visibleMatches()}>
@@ -88,12 +87,15 @@ export function SlashCommandPopup(props: {
           return (
             <box
               width="100%"
+              height={1}
+              minHeight={1}
+              maxHeight={1}
               flexDirection="row"
               gap={1}
               paddingX={1}
-              backgroundColor={isSelected() ? openTuiTheme.color.teal : openTuiTheme.color.panelRaised}
+              backgroundColor={isSelected() ? openTuiTheme.color.teal : openTuiTheme.color.canvas}
             >
-              <box width={commandColumnWidth()} flexShrink={0}>
+              <box width={30} height={1}>
                 <text
                   fg={isSelected() ? openTuiTheme.color.canvas : openTuiTheme.color.text}
                   truncate
@@ -101,13 +103,14 @@ export function SlashCommandPopup(props: {
                   {commandLabel(entry)}
                 </text>
               </box>
-              <text
-                fg={isSelected() ? openTuiTheme.color.canvas : openTuiTheme.color.textFaint}
-                truncate
-                flexGrow={1}
-              >
-                {entry.description}
-              </text>
+              <box height={1} flexGrow={1}>
+                <text
+                  fg={isSelected() ? openTuiTheme.color.canvas : openTuiTheme.color.textFaint}
+                  truncate
+                >
+                  {entry.description}
+                </text>
+              </box>
             </box>
           );
         }}

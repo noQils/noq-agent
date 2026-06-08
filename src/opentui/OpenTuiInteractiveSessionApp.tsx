@@ -583,6 +583,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         <SlashCommandPopup
           matches={slashCommandSuggestions().matches}
           selectedIndex={selectedSlashCommandIndex()}
+          isMediumTall={isMediumTall()}
+          isVeryTall={isVeryTall()}
           width={Math.max(28, dimensions().width - 6)}
         />
       ) : null}
