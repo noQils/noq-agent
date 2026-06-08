@@ -564,8 +564,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         <box
           border
           borderStyle="rounded"
-          borderColor={openTuiTheme.color.teal}
-          focusedBorderColor={openTuiTheme.color.teal}
+          borderColor={openTuiTheme.color.amber}
+          focusedBorderColor={openTuiTheme.color.amber}
           backgroundColor={openTuiTheme.color.canvas}
           position="absolute"
           top={permissionModalInsetY()}

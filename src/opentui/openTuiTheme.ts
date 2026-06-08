@@ -2,13 +2,13 @@ import { SyntaxStyle } from '@opentui/core';
 
 export type OpenTuiEntryRole = 'user' | 'assistant' | 'system';
 export type OpenTuiStatusTone = 'ready' | 'busy' | 'success' | 'warning' | 'danger';
-export const canvasColor = '#1f2126';
+export const canvasColor = '#1a1c22';
 
 export const openTuiTheme = {
   color: {
     canvas: canvasColor,
     panelRaised: '#292c33',
-    rail: '#181a1f',
+    rail: '#000000',
     line: '#3a3f49',
     lineStrong: '#4b5360',
     text: '#f4f7fb',
@@ -77,7 +77,7 @@ export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
       emphasis: { fg: openTuiTheme.color.cyanStrong, italic: true },
       heading: { fg: openTuiTheme.color.amber, bold: true },
       link: { fg: openTuiTheme.color.cyanStrong, underline: true },
-      code: { fg: openTuiTheme.color.teal },
+      code: { fg: openTuiTheme.color.violet },
       markup: { fg: openTuiTheme.color.textSoft },
       'markup.heading': { fg: openTuiTheme.color.amber, bold: true },
       'markup.heading.1': { fg: openTuiTheme.color.amber, bold: true },
@@ -88,9 +88,9 @@ export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
       'markup.heading.6': { fg: openTuiTheme.color.amber, bold: true },
       'markup.strong': { fg: openTuiTheme.color.text, bold: true },
       'markup.italic': { fg: openTuiTheme.color.cyanStrong, italic: true },
-      'markup.raw': { fg: openTuiTheme.color.teal },
+      'markup.raw': { fg: openTuiTheme.color.violet },
       'markup.quote': { fg: openTuiTheme.color.textMuted },
-      'markup.list': { fg: openTuiTheme.color.teal },
+      'markup.list': { fg: openTuiTheme.color.amber },
       'markup.link': { fg: openTuiTheme.color.cyanStrong, underline: true },
       'markup.link.label': { fg: openTuiTheme.color.cyanStrong, underline: true },
       'markup.link.url': { fg: openTuiTheme.color.textFaint, underline: true },

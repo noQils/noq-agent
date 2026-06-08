@@ -63,7 +63,7 @@ export function SlashCommandPopup(props: {
       bottom={slashMenuBottomMargin()}
       zIndex={1}
       border={["left", "right"]}
-      borderStyle="rounded"
+      borderStyle="heavy"
       borderColor={openTuiTheme.color.lineStrong}
       backgroundColor={openTuiTheme.color.canvas}
       flexDirection="column"

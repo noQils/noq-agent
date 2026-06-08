@@ -36,8 +36,8 @@ export function PermissionsPanel(props: {
     <box
       border
       borderStyle="rounded"
-      borderColor={openTuiTheme.color.teal}
-      focusedBorderColor={openTuiTheme.color.teal}
+      borderColor={openTuiTheme.color.amber}
+      focusedBorderColor={openTuiTheme.color.amber}
       backgroundColor={openTuiTheme.color.canvas}
       paddingX={1}
       flexDirection="column"
@@ -68,7 +68,7 @@ export function PermissionsPanel(props: {
         width="100%"
         border={['left']}
         borderStyle="heavy"
-        borderColor={openTuiTheme.color.teal}
+        borderColor={openTuiTheme.color.amber}
         paddingX={1}
         flexDirection="column"
         flexShrink={0}
