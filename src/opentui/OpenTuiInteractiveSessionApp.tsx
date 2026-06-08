@@ -24,8 +24,10 @@ import { Composer } from './components/Composer';
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
 import { SessionHeader } from './components/SessionHeader';
+import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
+import { getSlashCommandSuggestions } from './permissionsEditorState';
 import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 interface OpenTuiInteractiveSessionAppProps {
@@ -107,7 +109,9 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const [busyFrame, setBusyFrame] = createSignal(0);
   const [selectedPermissionAction, setSelectedPermissionAction] = createSignal<PermissionActionId>('allow_once');
   const [selectedPermissionItemIndex, setSelectedPermissionItemIndex] = createSignal(0);
+  const [selectedSlashCommandIndex, setSelectedSlashCommandIndex] = createSignal(0);
   const transcriptScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3.5 });
+  let lastSlashCommandQuery = '';
   let cachedSelectionText = '';
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
@@ -334,6 +338,34 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     });
   });
 
+  createEffect(() => {
+    const suggestionState = getSlashCommandSuggestions(props.inputValue());
+
+    if (!suggestionState.visible || suggestionState.matches.length === 0) {
+      lastSlashCommandQuery = '';
+      setSelectedSlashCommandIndex(0);
+      return;
+    }
+
+    if (suggestionState.query !== lastSlashCommandQuery) {
+      lastSlashCommandQuery = suggestionState.query;
+      setSelectedSlashCommandIndex(0);
+      return;
+    }
+
+    setSelectedSlashCommandIndex((currentIndex) => {
+      if (currentIndex < 0) {
+        return 0;
+      }
+
+      if (currentIndex >= suggestionState.matches.length) {
+        return suggestionState.matches.length - 1;
+      }
+
+      return currentIndex;
+    });
+  });
+
   const isNarrow = () => dimensions().width < 72;
   const isCompact = () => dimensions().width < 72 || dimensions().height < 22;
   const isShort = () => dimensions().height < 22;
@@ -344,6 +376,13 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const resolvedStatusColor = () => statusColor(props.statusMessage(), props.isBusy());
   const hasPermissionRequest = () => props.permissionRequest() !== null;
   const hasModalOverlay = () => hasPermissionRequest() || props.permissionsEditorOpen();
+  const slashCommandSuggestions = () => getSlashCommandSuggestions(props.inputValue());
+  const slashCommandPopupVisible = () => (
+    slashCommandSuggestions().visible
+    && slashCommandSuggestions().matches.length > 0
+    && !props.isBusy()
+    && !hasModalOverlay()
+  );
   const animatedStatus = () => (
     props.isBusy()
       ? `${resolvedStatusLabel()}${busySuffix(busyFrame())}`
@@ -468,6 +507,14 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             }}
           />
         </box>
+      ) : null}
+
+      {slashCommandPopupVisible() ? (
+        <SlashCommandPopup
+          matches={slashCommandSuggestions().matches}
+          selectedIndex={selectedSlashCommandIndex()}
+          width={Math.max(28, dimensions().width - 6)}
+        />
       ) : null}
 
       <Composer
