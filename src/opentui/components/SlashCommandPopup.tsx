@@ -3,7 +3,7 @@
 import { For } from 'solid-js';
 
 import { openTuiTheme } from '../openTuiTheme';
-import { type SlashCommandCatalogEntry } from '../permissionsEditorState';
+import { type SlashCommandCatalogEntry } from '../slashCommands';
 
 const maxVisibleRows = 7;
 

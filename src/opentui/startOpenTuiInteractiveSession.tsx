@@ -50,9 +50,8 @@ import {
   formatPermissionScopeLabel,
   getNextPermissionOutcome,
   getPermissionsEditorItems,
-  parseSlashCommand,
-  type SlashCommand,
 } from './permissionsEditorState';
+import { parseSlashCommand, type SlashCommand } from './slashCommands';
 import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 export interface StartOpenTuiInteractiveSessionOptions {

@@ -27,7 +27,7 @@ import { SessionHeader } from './components/SessionHeader';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
-import { getSlashCommandInsertText, getSlashCommandSuggestions } from './permissionsEditorState';
+import { getSlashCommandInsertText, getSlashCommandSuggestions } from './slashCommands';
 import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 interface OpenTuiInteractiveSessionAppProps {

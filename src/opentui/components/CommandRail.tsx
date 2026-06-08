@@ -3,7 +3,7 @@
 import { For } from 'solid-js';
 
 import { openTuiTheme } from '../openTuiTheme';
-import { getSlashCommandCatalogEntries } from '../permissionsEditorState';
+import { getSlashCommandCatalogEntries } from '../slashCommands';
 
 interface CommandHint {
   key: string;
