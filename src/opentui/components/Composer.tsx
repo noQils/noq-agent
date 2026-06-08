@@ -57,17 +57,17 @@ export function Composer(props: {
       return props.isNarrow ? 'Waiting...' : 'Waiting for the current turn to finish...';
     }
 
-    return props.isNarrow ? 'Message + Enter' : 'Type a message and press Enter (ctrl+o for newline)';
+    return 'Type here...';
   };
 
   let textareaRef: TextareaRenderable | null = null;
 
   return (
     <box
-      border
-      borderStyle="rounded"
-      borderColor={borderColor()}
-      focusedBorderColor={focusedBorderColor()}
+      // border
+      // borderStyle="rounded"
+      // borderColor={borderColor()}
+      // focusedBorderColor={focusedBorderColor()}
       paddingLeft={1}
       paddingRight={3}
       paddingY={0}
