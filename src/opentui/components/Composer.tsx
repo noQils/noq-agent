@@ -60,10 +60,6 @@ export function Composer(props: {
 
   return (
     <box
-      // border
-      // borderStyle="rounded"
-      // borderColor={borderColor()}
-      // focusedBorderColor={focusedBorderColor()}
       paddingLeft={1}
       paddingRight={3}
       paddingY={0}
