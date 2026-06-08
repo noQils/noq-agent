@@ -27,7 +27,11 @@ import { SessionHeader } from './components/SessionHeader';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
-import { getSlashCommandInsertText, getSlashCommandSuggestions } from './slashCommands';
+import {
+  getSlashCommandExecutionText,
+  getSlashCommandInsertText,
+  getSlashCommandSuggestions,
+} from './slashCommands';
 import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
 
 interface OpenTuiInteractiveSessionAppProps {
@@ -210,7 +214,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     renderer.requestRender();
   };
 
-  const insertSelectedSlashCommand = (): boolean => {
+  const acceptSelectedSlashCommandForInsertion = (): boolean => {
     const suggestions = getSlashCommandSuggestions(props.inputValue());
     const selectedEntry = suggestions.matches[selectedSlashCommandIndex()];
     if (!selectedEntry) {
@@ -222,6 +226,21 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     props.onInput(nextValue);
     composerTextarea?.focus();
     renderer.requestRender();
+    return true;
+  };
+
+  const executeSelectedSlashCommandImmediately = (): boolean => {
+    const suggestions = getSlashCommandSuggestions(props.inputValue());
+    const selectedEntry = suggestions.matches[selectedSlashCommandIndex()];
+    if (!selectedEntry) {
+      return false;
+    }
+
+    const nextValue = getSlashCommandExecutionText(selectedEntry);
+    setDismissedSlashCommandQuery(nextValue);
+    props.onInput(nextValue);
+    renderer.requestRender();
+    props.onSubmit();
     return true;
   };
 
@@ -343,14 +362,19 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       }
 
       if (keyName === 'tab') {
-        if (insertSelectedSlashCommand()) {
+        if (acceptSelectedSlashCommandForInsertion()) {
           stopPermissionKeyEvent(key);
           return;
         }
       }
 
       if (keyName === 'enter' || keyName === 'return' || keyName === 'kpenter') {
-        if (insertSelectedSlashCommand()) {
+        const selectedEntry = slashCommandSuggestions().matches[selectedSlashCommandIndex()];
+        const handled = selectedEntry?.acceptBehavior === 'insert'
+          ? acceptSelectedSlashCommandForInsertion()
+          : executeSelectedSlashCommandImmediately();
+
+        if (handled) {
           stopPermissionKeyEvent(key);
           return;
         }

@@ -17,6 +17,7 @@ export interface SlashCommandCatalogEntry {
   argsHint?: string;
   description: string;
   aliases?: string[];
+  acceptBehavior: 'execute' | 'insert';
   parse: (inputLine: string) => SlashCommand | null;
 }
 
@@ -31,6 +32,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
     command: '/mode',
     argsHint: 'plan|build',
     description: 'Switch agent mode',
+    acceptBehavior: 'insert',
     parse: (inputLine) => {
       if (inputLine !== '/mode' && !inputLine.startsWith('/mode ')) {
         return null;
@@ -47,6 +49,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   {
     command: '/permissions',
     description: 'Open session permissions',
+    acceptBehavior: 'execute',
     parse: (inputLine) => inputLine === '/permissions'
       ? { type: 'permissions' }
       : null,
@@ -54,6 +57,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   {
     command: '/connect',
     description: 'Connect provider credentials',
+    acceptBehavior: 'execute',
     parse: (inputLine) => inputLine === '/connect'
       ? { type: 'connect' }
       : null,
@@ -61,6 +65,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   {
     command: '/models',
     description: 'Choose the active default model',
+    acceptBehavior: 'execute',
     parse: (inputLine) => inputLine === '/models'
       ? { type: 'models' }
       : null,
@@ -69,6 +74,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
     command: '/plan',
     argsHint: 'show',
     description: 'Show the latest saved plan',
+    acceptBehavior: 'execute',
     parse: (inputLine) => inputLine === '/plan show'
       ? { type: 'plan_show' }
       : null,
@@ -76,6 +82,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   {
     command: '/diff',
     description: 'Open the latest session diff',
+    acceptBehavior: 'execute',
     parse: (inputLine) => inputLine === '/diff'
       ? { type: 'diff' }
       : null,
@@ -83,6 +90,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   {
     command: '/undo',
     description: 'Undo the latest session snapshot',
+    acceptBehavior: 'execute',
     parse: (inputLine) => inputLine === '/undo'
       ? { type: 'undo' }
       : null,
@@ -91,6 +99,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
     command: '/exit',
     description: 'Exit the app',
     aliases: ['/quit'],
+    acceptBehavior: 'execute',
     parse: (inputLine) => inputLine === '/exit' || inputLine === '/quit'
       ? { type: 'exit' }
       : null,
@@ -108,6 +117,16 @@ export function getSlashCommandInsertText(entry: SlashCommandCatalogEntry): stri
 
   return entry.argsHint.includes('|')
     ? `${entry.command} `
+    : `${entry.command} ${entry.argsHint}`;
+}
+
+export function getSlashCommandExecutionText(entry: SlashCommandCatalogEntry): string {
+  if (!entry.argsHint) {
+    return entry.command;
+  }
+
+  return entry.argsHint.includes('|')
+    ? entry.command
     : `${entry.command} ${entry.argsHint}`;
 }
 

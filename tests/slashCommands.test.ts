@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   getSlashCommandCatalogEntries,
+  getSlashCommandExecutionText,
   getSlashCommandInsertText,
   getSlashCommandSuggestions,
   parseSlashCommand,
@@ -62,6 +63,10 @@ test('getSlashCommandCatalogEntries returns the full command set and compact sub
     '/models',
     '/exit',
   ]);
+  assert.equal(fullEntries.find((entry) => entry.command === '/mode')?.acceptBehavior, 'insert');
+  assert.equal(fullEntries.find((entry) => entry.command === '/exit')?.acceptBehavior, 'execute');
+  assert.equal(fullEntries.find((entry) => entry.command === '/models')?.acceptBehavior, 'execute');
+  assert.equal(fullEntries.find((entry) => entry.command === '/plan')?.acceptBehavior, 'execute');
 });
 
 test('getSlashCommandInsertText expands fixed commands and leaves open-ended commands ready for typing', () => {
@@ -72,6 +77,16 @@ test('getSlashCommandInsertText expands fixed commands and leaves open-ended com
   assert.equal(getSlashCommandInsertText(modeEntry!), '/mode ');
   assert.equal(getSlashCommandInsertText(planEntry!), '/plan show');
   assert.equal(getSlashCommandInsertText(diffEntry!), '/diff');
+});
+
+test('getSlashCommandExecutionText keeps fully-specified commands ready to run', () => {
+  const modeEntry = getSlashCommandCatalogEntries().find((entry) => entry.command === '/mode');
+  const planEntry = getSlashCommandCatalogEntries().find((entry) => entry.command === '/plan');
+  const exitEntry = getSlashCommandCatalogEntries().find((entry) => entry.command === '/exit');
+
+  assert.equal(getSlashCommandExecutionText(modeEntry!), '/mode');
+  assert.equal(getSlashCommandExecutionText(planEntry!), '/plan show');
+  assert.equal(getSlashCommandExecutionText(exitEntry!), '/exit');
 });
 
 test('getSlashCommandSuggestions hides suggestions for non-slash input', () => {
