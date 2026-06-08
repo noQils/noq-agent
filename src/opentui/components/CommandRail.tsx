@@ -11,19 +11,10 @@ interface CommandHint {
 }
 
 function commandHints(isCompact: boolean): CommandHint[] {
-  const slashHints = getSlashCommandCatalogEntries({
-    includeCompactOnly: isCompact,
-  }).map((entry) => entry.argsHint
-    ? {
-        key: entry.command,
-        value: entry.argsHint,
-      }
-    : {
-        key: entry.command,
-      });
-
   return [
-    ...slashHints,
+    { key: '/models' },
+    { key: '/permissions' },
+    { key: '/exit' },
     { key: 'ctrl+o', value: 'newline' },
   ];
 }
@@ -40,15 +31,19 @@ export function CommandRail(props: { isCompact: boolean }) {
       flexDirection="row"
       gap={1}
     >
-      <box flexDirection="row" gap={1} flexShrink={1}>
+      <box flexDirection="row" gap={1} flexShrink={0}>
+        <text fg={openTuiTheme.color.textFaint}>use</text>
+        <text fg={openTuiTheme.color.teal}>/</text>
+        <text fg={openTuiTheme.color.textFaint}>for commands</text>
+        <text fg={openTuiTheme.color.ghost}>•</text>
         <For each={hints()}>
           {(hint, index) => (
             <box flexDirection="row" gap={1}>
-              <text fg={openTuiTheme.color.teal} truncate>
+              <text fg={openTuiTheme.color.teal}>
                 {hint.key}
               </text>
               {hint.value ? (
-                <text fg={openTuiTheme.color.textFaint} truncate>
+                <text fg={openTuiTheme.color.textFaint}>
                   {hint.value}
                 </text>
               ) : null}
