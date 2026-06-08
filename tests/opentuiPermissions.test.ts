@@ -41,12 +41,27 @@ test('parseSlashCommand recognizes /permissions', () => {
   assert.deepEqual(parseSlashCommand('/permissions'), { type: 'permissions' });
 });
 
+test('parseSlashCommand keeps the existing command execution matrix intact', () => {
+  assert.deepEqual(parseSlashCommand('/connect'), { type: 'connect' });
+  assert.deepEqual(parseSlashCommand('/models'), { type: 'models' });
+  assert.deepEqual(parseSlashCommand('/diff'), { type: 'diff' });
+  assert.deepEqual(parseSlashCommand('/undo'), { type: 'undo' });
+  assert.deepEqual(parseSlashCommand('/plan show'), { type: 'plan_show' });
+  assert.deepEqual(parseSlashCommand('/exit'), { type: 'exit' });
+  assert.deepEqual(parseSlashCommand('/mode plan'), { type: 'mode', mode: 'plan' });
+});
+
 test('parseSlashCommand recognizes /quit as an alias for /exit', () => {
   assert.deepEqual(parseSlashCommand('/quit'), { type: 'exit' });
 });
 
 test('parseSlashCommand recognizes /mode build through the shared catalog', () => {
   assert.deepEqual(parseSlashCommand('/mode build'), { type: 'mode', mode: 'build' });
+});
+
+test('parseSlashCommand keeps invalid slash commands invalid', () => {
+  assert.deepEqual(parseSlashCommand('/mode nope'), { type: 'invalid' });
+  assert.deepEqual(parseSlashCommand('/plan'), { type: 'invalid' });
 });
 
 test('parseSlashCommand treats unknown slash commands as invalid', () => {
@@ -96,6 +111,11 @@ test('getSlashCommandSuggestions hides suggestions for non-slash input', () => {
   });
 });
 
+test('getSlashCommandSuggestions only triggers from the start of the trimmed draft', () => {
+  assert.equal(getSlashCommandSuggestions('  /mo').visible, true);
+  assert.equal(getSlashCommandSuggestions('hello /mo').visible, false);
+});
+
 test('getSlashCommandSuggestions returns all commands for a bare slash', () => {
   const suggestions = getSlashCommandSuggestions('/');
 
@@ -135,6 +155,13 @@ test('getSlashCommandSuggestions keeps matching commands visible while typing ar
   const suggestions = getSlashCommandSuggestions('/mode b');
 
   assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode']);
+});
+
+test('getSlashCommandSuggestions only considers the first line of composer input', () => {
+  const suggestions = getSlashCommandSuggestions('/mo\nextra text');
+
+  assert.equal(suggestions.query, '/mo');
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode', '/models']);
 });
 
 test('getNextPermissionOutcome cycles ask allow deny', () => {
