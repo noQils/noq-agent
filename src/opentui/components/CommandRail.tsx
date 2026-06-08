@@ -3,6 +3,7 @@
 import { For } from 'solid-js';
 
 import { openTuiTheme } from '../openTuiTheme';
+import { getSlashCommandCatalogEntries } from '../permissionsEditorState';
 
 interface CommandHint {
   key: string;
@@ -10,26 +11,19 @@ interface CommandHint {
 }
 
 function commandHints(isCompact: boolean): CommandHint[] {
-  if (isCompact) {
-    return [
-      { key: '/mode' },
-      { key: '/permissions' },
-      { key: '/connect' },
-      { key: '/models' },
-      { key: '/exit' },
-      { key: 'ctrl+o', value: 'newline' },
-    ];
-  }
+  const slashHints = getSlashCommandCatalogEntries({
+    includeCompactOnly: isCompact,
+  }).map((entry) => entry.argsHint
+    ? {
+        key: entry.command,
+        value: entry.argsHint,
+      }
+    : {
+        key: entry.command,
+      });
 
   return [
-    { key: '/mode', value: 'plan|build' },
-    { key: '/permissions' },
-    { key: '/connect' },
-    { key: '/models' },
-    { key: '/plan', value: 'show' },
-    { key: '/diff' },
-    { key: '/undo' },
-    { key: '/exit' },
+    ...slashHints,
     { key: 'ctrl+o', value: 'newline' },
   ];
 }

@@ -19,6 +19,13 @@ export type SlashCommand =
   | { type: 'plan_show' }
   | { type: 'mode'; mode: 'plan' | 'build' };
 
+export interface SlashCommandCatalogEntry {
+  command: string;
+  argsHint?: string;
+  aliases?: string[];
+  parse: (inputLine: string) => SlashCommand | null;
+}
+
 const permissionScopes: PermissionScope[] = [
   'read',
   'edit',
@@ -30,6 +37,69 @@ const permissionScopes: PermissionScope[] = [
 ];
 
 const permissionCycle: PermissionOutcome[] = ['ask', 'allow', 'deny'];
+
+export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
+  {
+    command: '/mode',
+    argsHint: 'plan|build',
+    parse: (inputLine) => {
+      if (inputLine !== '/mode' && !inputLine.startsWith('/mode ')) {
+        return null;
+      }
+
+      const requestedMode = inputLine.slice('/mode'.length).trim();
+      if (isAgentMode(requestedMode)) {
+        return { type: 'mode', mode: requestedMode };
+      }
+
+      return { type: 'invalid' };
+    },
+  },
+  {
+    command: '/permissions',
+    parse: (inputLine) => inputLine === '/permissions'
+      ? { type: 'permissions' }
+      : null,
+  },
+  {
+    command: '/connect',
+    parse: (inputLine) => inputLine === '/connect'
+      ? { type: 'connect' }
+      : null,
+  },
+  {
+    command: '/models',
+    parse: (inputLine) => inputLine === '/models'
+      ? { type: 'models' }
+      : null,
+  },
+  {
+    command: '/plan',
+    argsHint: 'show',
+    parse: (inputLine) => inputLine === '/plan show'
+      ? { type: 'plan_show' }
+      : null,
+  },
+  {
+    command: '/diff',
+    parse: (inputLine) => inputLine === '/diff'
+      ? { type: 'diff' }
+      : null,
+  },
+  {
+    command: '/undo',
+    parse: (inputLine) => inputLine === '/undo'
+      ? { type: 'undo' }
+      : null,
+  },
+  {
+    command: '/exit',
+    aliases: ['/quit'],
+    parse: (inputLine) => inputLine === '/exit' || inputLine === '/quit'
+      ? { type: 'exit' }
+      : null,
+  },
+];
 
 function getPermissionScopeDescription(scope: PermissionScope): string {
   switch (scope) {
@@ -93,46 +163,22 @@ export function getNextPermissionOutcome(outcome: PermissionOutcome): Permission
   return permissionCycle[(currentIndex + 1) % permissionCycle.length] ?? 'ask';
 }
 
-function isModeCommand(inputLine: string): boolean {
-  return inputLine === '/mode' || inputLine.startsWith('/mode ');
+export function getSlashCommandCatalogEntries(options?: {
+  includeCompactOnly?: boolean;
+}): SlashCommandCatalogEntry[] {
+  if (options?.includeCompactOnly) {
+    return slashCommandCatalog.filter((entry) => entry.command !== '/plan' && entry.command !== '/diff' && entry.command !== '/undo');
+  }
+
+  return slashCommandCatalog;
 }
 
 export function parseSlashCommand(inputLine: string): SlashCommand {
-  if (inputLine === '/connect') {
-    return { type: 'connect' };
-  }
-
-  if (inputLine === '/models') {
-    return { type: 'models' };
-  }
-
-  if (inputLine === '/permissions') {
-    return { type: 'permissions' };
-  }
-
-  if (inputLine === '/exit' || inputLine === '/quit') {
-    return { type: 'exit' };
-  }
-
-  if (inputLine === '/diff') {
-    return { type: 'diff' };
-  }
-
-  if (inputLine === '/undo') {
-    return { type: 'undo' };
-  }
-
-  if (inputLine === '/plan show') {
-    return { type: 'plan_show' };
-  }
-
-  if (isModeCommand(inputLine)) {
-    const requestedMode = inputLine.slice('/mode'.length).trim();
-    if (isAgentMode(requestedMode)) {
-      return { type: 'mode', mode: requestedMode };
+  for (const entry of slashCommandCatalog) {
+    const parsedCommand = entry.parse(inputLine);
+    if (parsedCommand) {
+      return parsedCommand;
     }
-
-    return { type: 'invalid' };
   }
 
   return inputLine.startsWith('/')

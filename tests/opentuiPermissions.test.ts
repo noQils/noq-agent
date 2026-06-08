@@ -9,6 +9,7 @@ import {
   getBashWorkspaceOutcome,
   getNextPermissionOutcome,
   getPermissionsEditorItems,
+  getSlashCommandCatalogEntries,
   parseSlashCommand,
 } from '../src/opentui/permissionsEditorState';
 import { setSessionPermissionOverride } from '../src/session/sessionStore';
@@ -38,8 +39,39 @@ test('parseSlashCommand recognizes /permissions', () => {
   assert.deepEqual(parseSlashCommand('/permissions'), { type: 'permissions' });
 });
 
+test('parseSlashCommand recognizes /quit as an alias for /exit', () => {
+  assert.deepEqual(parseSlashCommand('/quit'), { type: 'exit' });
+});
+
+test('parseSlashCommand recognizes /mode build through the shared catalog', () => {
+  assert.deepEqual(parseSlashCommand('/mode build'), { type: 'mode', mode: 'build' });
+});
+
 test('parseSlashCommand treats unknown slash commands as invalid', () => {
   assert.deepEqual(parseSlashCommand('/wat'), { type: 'invalid' });
+});
+
+test('getSlashCommandCatalogEntries returns the full command set and compact subset', () => {
+  const fullCommands = getSlashCommandCatalogEntries().map((entry) => entry.command);
+  const compactCommands = getSlashCommandCatalogEntries({ includeCompactOnly: true }).map((entry) => entry.command);
+
+  assert.deepEqual(fullCommands, [
+    '/mode',
+    '/permissions',
+    '/connect',
+    '/models',
+    '/plan',
+    '/diff',
+    '/undo',
+    '/exit',
+  ]);
+  assert.deepEqual(compactCommands, [
+    '/mode',
+    '/permissions',
+    '/connect',
+    '/models',
+    '/exit',
+  ]);
 });
 
 test('getNextPermissionOutcome cycles ask allow deny', () => {
