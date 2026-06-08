@@ -49,10 +49,6 @@ export function Composer(props: {
     props.isBusy ? openTuiTheme.color.amber : openTuiTheme.color.teal
   );
   const placeholder = () => {
-    if (props.hasModalOverlay) {
-      return props.isNarrow ? 'Use popup controls' : 'Use the popup controls above';
-    }
-
     if (props.isBusy) {
       return props.isNarrow ? 'Waiting...' : 'Waiting for the current turn to finish...';
     }
