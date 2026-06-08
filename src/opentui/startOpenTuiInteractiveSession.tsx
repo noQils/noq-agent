@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 
-import { createSignal } from 'solid-js';
+import { createEffect, createSignal } from 'solid-js';
 
 import { render, useRenderer } from '@opentui/solid';
 import { CliRenderEvents } from '@opentui/core';
@@ -278,6 +278,7 @@ export async function startOpenTuiInteractiveSession(
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
   const [permissionRequest, setPermissionRequest] = createSignal<PermissionRequest | null>(null);
   const [permissionsEditorOpen, setPermissionsEditorOpen] = createSignal(false);
+  const [permissionItems, setPermissionItems] = createSignal<OpenTuiPermissionItem[]>([]);
   const [activeSessionId, setActiveSessionId] = createSignal<string | null>(sessionId ?? null);
   const [setupFlow, setSetupFlow] = createSignal<SetupFlow | null>(null);
 
@@ -341,7 +342,13 @@ export async function startOpenTuiInteractiveSession(
     }
   };
 
-  const permissionItems = (): OpenTuiPermissionItem[] => getPermissionsEditorItems(activeSessionId());
+  const refreshPermissionItems = (sessionIdOverride?: string | null): void => {
+    setPermissionItems(getPermissionsEditorItems(sessionIdOverride ?? activeSessionId()));
+  };
+
+  createEffect(() => {
+    refreshPermissionItems(activeSessionId());
+  });
 
   const closePermissionsEditor = (): void => {
     setPermissionsEditorOpen(false);
@@ -361,8 +368,7 @@ export async function startOpenTuiInteractiveSession(
     const resolvedSessionId = ensureActiveSessionId();
     const nextOutcome = getNextPermissionOutcome(targetItem.outcome);
     setSessionPermissionOverride(resolvedSessionId, targetItem.scope, nextOutcome);
-    appendTranscriptEntry('system', `Session permission updated: ${targetItem.scope} -> ${nextOutcome}.`);
-    setStatusMessage(`Permissions: ${formatPermissionScopeLabel(targetItem.scope)} = ${nextOutcome}`);
+    refreshPermissionItems(resolvedSessionId);
     renderer.requestRender();
   };
 
@@ -423,6 +429,7 @@ export async function startOpenTuiInteractiveSession(
       }
 
       case 'permissions':
+        refreshPermissionItems();
         setPermissionsEditorOpen(true);
         setStatusMessage('Permissions editor');
         return true;
