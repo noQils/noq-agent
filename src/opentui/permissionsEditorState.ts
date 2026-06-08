@@ -22,6 +22,7 @@ export type SlashCommand =
 export interface SlashCommandCatalogEntry {
   command: string;
   argsHint?: string;
+  description: string;
   aliases?: string[];
   parse: (inputLine: string) => SlashCommand | null;
 }
@@ -48,6 +49,7 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   {
     command: '/mode',
     argsHint: 'plan|build',
+    description: 'Switch agent mode',
     parse: (inputLine) => {
       if (inputLine !== '/mode' && !inputLine.startsWith('/mode ')) {
         return null;
@@ -63,18 +65,21 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   },
   {
     command: '/permissions',
+    description: 'Open session permissions',
     parse: (inputLine) => inputLine === '/permissions'
       ? { type: 'permissions' }
       : null,
   },
   {
     command: '/connect',
+    description: 'Connect provider credentials',
     parse: (inputLine) => inputLine === '/connect'
       ? { type: 'connect' }
       : null,
   },
   {
     command: '/models',
+    description: 'Choose the active default model',
     parse: (inputLine) => inputLine === '/models'
       ? { type: 'models' }
       : null,
@@ -82,24 +87,28 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
   {
     command: '/plan',
     argsHint: 'show',
+    description: 'Show the latest saved plan',
     parse: (inputLine) => inputLine === '/plan show'
       ? { type: 'plan_show' }
       : null,
   },
   {
     command: '/diff',
+    description: 'Open the latest session diff',
     parse: (inputLine) => inputLine === '/diff'
       ? { type: 'diff' }
       : null,
   },
   {
     command: '/undo',
+    description: 'Undo the latest session snapshot',
     parse: (inputLine) => inputLine === '/undo'
       ? { type: 'undo' }
       : null,
   },
   {
     command: '/exit',
+    description: 'Exit the app',
     aliases: ['/quit'],
     parse: (inputLine) => inputLine === '/exit' || inputLine === '/quit'
       ? { type: 'exit' }

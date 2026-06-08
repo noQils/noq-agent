@@ -53,7 +53,8 @@ test('parseSlashCommand treats unknown slash commands as invalid', () => {
 });
 
 test('getSlashCommandCatalogEntries returns the full command set and compact subset', () => {
-  const fullCommands = getSlashCommandCatalogEntries().map((entry) => entry.command);
+  const fullEntries = getSlashCommandCatalogEntries();
+  const fullCommands = fullEntries.map((entry) => entry.command);
   const compactCommands = getSlashCommandCatalogEntries({ includeCompactOnly: true }).map((entry) => entry.command);
 
   assert.deepEqual(fullCommands, [
@@ -66,6 +67,7 @@ test('getSlashCommandCatalogEntries returns the full command set and compact sub
     '/undo',
     '/exit',
   ]);
+  assert.ok(fullEntries.every((entry) => entry.description.length > 0));
   assert.deepEqual(compactCommands, [
     '/mode',
     '/permissions',
