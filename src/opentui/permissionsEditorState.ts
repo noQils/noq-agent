@@ -32,6 +32,27 @@ const permissionScopes: PermissionScope[] = [
 
 const permissionCycle: PermissionOutcome[] = ['ask', 'allow', 'deny'];
 
+function getPermissionScopeDescription(scope: PermissionScope): string {
+  switch (scope) {
+    case 'read':
+      return 'Read file contents';
+    case 'edit':
+      return 'Create or modify files';
+    case 'list':
+      return 'List directory contents';
+    case 'glob':
+      return 'Find files by pattern';
+    case 'grep':
+      return 'Search text across files';
+    case 'bash':
+      return 'Run shell commands';
+    case 'external_directory':
+      return 'Access paths outside the workspace';
+    case 'todo':
+      return 'Manage the internal todo list';
+  }
+}
+
 export function formatPermissionScopeLabel(scope: PermissionScope): string {
   return scope.replaceAll('_', ' ');
 }
@@ -65,6 +86,7 @@ export function getPermissionsEditorItems(sessionId: string | null): OpenTuiPerm
         scope,
         outcome,
         source,
+        scopeDescription: getPermissionScopeDescription(scope),
         description,
       };
     }
@@ -73,6 +95,7 @@ export function getPermissionsEditorItems(sessionId: string | null): OpenTuiPerm
       scope,
       outcome: sessionOverride ?? config.permission[scope],
       source: sessionOverride ? 'session' : 'workspace',
+      scopeDescription: getPermissionScopeDescription(scope),
       description: sessionOverride ? 'Session override active' : 'Workspace config default',
     };
   });

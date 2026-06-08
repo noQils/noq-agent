@@ -85,9 +85,14 @@ export function PermissionsPanel(props: {
           <box width={7} flexShrink={0}>
             <text fg={openTuiTheme.color.textFaint}>Scope</text>
           </box>
-          <text fg={openTuiTheme.color.text} truncate flexGrow={1}>
-            {selectedItem() ? formatScopeLabel(selectedItem()!.scope) : '(none)'}
-          </text>
+          <box flexDirection="row" gap={1}>
+            <text fg={openTuiTheme.color.text} truncate flexGrow={1}>
+              {selectedItem() ? formatScopeLabel(selectedItem()!.scope) : '(none)'}
+            </text>
+            <text fg={openTuiTheme.color.ghost} truncate flexGrow={1}>
+              {selectedItem()?.scopeDescription ?? '(none)'}
+            </text>
+          </box>
         </box>
         <box flexDirection="row" gap={1}>
           <box width={7} flexShrink={0}>

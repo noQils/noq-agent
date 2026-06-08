@@ -86,12 +86,14 @@ test('getPermissionsEditorItems uses workspace values when no session override e
       scope: 'edit',
       outcome: 'deny',
       source: 'workspace',
+      scopeDescription: 'Create or modify files.',
       description: 'Workspace config default',
     });
     assert.deepEqual(bashItem, {
       scope: 'bash',
       outcome: 'ask',
       source: 'workspace_rules',
+      scopeDescription: 'Run shell commands.',
       description: 'Workspace bash rules fallback',
     });
   });
@@ -120,12 +122,14 @@ test('getPermissionsEditorItems surfaces session overrides over workspace config
         scope: 'edit',
         outcome: 'allow',
         source: 'session',
+        scopeDescription: 'Create or modify files.',
         description: 'Session override active',
       });
       assert.deepEqual(bashItem, {
         scope: 'bash',
         outcome: 'deny',
         source: 'session',
+        scopeDescription: 'Run shell commands.',
         description: 'Session-wide shell mode',
       });
     });
