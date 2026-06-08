@@ -1,6 +1,5 @@
 import { isAgentMode } from '../agentMode';
 import {
-  isRuleBasedCommandPermission,
   resolveCommandPermission,
 } from '../commandPolicy';
 import { getConfig } from '../config/config';
@@ -74,29 +73,17 @@ export function getPermissionsEditorItems(sessionId: string | null): OpenTuiPerm
     const sessionOverride = sessionOverrides[scope];
 
     if (scope === 'bash') {
-      const outcome = sessionOverride ?? getBashWorkspaceOutcome();
-      const source = sessionOverride
-        ? 'session'
-        : (isRuleBasedCommandPermission(config.permission.bash) ? 'workspace_rules' : 'workspace');
-      const description = sessionOverride
-        ? 'Session-wide shell mode'
-        : (source === 'workspace_rules' ? 'Workspace bash rules fallback' : 'Workspace shell mode');
-
       return {
         scope,
-        outcome,
-        source,
+        outcome: sessionOverride ?? getBashWorkspaceOutcome(),
         scopeDescription: getPermissionScopeDescription(scope),
-        description,
       };
     }
 
     return {
       scope,
       outcome: sessionOverride ?? config.permission[scope],
-      source: sessionOverride ? 'session' : 'workspace',
       scopeDescription: getPermissionScopeDescription(scope),
-      description: sessionOverride ? 'Session override active' : 'Workspace config default',
     };
   });
 }

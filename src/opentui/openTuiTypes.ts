@@ -13,7 +13,5 @@ export interface OpenTuiSessionEntry {
 export interface OpenTuiPermissionItem {
   scope: PermissionScope;
   outcome: PermissionOutcome;
-  source: 'session' | 'workspace' | 'workspace_rules';
   scopeDescription: string;
-  description: string;
 }

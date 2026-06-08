@@ -11,14 +11,6 @@ function formatScopeLabel(scope: OpenTuiPermissionItem['scope']): string {
   return scope.replaceAll('_', ' ');
 }
 
-function formatSourceLabel(source: OpenTuiPermissionItem['source']): string {
-  if (source === 'workspace_rules') {
-    return 'workspace rules';
-  }
-
-  return source;
-}
-
 function outcomeColor(outcome: OpenTuiPermissionItem['outcome']): string {
   if (outcome === 'allow') {
     return openTuiTheme.color.green;
@@ -105,22 +97,6 @@ export function PermissionsPanel(props: {
             {selectedItem()?.outcome ?? '(none)'}
           </text>
         </box>
-        <box flexDirection="row" gap={1}>
-          <box width={7} flexShrink={0}>
-            <text fg={openTuiTheme.color.textFaint}>Source</text>
-          </box>
-          <text fg={openTuiTheme.color.textSoft} truncate flexGrow={1}>
-            {selectedItem() ? formatSourceLabel(selectedItem()!.source) : '(none)'}
-          </text>
-        </box>
-        <box flexDirection="row" gap={1}>
-          <box width={7} flexShrink={0}>
-            <text fg={openTuiTheme.color.textFaint}>Rule</text>
-          </box>
-          <text fg={openTuiTheme.color.textSoft} truncate flexGrow={1}>
-            {selectedItem()?.description ?? '(none)'}
-          </text>
-        </box>
       </box>
 
       <box
@@ -160,7 +136,7 @@ export function PermissionsPanel(props: {
                     width="100%"
                     paddingX={1}
                     paddingY={0}
-                    backgroundColor={isSelected() ? openTuiTheme.color.panelRaised : openTuiTheme.color.canvas}
+                    backgroundColor={isSelected() ? openTuiTheme.color.tealFade : openTuiTheme.color.canvas}
                     onMouseDown={() => props.onCycle()}
                   >
                     <box width="100%" flexDirection="row" justifyContent="space-between" gap={1}>

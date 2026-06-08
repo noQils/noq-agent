@@ -367,6 +367,16 @@ export async function startOpenTuiInteractiveSession(
 
     const resolvedSessionId = ensureActiveSessionId();
     const nextOutcome = getNextPermissionOutcome(targetItem.outcome);
+    setPermissionItems(items.map((item, index) => {
+      if (index !== selectedIndex) {
+        return item;
+      }
+
+      return {
+        ...item,
+        outcome: nextOutcome,
+      };
+    }));
     setSessionPermissionOverride(resolvedSessionId, targetItem.scope, nextOutcome);
     refreshPermissionItems(resolvedSessionId);
     renderer.requestRender();
