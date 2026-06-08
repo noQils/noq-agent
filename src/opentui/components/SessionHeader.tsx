@@ -22,7 +22,7 @@ export function SessionHeader(props: {
     >
       <box flexDirection="row" gap={1} flexShrink={1}>
         <text fg={openTuiTheme.color.teal} selectable={false} truncate>
-          noq
+          noQ
         </text>
         <text fg={openTuiTheme.color.lineStrong} selectable={false} truncate>
           {'///'}
