@@ -157,17 +157,17 @@ export function PermissionsPanel(props: {
 
       <box width="100%" flexDirection="row" flexWrap="wrap" flexShrink={0}>
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
-          <text fg={openTuiTheme.color.cyan}>↑/↓</text>
+          <text fg={openTuiTheme.color.teal}>↑/↓</text>
           <text fg={openTuiTheme.color.textMuted}>move</text>
           <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
-          <text fg={openTuiTheme.color.cyan}>enter</text>
+          <text fg={openTuiTheme.color.teal}>enter</text>
           <text fg={openTuiTheme.color.textMuted}>cycle ask/allow/deny</text>
           <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0}>
-          <text fg={openTuiTheme.color.cyan}>esc</text>
+          <text fg={openTuiTheme.color.teal}>esc</text>
           <text fg={openTuiTheme.color.textMuted}>close</text>
         </box>
       </box>

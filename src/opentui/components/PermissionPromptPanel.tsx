@@ -43,22 +43,6 @@ function permissionPreviewLineBg(preview: PermissionPreview, rawLine: string): s
   return openTuiTheme.color.panelRaised;
 }
 
-function permissionScopeColor(scope: PermissionRequest['scope']): string {
-  if (scope === 'edit' || scope === 'external_directory') {
-    return openTuiTheme.color.amber;
-  }
-
-  if (scope === 'bash') {
-    return openTuiTheme.color.amberSoft;
-  }
-
-  if (scope === 'read' || scope === 'list' || scope === 'grep' || scope === 'glob') {
-    return openTuiTheme.color.cyan;
-  }
-
-  return openTuiTheme.color.teal;
-}
-
 function formatPermissionToolLabel(request: PermissionRequest): string {
   if (request.toolName === 'apply_patch' || request.toolName === 'edit_file') {
     return 'edit';
@@ -343,7 +327,7 @@ export function PermissionPromptPanel(props: {
         <text fg={openTuiTheme.color.amber} flexShrink={1}>
           {isExternalDirectoryPermission(props.request) ? 'External Directory Access' : 'Permission Required'}
         </text>
-        <box backgroundColor={permissionScopeColor(props.request.scope)} paddingX={1} flexShrink={0}>
+        <box backgroundColor={openTuiTheme.color.amber} paddingX={1} flexShrink={0}>
           <text fg={openTuiTheme.color.canvas} truncate>
             {props.request.scope.toUpperCase()}
           </text>
@@ -354,7 +338,7 @@ export function PermissionPromptPanel(props: {
         width="100%"
         border={['left']}
         borderStyle="heavy"
-        borderColor={permissionScopeColor(props.request.scope)}
+        borderColor={openTuiTheme.color.amber}
         paddingX={1}
         flexDirection="column"
         flexShrink={0}
@@ -474,7 +458,7 @@ export function PermissionPromptPanel(props: {
                     width="100%"
                     backgroundColor={permissionPreviewLineBg(preview(), preview().rawLines[index()] ?? '')}
                   >
-                    <text fg={openTuiTheme.color.textSoft} wrapMode="none">
+                    <text fg={openTuiTheme.color.textSoft}>
                       {line}
                     </text>
                   </box>
@@ -528,22 +512,22 @@ export function PermissionPromptPanel(props: {
 
       <box width="100%" flexDirection="row" flexWrap="wrap" flexShrink={0}>
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
-          <text fg={openTuiTheme.color.cyan}>←/→</text>
+          <text fg={openTuiTheme.color.teal}>←/→</text>
           <text fg={openTuiTheme.color.textMuted}>choose</text>
           <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
-          <text fg={openTuiTheme.color.cyan}>enter</text>
+          <text fg={openTuiTheme.color.teal}>enter</text>
           <text fg={openTuiTheme.color.textMuted}>confirm</text>
           <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0} marginRight={1}>
-          <text fg={openTuiTheme.color.cyan}>esc</text>
+          <text fg={openTuiTheme.color.teal}>esc</text>
           <text fg={openTuiTheme.color.textMuted}>deny</text>
           <text fg={openTuiTheme.color.ghost} selectable={false}>•</text>
         </box>
         <box flexDirection="row" gap={1} flexShrink={0}>
-          <text fg={openTuiTheme.color.cyan}>shift+↑/↓</text>
+          <text fg={openTuiTheme.color.teal}>shift+↑/↓</text>
           <text fg={openTuiTheme.color.textMuted}>scroll preview</text>
         </box>
       </box>
