@@ -21,6 +21,7 @@ export const openTuiTheme = {
     cyan: '#60c5ff',
     cyanStrong: '#9be8ff',
     teal: '#2dd4bf',
+    tealFade: '#2dd4be50',
     green: '#7ad17f',
     amber: '#f6c768',
     amberSoft: '#d89b3d',
