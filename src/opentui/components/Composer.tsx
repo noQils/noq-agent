@@ -42,12 +42,6 @@ export function Composer(props: {
     return Math.min(composerMaxVisibleLines(), Math.max(1, composerLineCount()));
   };
   const composerFrameHeight = () => Math.max(3, composerVisibleLines() + 2);
-  const borderColor = () => (
-    props.isBusy ? openTuiTheme.color.amberSoft : openTuiTheme.color.teal
-  );
-  const focusedBorderColor = () => (
-    props.isBusy ? openTuiTheme.color.amber : openTuiTheme.color.teal
-  );
   const placeholder = () => {
     if (props.isBusy) {
       return props.isNarrow ? 'Waiting...' : 'Waiting for the current turn to finish...';
