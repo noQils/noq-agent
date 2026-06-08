@@ -356,20 +356,46 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     return Math.min(maxLength, Math.max(24, Math.floor(dimensions().width * widthRatio) - 8));
   };
   const permissionModalInsetX = () => {
-    if (isCompact()) {
+    if (isNarrow()) {
       return 0;
     }
 
     const width = dimensions().width;
-    return Math.min(24, Math.max(8, Math.floor(width * 0.12)));
+    return Math.min(32, Math.max(10, Math.floor(width * 0.21)));
   };
   const permissionModalInsetY = () => {
-    if (isCompact()) {
+    if (isShort()) {
       return 0;
     }
 
     const height = dimensions().height;
     return Math.min(8, Math.max(3, Math.floor(height * 0.16)));
+  };
+  const permissionsEditorMaxWidth = 72;
+  const permissionsEditorMaxHeight = 22;
+  const permissionsEditorInsetX = () => {
+    if (isNarrow()) {
+      return 0;
+    }
+
+    const width = dimensions().width;
+    if (width <= permissionsEditorMaxWidth) {
+      return 0;
+    }
+
+    return Math.max(0, Math.floor((width - permissionsEditorMaxWidth) / 2));
+  };
+  const permissionsEditorInsetY = () => {
+    if (isShort()) {
+      return 0;
+    }
+
+    const height = dimensions().height;
+    if (height <= permissionsEditorMaxHeight) {
+      return 0;
+    }
+
+    return Math.max(0, Math.floor((height - permissionsEditorMaxHeight) / 2));
   };
 
   return (
@@ -399,6 +425,11 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
       {props.permissionRequest() ? (
         <box
+          border
+          borderStyle="rounded"
+          borderColor={openTuiTheme.color.teal}
+          focusedBorderColor={openTuiTheme.color.teal}
+          backgroundColor={openTuiTheme.color.canvas}
           position="absolute"
           top={permissionModalInsetY()}
           right={permissionModalInsetX()}
@@ -422,10 +453,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       {props.permissionsEditorOpen() ? (
         <box
           position="absolute"
-          top={permissionModalInsetY()}
-          right={permissionModalInsetX()}
-          bottom={permissionModalInsetY()}
-          left={permissionModalInsetX()}
+          top={permissionsEditorInsetY()}
+          right={permissionsEditorInsetX()}
+          bottom={permissionsEditorInsetY()}
+          left={permissionsEditorInsetX()}
           zIndex={1}
         >
           <PermissionsPanel

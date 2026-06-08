@@ -325,11 +325,6 @@ export function PermissionPromptPanel(props: {
 
   return (
     <box
-      border
-      borderStyle="rounded"
-      borderColor={openTuiTheme.color.teal}
-      focusedBorderColor={openTuiTheme.color.teal}
-      backgroundColor={openTuiTheme.color.canvas}
       paddingX={1}
       flexDirection="column"
       gap={1}
