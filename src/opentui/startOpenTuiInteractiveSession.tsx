@@ -65,25 +65,55 @@ export interface StartOpenTuiInteractiveSessionOptions {
   cwd?: string;
 }
 
-function filterProviderChoices(providers: ProviderName[], query: string): ProviderName[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (normalizedQuery.length === 0) {
-    return providers;
+function formatProviderLabel(provider: ProviderName): string {
+  if (provider === 'openai') {
+    return 'OpenAI';
   }
 
-  return providers.filter((providerName) => providerName.includes(normalizedQuery));
+  if (provider === 'openrouter') {
+    return 'OpenRouter';
+  }
+
+  if (provider === 'ollama') {
+    return 'Ollama';
+  }
+
+  return 'Gemini';
+}
+
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function providerSearchMatches(provider: ProviderName, query: string): boolean {
+  const normalizedQuery = normalizeSearchText(query);
+  if (normalizedQuery.length === 0) {
+    return true;
+  }
+
+  const candidates = [
+    provider,
+    formatProviderLabel(provider),
+    provider.replace(/([a-z])([A-Z])/g, '$1 $2'),
+  ];
+
+  return candidates.some((candidate) => normalizeSearchText(candidate).includes(normalizedQuery));
+}
+
+function filterProviderChoices(providers: ProviderName[], query: string): ProviderName[] {
+  return providers.filter((providerName) => providerSearchMatches(providerName, query));
 }
 
 function getVisibleModelRows(groups: OpenTuiModelGroup[], query: string): OpenTuiModelsSetupRow[] {
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = normalizeSearchText(query);
   const rows: OpenTuiModelsSetupRow[] = [];
 
   for (const group of groups) {
-    const providerMatches = normalizedQuery.length === 0 || group.provider.includes(normalizedQuery);
+    const providerMatches = providerSearchMatches(group.provider, query);
     const matchedModels = normalizedQuery.length === 0 || providerMatches
       ? group.models
-      : group.models.filter((model) => model.toLowerCase().includes(normalizedQuery));
-    const includeCustom = normalizedQuery.length === 0 || providerMatches || 'custom'.includes(normalizedQuery);
+      : group.models.filter((model) => normalizeSearchText(model).includes(normalizedQuery));
+    const includeCustom = normalizedQuery.length === 0 || providerMatches || normalizeSearchText('custom').includes(normalizedQuery);
 
     if (matchedModels.length === 0 && !includeCustom) {
       continue;
