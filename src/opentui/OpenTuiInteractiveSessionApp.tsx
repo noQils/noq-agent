@@ -2,7 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 
-import { For, createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
+import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
 
 import {
   MacOSScrollAccel,
@@ -21,6 +21,7 @@ import { type PermissionPromptDecision } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
 import { CommandRail } from './components/CommandRail';
 import { Composer } from './components/Composer';
+import { ModelsPanel } from './components/ModelsPanel';
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
 import { ProvidersPanel } from './components/ProvidersPanel';
@@ -34,6 +35,7 @@ import {
   getSlashCommandSuggestions,
 } from './slashCommands';
 import {
+  type OpenTuiModelsSetupRow,
   type OpenTuiModelsSetupState,
   type OpenTuiPermissionItem,
   type OpenTuiProviderSetupState,
@@ -56,6 +58,8 @@ interface OpenTuiInteractiveSessionAppProps {
   modelsSetupState: Accessor<OpenTuiModelsSetupState>;
   providerChoices: ProviderName[];
   connectedProviders: ProviderName[];
+  modelRows: OpenTuiModelsSetupRow[];
+  selectedModelRowKey: string | null;
   permissionItems: Accessor<OpenTuiPermissionItem[]>;
   onInput: (value: string) => void;
   onSubmit: () => void;
@@ -69,6 +73,12 @@ interface OpenTuiInteractiveSessionAppProps {
   onProviderApiKeyInput: (value: string) => void;
   onSubmitProviderSelection: () => void;
   onSubmitProviderCredential: () => void;
+  onMoveModelSelection: (direction: -1 | 1) => void;
+  onSelectModelRow: (rowKey: string) => void;
+  onModelsQueryInput: (value: string) => void;
+  onModelsCustomInput: (value: string) => void;
+  onSubmitModelSelection: () => void;
+  onSubmitCustomModel: () => void;
   onCyclePermissionItem: (index: number) => void;
 }
 
@@ -127,68 +137,6 @@ function busySuffix(frame: number): string {
   return '.'.repeat(frame % 4);
 }
 
-function SetupModalPlaceholder(props: {
-  title: string;
-  subtitle: string;
-  lines: string[];
-}) {
-  return (
-    <box
-      border
-      borderStyle="rounded"
-      borderColor={openTuiTheme.color.amber}
-      focusedBorderColor={openTuiTheme.color.amber}
-      backgroundColor={openTuiTheme.color.canvas}
-      paddingX={1}
-      flexDirection="column"
-      gap={1}
-      width="100%"
-      height="100%"
-    >
-      <box
-        flexDirection="row"
-        width="100%"
-        justifyContent="space-between"
-        alignItems="center"
-        paddingLeft={1}
-      >
-        <text fg={openTuiTheme.color.amber}>{props.title}</text>
-        <box backgroundColor={openTuiTheme.color.teal} paddingX={1}>
-          <text fg={openTuiTheme.color.canvas}>planned</text>
-        </box>
-      </box>
-
-      <box
-        width="100%"
-        border={['left']}
-        borderStyle="heavy"
-        borderColor={openTuiTheme.color.amber}
-        paddingX={1}
-        flexDirection="column"
-      >
-        <text fg={openTuiTheme.color.text}>{props.subtitle}</text>
-      </box>
-
-      <box width="100%" flexDirection="column" paddingX={1} flexGrow={1} gap={1}>
-        <For each={props.lines}>
-          {(line) => (
-            <text fg={openTuiTheme.color.textSoft}>
-              {line}
-            </text>
-          )}
-        </For>
-      </box>
-
-      <box width="100%" flexDirection="row" flexWrap="wrap" flexShrink={0}>
-        <box flexDirection="row" gap={1} flexShrink={0}>
-          <text fg={openTuiTheme.color.teal}>esc</text>
-          <text fg={openTuiTheme.color.textMuted}>close</text>
-        </box>
-      </box>
-    </box>
-  );
-}
-
 export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionAppProps) {
   const renderer = useRenderer();
   const dimensions = useTerminalDimensions();
@@ -203,9 +151,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
   let providersScrollBox: ScrollBoxRenderable | null = null;
+  let modelsScrollBox: ScrollBoxRenderable | null = null;
   let composerTextarea: TextareaRenderable | null = null;
   let providerSearchTextarea: TextareaRenderable | null = null;
   let providerApiKeyTextarea: TextareaRenderable | null = null;
+  let modelsSearchTextarea: TextareaRenderable | null = null;
+  let modelsCustomTextarea: TextareaRenderable | null = null;
 
   useSelectionHandler((selection) => {
     const selectedText = selection.getSelectedText();
@@ -475,6 +426,46 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return;
     }
 
+    if (props.activeSetupModal() === 'models') {
+      if (keyName === 'escape') {
+        props.onCloseSetupModal();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (props.modelsSetupState().step === 'list') {
+        if (keyName === 'up') {
+          props.onMoveModelSelection(-1);
+          modelsScrollBox?.scrollBy(-1, 'step');
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        if (keyName === 'down') {
+          props.onMoveModelSelection(1);
+          modelsScrollBox?.scrollBy(1, 'step');
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        if (keyName === 'enter' || keyName === 'return' || keyName === 'kpenter') {
+          props.onSubmitModelSelection();
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        return;
+      }
+
+      if (keyName === 'enter' || keyName === 'return' || keyName === 'kpenter') {
+        props.onSubmitCustomModel();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      return;
+    }
+
     if (props.activeSetupModal()) {
       if (keyName === 'escape') {
         props.onCloseSetupModal();
@@ -571,6 +562,27 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       providerApiKeyTextarea.cursorOffset = props.providerSetupState().apiKeyInput.length;
     }
     providerApiKeyTextarea?.focus();
+  });
+
+  createEffect(() => {
+    if (props.activeSetupModal() !== 'models') {
+      return;
+    }
+
+    if (props.modelsSetupState().step === 'list') {
+      if (modelsSearchTextarea && modelsSearchTextarea.plainText !== props.modelsSetupState().query) {
+        modelsSearchTextarea.setText(props.modelsSetupState().query);
+        modelsSearchTextarea.cursorOffset = props.modelsSetupState().query.length;
+      }
+      modelsSearchTextarea?.focus();
+      return;
+    }
+
+    if (modelsCustomTextarea && modelsCustomTextarea.plainText !== props.modelsSetupState().customModelInput) {
+      modelsCustomTextarea.setText(props.modelsSetupState().customModelInput);
+      modelsCustomTextarea.cursorOffset = props.modelsSetupState().customModelInput.length;
+    }
+    modelsCustomTextarea?.focus();
   });
 
   createEffect(() => {
@@ -808,15 +820,28 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           left={permissionsEditorInsetX()}
           zIndex={1}
         >
-          <SetupModalPlaceholder
-            title="Select Model"
-            subtitle="Checkpoint 1: `/models` now opens a modal path instead of writing setup prompts to transcript."
-            lines={[
-              `loading: ${props.modelsSetupState().isLoading ? 'yes' : 'no'}`,
-              `query: ${props.modelsSetupState().query || '(empty)'}`,
-              `selected: ${String(props.modelsSetupState().selectedIndex + 1)}`,
-              `provider: ${props.modelsSetupState().activeProvider ?? '(none)'}`,
-            ]}
+          <ModelsPanel
+            rows={props.modelRows}
+            selectedRowKey={props.selectedModelRowKey}
+            query={props.modelsSetupState().query}
+            step={props.modelsSetupState().step}
+            activeProvider={props.modelsSetupState().activeProvider}
+            customModelInput={props.modelsSetupState().customModelInput}
+            isLoading={props.modelsSetupState().isLoading}
+            onQueryInput={props.onModelsQueryInput}
+            onCustomModelInput={props.onModelsCustomInput}
+            onSubmitSelection={props.onSubmitModelSelection}
+            onSubmitCustom={props.onSubmitCustomModel}
+            onSelectRow={props.onSelectModelRow}
+            scrollRef={(scrollbox) => {
+              modelsScrollBox = scrollbox;
+            }}
+            searchInputRef={(textarea) => {
+              modelsSearchTextarea = textarea;
+            }}
+            customInputRef={(textarea) => {
+              modelsCustomTextarea = textarea;
+            }}
           />
         </box>
       ) : null}

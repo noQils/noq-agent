@@ -30,7 +30,36 @@ export interface OpenTuiProviderSetupState {
 export interface OpenTuiModelsSetupState {
   query: string;
   selectedIndex: number;
+  step: 'list' | 'custom';
   activeProvider: ProviderName | null;
   customModelInput: string;
   isLoading: boolean;
+  groups: OpenTuiModelGroup[];
 }
+
+export interface OpenTuiModelGroup {
+  provider: ProviderName;
+  models: string[];
+  source: 'live' | 'fallback';
+}
+
+export type OpenTuiModelsSetupRow =
+  | {
+      key: string;
+      type: 'provider_heading';
+      provider: ProviderName;
+      source: 'live' | 'fallback';
+    }
+  | {
+      key: string;
+      type: 'model';
+      provider: ProviderName;
+      model: string;
+      source: 'live' | 'fallback';
+    }
+  | {
+      key: string;
+      type: 'custom';
+      provider: ProviderName;
+      source: 'live' | 'fallback';
+    };
