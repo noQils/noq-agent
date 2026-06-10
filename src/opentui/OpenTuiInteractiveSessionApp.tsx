@@ -2,7 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 
-import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
+import { For, createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
 
 import {
   MacOSScrollAccel,
@@ -32,7 +32,13 @@ import {
   getSlashCommandInsertText,
   getSlashCommandSuggestions,
 } from './slashCommands';
-import { type OpenTuiPermissionItem, type OpenTuiSessionEntry } from './openTuiTypes';
+import {
+  type OpenTuiModelsSetupState,
+  type OpenTuiPermissionItem,
+  type OpenTuiProviderSetupState,
+  type OpenTuiSessionEntry,
+  type OpenTuiSetupModalKind,
+} from './openTuiTypes';
 
 interface OpenTuiInteractiveSessionAppProps {
   sessionId: string;
@@ -43,12 +49,16 @@ interface OpenTuiInteractiveSessionAppProps {
   statusMessage: Accessor<string | null>;
   permissionRequest: Accessor<PermissionRequest | null>;
   permissionsEditorOpen: Accessor<boolean>;
+  activeSetupModal: Accessor<OpenTuiSetupModalKind | null>;
+  providerSetupState: Accessor<OpenTuiProviderSetupState>;
+  modelsSetupState: Accessor<OpenTuiModelsSetupState>;
   permissionItems: Accessor<OpenTuiPermissionItem[]>;
   onInput: (value: string) => void;
   onSubmit: () => void;
   onExit: () => void;
   onPermissionDecision: (decision: PermissionPromptDecision) => void;
   onClosePermissionsEditor: () => void;
+  onCloseSetupModal: () => void;
   onCyclePermissionItem: (index: number) => void;
 }
 
@@ -105,6 +115,68 @@ function sanitizeInputPaste(text: string): string {
 
 function busySuffix(frame: number): string {
   return '.'.repeat(frame % 4);
+}
+
+function SetupModalPlaceholder(props: {
+  title: string;
+  subtitle: string;
+  lines: string[];
+}) {
+  return (
+    <box
+      border
+      borderStyle="rounded"
+      borderColor={openTuiTheme.color.amber}
+      focusedBorderColor={openTuiTheme.color.amber}
+      backgroundColor={openTuiTheme.color.canvas}
+      paddingX={1}
+      flexDirection="column"
+      gap={1}
+      width="100%"
+      height="100%"
+    >
+      <box
+        flexDirection="row"
+        width="100%"
+        justifyContent="space-between"
+        alignItems="center"
+        paddingLeft={1}
+      >
+        <text fg={openTuiTheme.color.amber}>{props.title}</text>
+        <box backgroundColor={openTuiTheme.color.teal} paddingX={1}>
+          <text fg={openTuiTheme.color.canvas}>planned</text>
+        </box>
+      </box>
+
+      <box
+        width="100%"
+        border={['left']}
+        borderStyle="heavy"
+        borderColor={openTuiTheme.color.amber}
+        paddingX={1}
+        flexDirection="column"
+      >
+        <text fg={openTuiTheme.color.text}>{props.subtitle}</text>
+      </box>
+
+      <box width="100%" flexDirection="column" paddingX={1} flexGrow={1} gap={1}>
+        <For each={props.lines}>
+          {(line) => (
+            <text fg={openTuiTheme.color.textSoft}>
+              {line}
+            </text>
+          )}
+        </For>
+      </box>
+
+      <box width="100%" flexDirection="row" flexWrap="wrap" flexShrink={0}>
+        <box flexDirection="row" gap={1} flexShrink={0}>
+          <text fg={openTuiTheme.color.teal}>esc</text>
+          <text fg={openTuiTheme.color.textMuted}>close</text>
+        </box>
+      </box>
+    </box>
+  );
 }
 
 export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionAppProps) {
@@ -350,6 +422,17 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return;
     }
 
+    if (props.activeSetupModal()) {
+      if (keyName === 'escape') {
+        props.onCloseSetupModal();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      stopPermissionKeyEvent(key);
+      return;
+    }
+
     if (slashCommandPopupVisible()) {
       if (keyName === 'up') {
         moveSelectedSlashCommand(-1);
@@ -472,7 +555,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const resolvedStatusLabel = () => statusLabel(props.statusMessage(), props.isBusy());
   const resolvedStatusColor = () => statusColor(props.statusMessage(), props.isBusy());
   const hasPermissionRequest = () => props.permissionRequest() !== null;
-  const hasModalOverlay = () => hasPermissionRequest() || props.permissionsEditorOpen();
+  const hasModalOverlay = () => hasPermissionRequest() || props.permissionsEditorOpen() || props.activeSetupModal() !== null;
   const slashCommandSuggestions = () => getSlashCommandSuggestions(props.inputValue());
   const slashCommandPopupVisible = () => (
     slashCommandSuggestions().visible
@@ -603,6 +686,50 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             scrollRef={(scrollbox) => {
               permissionsScrollBox = scrollbox;
             }}
+          />
+        </box>
+      ) : null}
+
+      {props.activeSetupModal() === 'providers' ? (
+        <box
+          position="absolute"
+          top={permissionsEditorInsetY()}
+          right={permissionsEditorInsetX()}
+          bottom={permissionsEditorInsetY()}
+          left={permissionsEditorInsetX()}
+          zIndex={1}
+        >
+          <SetupModalPlaceholder
+            title="Connect Provider"
+            subtitle="Checkpoint 1: setup state is now modal-owned instead of transcript-owned."
+            lines={[
+              `step: ${props.providerSetupState().step}`,
+              `query: ${props.providerSetupState().query || '(empty)'}`,
+              `selected: ${String(props.providerSetupState().selectedIndex + 1)}`,
+              `provider: ${props.providerSetupState().activeProvider ?? '(none)'}`,
+            ]}
+          />
+        </box>
+      ) : null}
+
+      {props.activeSetupModal() === 'models' ? (
+        <box
+          position="absolute"
+          top={permissionsEditorInsetY()}
+          right={permissionsEditorInsetX()}
+          bottom={permissionsEditorInsetY()}
+          left={permissionsEditorInsetX()}
+          zIndex={1}
+        >
+          <SetupModalPlaceholder
+            title="Select Model"
+            subtitle="Checkpoint 1: `/models` now opens a modal path instead of writing setup prompts to transcript."
+            lines={[
+              `loading: ${props.modelsSetupState().isLoading ? 'yes' : 'no'}`,
+              `query: ${props.modelsSetupState().query || '(empty)'}`,
+              `selected: ${String(props.modelsSetupState().selectedIndex + 1)}`,
+              `provider: ${props.modelsSetupState().activeProvider ?? '(none)'}`,
+            ]}
           />
         </box>
       ) : null}
