@@ -644,6 +644,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const isMediumTall = () => dimensions().height >= 32 && dimensions().height < 48;
   const isVeryTall = () => dimensions().height >= 48;
   const showSidebar = () => dimensions().width >= 121;
+  const isSidebarShort = () => dimensions().height < 26;
+  const isSidebarVeryShort = () => dimensions().height < 18;
   const sidebarWidth = 34;
   const appInnerWidth = () => Math.max(1, dimensions().width - 2);
   const mainColumnWidth = () => Math.max(
@@ -801,6 +803,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
               mode={props.mode()}
               currentModelSelection={props.currentModelSelection()}
               workspacePath={props.workspacePath}
+              isShort={isSidebarShort()}
+              isVeryShort={isSidebarVeryShort()}
             />
           </box>
         ) : null}
