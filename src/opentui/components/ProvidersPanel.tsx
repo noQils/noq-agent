@@ -112,9 +112,6 @@ export function ProvidersPanel(props: {
 
       {props.step === 'list' ? (
         <box width="100%" flexDirection="column" gap={0} flexShrink={0}>
-          <box paddingX={1}>
-            <text fg={openTuiTheme.color.textFaint}>Search</text>
-          </box>
           <box
             width="100%"
             border={['left']}
