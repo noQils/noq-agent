@@ -14,7 +14,6 @@ function sectionLabel(label: string) {
       border={['bottom']}
       borderColor={openTuiTheme.color.line}
       flexDirection="row"
-      // marginBottom={1}
       height={0}
     >
       <text fg={openTuiTheme.color.amber} bg={openTuiTheme.color.canvas}>
