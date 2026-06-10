@@ -12,6 +12,16 @@ import { type ProviderName } from '../../providers/types';
 import { type OpenTuiModelsSetupRow } from '../openTuiTypes';
 import { openTuiTheme } from '../openTuiTheme';
 
+export const modelsPanelMaxVisibleRows = 12;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getSelectedRowAnchorIndex(visibleSelectableCount: number): number {
+  return Math.max(0, Math.floor((visibleSelectableCount - 1) / 2));
+}
+
 function formatProviderLabel(provider: ProviderName): string {
   if (provider === 'openai') {
     return 'OpenAI';
@@ -28,10 +38,94 @@ function formatProviderLabel(provider: ProviderName): string {
   return 'Gemini';
 }
 
-function sourceColor(source: 'live' | 'fallback'): string {
-  return source === 'live'
-    ? openTuiTheme.color.green
-    : openTuiTheme.color.amber;
+function getProviderForRow(rows: OpenTuiModelsSetupRow[], rowIndex: number): ProviderName | null {
+  for (let index = rowIndex; index >= 0; index -= 1) {
+    const candidate = rows[index];
+    if (candidate?.type === 'provider_heading') {
+      return candidate.provider;
+    }
+  }
+
+  return null;
+}
+
+function getVisibleRows(rows: OpenTuiModelsSetupRow[], selectedRowKey: string | null): OpenTuiModelsSetupRow[] {
+  const selectableRows = rows.filter((row) => row.type !== 'provider_heading');
+  const selectedIndex = selectedRowKey
+    ? selectableRows.findIndex((row) => row.key === selectedRowKey)
+    : -1;
+  const safeSelectedIndex = clamp(selectedIndex >= 0 ? selectedIndex : 0, 0, selectableRows.length - 1);
+  const visibleSelectableCount = Math.min(modelsPanelMaxVisibleRows, selectableRows.length);
+  const selectedRowAnchorIndex = getSelectedRowAnchorIndex(visibleSelectableCount);
+  const startIndex = clamp(
+    safeSelectedIndex - selectedRowAnchorIndex,
+    0,
+    Math.max(0, selectableRows.length - visibleSelectableCount),
+  );
+
+  const visibleItems = selectableRows.slice(startIndex, startIndex + visibleSelectableCount);
+  const firstVisibleItem = visibleItems[0];
+  if (!firstVisibleItem) {
+    return [];
+  }
+
+  const firstVisibleFullRowIndex = rows.findIndex((row) => row.key === firstVisibleItem.key);
+  if (firstVisibleFullRowIndex < 0) {
+    return visibleItems;
+  }
+
+  const stickyProvider = getProviderForRow(rows, firstVisibleFullRowIndex);
+  const visibleRows: OpenTuiModelsSetupRow[] = [];
+  let selectableCount = 0;
+
+  for (let index = firstVisibleFullRowIndex; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (!row) {
+      continue;
+    }
+
+    if (row.type === 'provider_heading') {
+      if (row.provider !== stickyProvider) {
+        visibleRows.push(row);
+      }
+      continue;
+    }
+
+    visibleRows.push(row);
+    selectableCount += 1;
+    if (selectableCount >= visibleSelectableCount) {
+      break;
+    }
+  }
+
+  return visibleRows;
+}
+
+function getStickyProvider(rows: OpenTuiModelsSetupRow[], selectedRowKey: string | null): ProviderName | null {
+  const selectableRows = rows.filter((row) => row.type !== 'provider_heading');
+  const firstSelectableRow = selectableRows[0];
+  if (!firstSelectableRow) {
+    return null;
+  }
+
+  const selectedIndex = selectedRowKey
+    ? selectableRows.findIndex((row) => row.key === selectedRowKey)
+    : -1;
+  const safeSelectedIndex = clamp(selectedIndex >= 0 ? selectedIndex : 0, 0, selectableRows.length - 1);
+  const visibleSelectableCount = Math.min(modelsPanelMaxVisibleRows, selectableRows.length);
+  const selectedRowAnchorIndex = getSelectedRowAnchorIndex(visibleSelectableCount);
+  const startIndex = clamp(
+    safeSelectedIndex - selectedRowAnchorIndex,
+    0,
+    Math.max(0, selectableRows.length - visibleSelectableCount),
+  );
+  const firstVisibleSelectable = selectableRows[startIndex];
+  if (!firstVisibleSelectable) {
+    return null;
+  }
+
+  const firstVisibleIndex = rows.findIndex((row) => row.key === firstVisibleSelectable.key);
+  return firstVisibleIndex >= 0 ? getProviderForRow(rows, firstVisibleIndex) : null;
 }
 
 export function ModelsPanel(props: {
@@ -54,31 +148,8 @@ export function ModelsPanel(props: {
   const scrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3 });
   let searchTextareaRef: TextareaRenderable | null = null;
   let customTextareaRef: TextareaRenderable | null = null;
-
-  const selectedRow = () => props.rows.find((row) => row.key === props.selectedRowKey) ?? null;
-  const detailProvider = () => props.step === 'custom'
-    ? props.activeProvider
-    : selectedRow()?.provider ?? null;
-  const detailModel = () => {
-    if (props.step === 'custom') {
-      return props.customModelInput || '(custom)';
-    }
-
-    const row = selectedRow();
-    if (!row) {
-      return '(none)';
-    }
-
-    return row.type === 'model' ? row.model : 'custom';
-  };
-  const detailSource = () => {
-    if (props.step === 'custom') {
-      const row = props.rows.find((entry) => entry.provider === props.activeProvider && entry.type !== 'provider_heading');
-      return row?.source ?? null;
-    }
-
-    return selectedRow()?.source ?? null;
-  };
+  const visibleRows = () => getVisibleRows(props.rows, props.selectedRowKey);
+  const stickyProvider = () => getStickyProvider(props.rows, props.selectedRowKey);
 
   return (
     <box
@@ -116,9 +187,6 @@ export function ModelsPanel(props: {
 
       {props.step === 'list' ? (
         <box width="100%" flexDirection="column" gap={0} flexShrink={0}>
-          <box paddingX={1}>
-            <text fg={openTuiTheme.color.textFaint}>Search</text>
-          </box>
           <box
             width="100%"
             border={['left']}
@@ -160,45 +228,6 @@ export function ModelsPanel(props: {
         </box>
       ) : null}
 
-      <box
-        width="100%"
-        border={['left']}
-        borderStyle="heavy"
-        borderColor={openTuiTheme.color.amber}
-        paddingX={1}
-        flexDirection="column"
-        flexShrink={0}
-      >
-        <box flexDirection="row" gap={1}>
-          <box width={7} flexShrink={0}>
-            <text fg={openTuiTheme.color.textFaint}>Prov</text>
-          </box>
-          <text fg={openTuiTheme.color.text} truncate flexGrow={1}>
-            {detailProvider() ? formatProviderLabel(detailProvider()!) : '(none)'}
-          </text>
-        </box>
-        <box flexDirection="row" gap={1}>
-          <box width={7} flexShrink={0}>
-            <text fg={openTuiTheme.color.textFaint}>Model</text>
-          </box>
-          <text fg={openTuiTheme.color.textSoft} truncate flexGrow={1}>
-            {detailModel()}
-          </text>
-        </box>
-        <box flexDirection="row" gap={1}>
-          <box width={7} flexShrink={0}>
-            <text fg={openTuiTheme.color.textFaint}>Source</text>
-          </box>
-          <text
-            fg={detailSource() ? sourceColor(detailSource()!) : openTuiTheme.color.textSoft}
-            truncate
-            flexGrow={1}
-          >
-            {detailSource() ?? '(none)'}
-          </text>
-        </box>
-      </box>
-
       {props.step === 'list' ? (
         <box
           width="100%"
@@ -208,6 +237,13 @@ export function ModelsPanel(props: {
           flexShrink={1}
           minHeight={0}
         >
+          {stickyProvider() ? (
+            <box width="100%" paddingX={1} flexShrink={0}>
+              <text fg={openTuiTheme.color.amber} truncate flexGrow={1}>
+                {formatProviderLabel(stickyProvider()!)}
+              </text>
+            </box>
+          ) : null}
           <scrollbox
             ref={props.scrollRef}
             width="100%"
@@ -234,14 +270,15 @@ export function ModelsPanel(props: {
                   <text fg={openTuiTheme.color.textSoft}>Loading models...</text>
                 </box>
               ) : null}
-              <For each={props.rows}>
+              <For each={visibleRows()}>
                 {(row) => {
                   const isSelected = () => props.selectedRowKey === row.key;
                   return (
                     <box
                       width="100%"
                       paddingX={1}
-                      backgroundColor={isSelected() ? openTuiTheme.color.tealFade : openTuiTheme.color.canvas}
+                      marginTop={row.type === 'provider_heading' ? 1 : 0}
+                      backgroundColor={isSelected() ? openTuiTheme.color.teal : openTuiTheme.color.canvas}
                       onMouseDown={() => {
                         if (row.type !== 'provider_heading') {
                           props.onSelectRow(row.key);
@@ -249,38 +286,29 @@ export function ModelsPanel(props: {
                       }}
                     >
                       {row.type === 'provider_heading' ? (
-                        <box width="100%" flexDirection="row" justifyContent="space-between" gap={1}>
+                        <box width="100%" flexDirection="row" gap={1}>
                           <text fg={openTuiTheme.color.amber} truncate flexGrow={1}>
                             {formatProviderLabel(row.provider)}
                           </text>
-                          <text fg={sourceColor(row.source)} flexShrink={0}>
-                            {row.source}
-                          </text>
                         </box>
                       ) : row.type === 'model' ? (
-                        <box width="100%" flexDirection="row" justifyContent="space-between" gap={1}>
+                        <box width="100%" flexDirection="row" gap={1}>
                           <text
-                            fg={isSelected() ? openTuiTheme.color.text : openTuiTheme.color.textSoft}
+                            fg={isSelected() ? openTuiTheme.color.canvas : openTuiTheme.color.textSoft}
                             truncate
                             flexGrow={1}
                           >
                             {row.model}
                           </text>
-                          <text fg={sourceColor(row.source)} flexShrink={0}>
-                            {row.source}
-                          </text>
                         </box>
                       ) : (
-                        <box width="100%" flexDirection="row" justifyContent="space-between" gap={1}>
+                        <box width="100%" flexDirection="row" gap={1}>
                           <text
-                            fg={isSelected() ? openTuiTheme.color.text : openTuiTheme.color.textSoft}
+                            fg={isSelected() ? openTuiTheme.color.canvas : openTuiTheme.color.textSoft}
                             truncate
                             flexGrow={1}
                           >
                             custom
-                          </text>
-                          <text fg={openTuiTheme.color.textFaint} flexShrink={0}>
-                            enter id
                           </text>
                         </box>
                       )}

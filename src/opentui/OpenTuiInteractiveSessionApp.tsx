@@ -21,7 +21,7 @@ import { type PermissionPromptDecision } from '../permissions/prompt';
 import { type PermissionRequest } from '../permissions/types';
 import { CommandRail } from './components/CommandRail';
 import { Composer } from './components/Composer';
-import { ModelsPanel } from './components/ModelsPanel';
+import { ModelsPanel, modelsPanelMaxVisibleRows } from './components/ModelsPanel';
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
 import { ProvidersPanel } from './components/ProvidersPanel';
@@ -395,15 +395,23 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
       if (props.providerSetupState().step === 'list') {
         if (keyName === 'up') {
+          const providerCount = props.providerChoices.length;
+          const nextIndex = providerCount === 0
+            ? 0
+            : (props.providerSetupState().selectedIndex - 1 + providerCount) % providerCount;
           props.onMoveProviderSelection(-1);
-          providersScrollBox?.scrollBy(-1, 'step');
+          providersScrollBox?.scrollTo(nextIndex);
           stopPermissionKeyEvent(key);
           return;
         }
 
         if (keyName === 'down') {
+          const providerCount = props.providerChoices.length;
+          const nextIndex = providerCount === 0
+            ? 0
+            : (props.providerSetupState().selectedIndex + 1) % providerCount;
           props.onMoveProviderSelection(1);
-          providersScrollBox?.scrollBy(1, 'step');
+          providersScrollBox?.scrollTo(nextIndex);
           stopPermissionKeyEvent(key);
           return;
         }
@@ -436,14 +444,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       if (props.modelsSetupState().step === 'list') {
         if (keyName === 'up') {
           props.onMoveModelSelection(-1);
-          modelsScrollBox?.scrollBy(-1, 'step');
           stopPermissionKeyEvent(key);
           return;
         }
 
         if (keyName === 'down') {
           props.onMoveModelSelection(1);
-          modelsScrollBox?.scrollBy(1, 'step');
           stopPermissionKeyEvent(key);
           return;
         }
@@ -553,7 +559,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         providerSearchTextarea.setText(props.providerSetupState().query);
         providerSearchTextarea.cursorOffset = props.providerSetupState().query.length;
       }
-      providerSearchTextarea?.focus();
       return;
     }
 
@@ -561,7 +566,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       providerApiKeyTextarea.setText(props.providerSetupState().apiKeyInput);
       providerApiKeyTextarea.cursorOffset = props.providerSetupState().apiKeyInput.length;
     }
-    providerApiKeyTextarea?.focus();
   });
 
   createEffect(() => {
@@ -574,7 +578,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         modelsSearchTextarea.setText(props.modelsSetupState().query);
         modelsSearchTextarea.cursorOffset = props.modelsSetupState().query.length;
       }
-      modelsSearchTextarea?.focus();
       return;
     }
 
@@ -582,7 +585,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       modelsCustomTextarea.setText(props.modelsSetupState().customModelInput);
       modelsCustomTextarea.cursorOffset = props.modelsSetupState().customModelInput.length;
     }
-    modelsCustomTextarea?.focus();
   });
 
   createEffect(() => {
@@ -703,6 +705,24 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
     return Math.max(0, Math.floor((height - permissionsEditorMaxHeight) / 2));
   };
+  const modelsModalMaxHeight = () => (
+    props.modelsSetupState().step === 'list'
+      ? modelsPanelMaxVisibleRows + 7
+      : 12
+  );
+  const modelsModalInsetY = () => {
+    if (isShort()) {
+      return 0;
+    }
+
+    const height = dimensions().height;
+    const maxHeight = modelsModalMaxHeight();
+    if (height <= maxHeight) {
+      return 0;
+    }
+
+    return Math.max(0, Math.floor((height - maxHeight) / 2));
+  };
 
   return (
     <box
@@ -814,9 +834,9 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       {props.activeSetupModal() === 'models' ? (
         <box
           position="absolute"
-          top={permissionsEditorInsetY()}
+          top={modelsModalInsetY()}
           right={permissionsEditorInsetX()}
-          bottom={permissionsEditorInsetY()}
+          bottom={modelsModalInsetY()}
           left={permissionsEditorInsetX()}
           zIndex={1}
         >
