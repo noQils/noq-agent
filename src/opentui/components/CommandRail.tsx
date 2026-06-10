@@ -19,7 +19,11 @@ function commandHints(isCompact: boolean): CommandHint[] {
   ];
 }
 
-export function CommandRail(props: { isCompact: boolean }) {
+export function CommandRail(props: {
+  isCompact: boolean;
+  status: string;
+  statusColor: string;
+}) {
   const hints = () => commandHints(props.isCompact);
 
   return (
@@ -29,9 +33,10 @@ export function CommandRail(props: { isCompact: boolean }) {
       paddingY={0}
       minHeight={1}
       flexDirection="row"
+      justifyContent="space-between"
       gap={1}
     >
-      <box flexDirection="row" gap={1} flexShrink={0}>
+      <box flexDirection="row" gap={1} flexShrink={1}>
         <text fg={openTuiTheme.color.textFaint}>use</text>
         <text fg={openTuiTheme.color.teal}>/</text>
         <text fg={openTuiTheme.color.textFaint}>for commands</text>
@@ -53,6 +58,11 @@ export function CommandRail(props: { isCompact: boolean }) {
             </box>
           )}
         </For>
+      </box>
+      <box flexDirection="row" flexShrink={0}>
+        <text fg={props.statusColor} truncate>
+          {props.status}
+        </text>
       </box>
     </box>
   );
