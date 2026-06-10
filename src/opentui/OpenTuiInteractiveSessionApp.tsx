@@ -25,9 +25,10 @@ import { ModelsPanel, modelsPanelMaxVisibleRows } from './components/ModelsPanel
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
 import { ProvidersPanel } from './components/ProvidersPanel';
+import { SessionSidebar } from './components/SessionSidebar';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
-import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
+import { openTuiTheme, statusColor, statusLabel } from './openTuiTheme';
 import {
   getSlashCommandExecutionText,
   getSlashCommandInsertText,
@@ -666,7 +667,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       ? `${resolvedStatusLabel()}${busySuffix(busyFrame())}`
       : resolvedStatusLabel()
   );
-  const sessionLabel = () => truncateMiddle(props.sessionId, isNarrow() ? 18 : 32);
   const permissionPreviewMaxLength = () => {
     const widthRatio = isCompact() ? 0.82 : 0.72;
     const maxLength = isCompact() ? 70 : 96;
@@ -767,16 +767,14 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           <box
             width={sidebarWidth}
             flexShrink={0}
-            flexDirection="column"
-            paddingX={1}
-            paddingY={1}
-            backgroundColor={openTuiTheme.color.panelRaised}
+            minHeight={0}
           >
-            <text fg={openTuiTheme.color.textFaint}>Sidebar</text>
-            <text fg={resolvedStatusColor()}>{animatedStatus()}</text>
-            <text fg={openTuiTheme.color.ghost} truncate>
-              {sessionLabel()}
-            </text>
+            <SessionSidebar
+              sessionId={props.sessionId}
+              mode={props.mode()}
+              currentModelSelection={props.currentModelSelection()}
+              workspacePath={props.workspacePath}
+            />
           </box>
         ) : null}
       </box>
