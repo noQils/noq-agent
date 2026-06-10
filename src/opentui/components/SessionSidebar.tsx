@@ -44,53 +44,49 @@ export function SessionSidebar(props: {
       flexDirection="column"
       paddingX={1}
       paddingY={1}
-      backgroundColor={openTuiTheme.color.panelRaised}
+      backgroundColor={openTuiTheme.color.canvas}
+      flexShrink={0}
+      overflow="hidden"
       gap={1}
     >
-      <box
-        flexDirection="column"
-        border={['bottom']}
-        borderColor={openTuiTheme.color.line}
-        paddingBottom={1}
-      >
-        {sectionLabel('Session')}
-        <box flexDirection="row" gap={1} marginTop={1}>
-          <text fg={openTuiTheme.color.teal} selectable={false}>
-            noQ
-          </text>
-          <text fg={openTuiTheme.color.lineStrong} selectable={false}>
-            {'///'}
-          </text>
-        </box>
-        <text fg={openTuiTheme.color.textMuted} truncate marginTop={1}>
-          {truncateMiddle(props.sessionId, 22)}
+      <box flexDirection="column">
+        <text fg={openTuiTheme.color.teal} selectable={false}>
+{`
+████████╗ ██████╗  ██████╗
+██╔═══██║██╔═══██╗██╔═══██╗
+██║   ██║██║   ██║██║   ██║
+██║   ██║╚██████╔╝╚██████╔╝
+╚═╝   ╚═╝ ╚═════╝  ╚══▀█▄╗
+                       ╚═╝
+`}
         </text>
-        <box backgroundColor={modeBadgeColor(props.mode)} paddingX={1} marginTop={1} width={7}>
-          <text fg={openTuiTheme.color.canvas} selectable={false} truncate>
-            {props.mode.toUpperCase()}
-          </text>
-        </box>
+      </box>
+      <box backgroundColor={modeBadgeColor(props.mode)} paddingX={1} width={7}>
+        <text fg={openTuiTheme.color.canvas} selectable={false} truncate>
+          {props.mode.toUpperCase()}
+        </text>
+      </box>
+      <box flexDirection="column">
+        {sectionLabel('Session ID')}
+        <text fg={openTuiTheme.color.textSoft} truncate>
+          {props.sessionId}
+        </text>
       </box>
 
-      <box
-        flexDirection="column"
-        border={['bottom']}
-        borderColor={openTuiTheme.color.line}
-        paddingBottom={1}
-      >
+      <box flexDirection="column">
         {sectionLabel('Model')}
-        <text fg={openTuiTheme.color.text} truncate marginTop={1}>
+        <text fg={openTuiTheme.color.text} truncate>
           {modelIdLabel(props.currentModelSelection)}
         </text>
-        <text fg={openTuiTheme.color.textMuted} truncate>
-          {modelProviderLabel(props.currentModelSelection)}
+        <text fg={openTuiTheme.color.ghost} truncate>
+          via {modelProviderLabel(props.currentModelSelection)}
         </text>
       </box>
 
       <box flexDirection="column">
         {sectionLabel('Workspace')}
-        <text fg={openTuiTheme.color.textSoft} truncate marginTop={1}>
-          {truncateMiddle(props.workspacePath, 24)}
+        <text fg={openTuiTheme.color.textSoft} truncate>
+          {props.workspacePath}
         </text>
       </box>
     </box>
