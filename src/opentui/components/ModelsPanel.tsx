@@ -12,7 +12,7 @@ import { type ProviderName } from '../../providers/types';
 import { type OpenTuiModelsSetupRow } from '../openTuiTypes';
 import { openTuiTheme } from '../openTuiTheme';
 
-export const modelsPanelMaxVisibleRows = 12;
+export const modelsPanelMaxVisibleRows = 11;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -260,7 +260,7 @@ export function ModelsPanel(props: {
             scrollbarOptions={{
               trackOptions: {
                 backgroundColor: openTuiTheme.color.canvas,
-                foregroundColor: openTuiTheme.color.panelRaised,
+                foregroundColor: openTuiTheme.color.canvas,
               },
             }}
           >

@@ -721,7 +721,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return 0;
     }
 
-    return Math.max(0, Math.floor((height - maxHeight) / 2));
+    return Math.max(0, Math.floor((height - maxHeight) / 2 - 1));
   };
 
   return (
