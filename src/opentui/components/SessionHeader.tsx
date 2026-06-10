@@ -47,12 +47,6 @@ export function SessionHeader(props: {
           </text>
         </box>
       </box>
-
-      <box flexDirection="row" flexShrink={0}>
-        <text fg={props.statusColor} selectable={false} truncate maxWidth={props.isNarrow ? 16 : 34}>
-          {props.status}
-        </text>
-      </box>
     </box>
   );
 }

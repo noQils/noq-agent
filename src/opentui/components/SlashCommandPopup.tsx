@@ -35,9 +35,7 @@ export function SlashCommandPopup(props: {
   selectedIndex: number;
   isMediumTall: boolean;
   isVeryTall: boolean;
-  width: number;
 }) {
-  const popupWidth = () => Math.max(28, Math.min(props.width, 88));
   const visibleMatches = () => getVisibleMatches(props.matches, props.selectedIndex);
   const visibleSelectedIndex = () => {
     if (props.matches.length <= maxVisibleRows) {

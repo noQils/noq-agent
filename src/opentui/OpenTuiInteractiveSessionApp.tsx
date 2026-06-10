@@ -25,10 +25,11 @@ import { ModelsPanel, modelsPanelMaxVisibleRows } from './components/ModelsPanel
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
 import { ProvidersPanel } from './components/ProvidersPanel';
+import { SessionHeader } from './components/SessionHeader';
 import { SessionSidebar } from './components/SessionSidebar';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
-import { openTuiTheme, statusColor, statusLabel } from './openTuiTheme';
+import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
 import {
   getSlashCommandExecutionText,
   getSlashCommandInsertText,
@@ -642,8 +643,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const isShort = () => dimensions().height < 22;
   const isMediumTall = () => dimensions().height >= 32 && dimensions().height < 48;
   const isVeryTall = () => dimensions().height >= 48;
-  const showSidebar = () => dimensions().width >= 100;
-  const sidebarWidth = 30;
+  const showSidebar = () => dimensions().width >= 121;
+  const sidebarWidth = 34;
   const appInnerWidth = () => Math.max(1, dimensions().width - 2);
   const mainColumnWidth = () => Math.max(
     1,
@@ -667,6 +668,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       ? `${resolvedStatusLabel()}${busySuffix(busyFrame())}`
       : resolvedStatusLabel()
   );
+  const sessionLabel = () => truncateMiddle(props.sessionId, isNarrow() ? 18 : 32);
   const permissionPreviewMaxLength = () => {
     const widthRatio = isCompact() ? 0.82 : 0.72;
     const maxLength = isCompact() ? 70 : 96;
@@ -724,7 +726,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     <box
       width="100%"
       height="100%"
-      padding={1}
       flexDirection="column"
       gap={0}
       backgroundColor={openTuiTheme.color.canvas}
@@ -733,14 +734,27 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         <box
           flexDirection="column"
           flexGrow={1}
+          paddingY={1}
+          paddingLeft={1}
           minHeight={0}
           width={showSidebar() ? mainColumnWidth() : '100%'}
         >
+          {!showSidebar() ? (
+            <SessionHeader
+              sessionLabel={sessionLabel()}
+              mode={props.mode()}
+              status={animatedStatus()}
+              statusColor={resolvedStatusColor()}
+              isNarrow={isNarrow()}
+            />
+          ) : null}
+
           <TranscriptPanel
             entries={props.entries()}
             isCompact={isCompact()}
             isShort={isShort()}
             showEntryTime={showEntryTime()}
+            showSidebar={showSidebar()}
             scrollAcceleration={transcriptScrollAcceleration}
           />
 
@@ -759,6 +773,15 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
               composerTextarea = textarea;
             }}
           />
+
+          {slashCommandPopupVisible() ? (
+            <SlashCommandPopup
+              matches={slashCommandSuggestions().matches}
+              selectedIndex={selectedSlashCommandIndex()}
+              isMediumTall={isMediumTall()}
+              isVeryTall={isVeryTall()}
+            />
+          ) : null}
 
           <CommandRail
             isCompact={isCompact()}
@@ -898,16 +921,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             }}
           />
         </box>
-      ) : null}
-
-      {slashCommandPopupVisible() ? (
-        <SlashCommandPopup
-          matches={slashCommandSuggestions().matches}
-          selectedIndex={selectedSlashCommandIndex()}
-          isMediumTall={isMediumTall()}
-          isVeryTall={isVeryTall()}
-          width={Math.max(28, mainColumnWidth() - 4)}
-        />
       ) : null}
     </box>
   );

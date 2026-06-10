@@ -11,9 +11,6 @@ interface CommandHint {
 
 function commandHints(isCompact: boolean): CommandHint[] {
   return [
-    { key: '/connect' },
-    { key: '/models' },
-    { key: '/permissions' },
     { key: '/exit' },
     { key: 'ctrl+o', value: 'newline' },
   ];

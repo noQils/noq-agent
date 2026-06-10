@@ -16,6 +16,7 @@ export function TranscriptPanel(props: {
   isCompact: boolean;
   isShort: boolean;
   showEntryTime: boolean;
+  showSidebar: boolean;
   scrollAcceleration: ScrollAcceleration;
 }) {
   const visibleEntries = () => cappedEntries(props.entries, maxRenderedEntries);
@@ -25,7 +26,8 @@ export function TranscriptPanel(props: {
     <box
       backgroundColor={openTuiTheme.color.canvas}
       paddingX={1}
-      paddingY={1}
+      paddingTop={props.showSidebar ? 0 : 1}
+      paddingBottom={1}
       flexDirection="column"
       flexGrow={1}
       minHeight={props.isShort ? 3 : 8}
