@@ -8,6 +8,7 @@ import { CliRenderEvents } from '@opentui/core';
 import { type AgentMode } from '../agentMode';
 import { resetConfigCache } from '../config/config';
 import { loadAuthStore } from '../config/authStore';
+import { loadGlobalConfig } from '../config/globalConfig';
 import { getProviderSettings } from '../config/providerSettings';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from '../permissions/approvals';
 import {
@@ -63,6 +64,13 @@ import { type ProviderName } from '../providers/types';
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
   cwd?: string;
+}
+
+interface PendingModelChange {
+  fromProvider: ProviderName;
+  fromModel: string;
+  toProvider: ProviderName;
+  toModel: string;
 }
 
 function formatProviderLabel(provider: ProviderName): string {
@@ -199,6 +207,42 @@ function formatDraftCommandMessage(commandLabel: string): string {
 
 function printModeChange(mode: AgentMode): string {
   return `Switched to ${mode} mode.`;
+}
+
+function formatModelChangeTranscriptEntry(change: PendingModelChange): string {
+  return `Model changed from ${change.fromProvider}: ${change.fromModel} to ${change.toProvider}: ${change.toModel}!`;
+}
+
+function updatePendingModelChange(
+  currentChange: PendingModelChange | null,
+  previousProvider: ProviderName | undefined,
+  previousModel: string | undefined,
+  nextProvider: ProviderName,
+  nextModel: string,
+): PendingModelChange | null {
+  if (!previousProvider || !previousModel) {
+    return currentChange;
+  }
+
+  if (previousProvider === nextProvider && previousModel === nextModel) {
+    return currentChange;
+  }
+
+  const nextChange: PendingModelChange = {
+    fromProvider: currentChange?.fromProvider ?? previousProvider,
+    fromModel: currentChange?.fromModel ?? previousModel,
+    toProvider: nextProvider,
+    toModel: nextModel,
+  };
+
+  if (
+    nextChange.fromProvider === nextChange.toProvider
+    && nextChange.fromModel === nextChange.toModel
+  ) {
+    return null;
+  }
+
+  return nextChange;
 }
 
 function parsePermissionDecision(inputLine: string): PermissionPromptDecision | null {
@@ -353,6 +397,7 @@ export async function startOpenTuiInteractiveSession(
   });
   const [permissionItems, setPermissionItems] = createSignal<OpenTuiPermissionItem[]>([]);
   const [activeSessionId, setActiveSessionId] = createSignal<string | null>(sessionId ?? null);
+  const [pendingModelChange, setPendingModelChange] = createSignal<PendingModelChange | null>(null);
 
   let shouldPrintHint = false;
   let isDestroyed = false;
@@ -542,10 +587,12 @@ export async function startOpenTuiInteractiveSession(
     renderer.requestRender();
   };
 
-  const closeSetupModalWithStatus = (message: string): void => {
+  const closeSetupModalWithStatus = (message?: string): void => {
     setActiveSetupModal(null);
     resetSetupModalState();
-    setStatusMessage(message);
+    if (message) {
+      setStatusMessage(message);
+    }
     renderer.requestRender();
   };
 
@@ -727,8 +774,18 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
+    const currentConfig = loadGlobalConfig();
+    const previousProvider = currentConfig.defaultProvider;
+    const previousModel = currentConfig.defaultModel;
     saveGlobalModelSelection(selectedRow.provider, selectedRow.model);
-    closeSetupModalWithStatus(`Active model: ${selectedRow.provider} / ${selectedRow.model}`);
+    setPendingModelChange((currentChange) => updatePendingModelChange(
+      currentChange,
+      previousProvider,
+      previousModel,
+      selectedRow.provider,
+      selectedRow.model,
+    ));
+    closeSetupModalWithStatus();
   };
 
   const submitCustomModel = (): void => {
@@ -744,8 +801,18 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
+    const currentConfig = loadGlobalConfig();
+    const previousProvider = currentConfig.defaultProvider;
+    const previousModel = currentConfig.defaultModel;
     saveGlobalModelSelection(activeProvider, modelId);
-    closeSetupModalWithStatus(`Active model: ${activeProvider} / ${modelId}`);
+    setPendingModelChange((currentChange) => updatePendingModelChange(
+      currentChange,
+      previousProvider,
+      previousModel,
+      activeProvider,
+      modelId,
+    ));
+    closeSetupModalWithStatus();
   };
 
   const loadModelsForSelection = async (): Promise<void> => {
@@ -1000,6 +1067,11 @@ export async function startOpenTuiInteractiveSession(
     if (handleSlashCommand(slashCommand)) {
       renderer.requestRender();
       return;
+    }
+
+    if (pendingModelChange()) {
+      appendTranscriptEntry('system', formatModelChangeTranscriptEntry(pendingModelChange()!));
+      setPendingModelChange(null);
     }
 
     appendTranscriptEntry('user', rawInput);
