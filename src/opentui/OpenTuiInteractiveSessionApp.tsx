@@ -679,44 +679,31 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     const height = dimensions().height;
     return Math.min(8, Math.max(3, Math.floor(height * 0.16)));
   };
-  const permissionsEditorMaxWidth = 72;
-  const permissionsEditorMaxHeight = 22;
-  const permissionsEditorInsetX = () => {
+  const modalPanelMaxWidth = 72;
+  const modalPanelInsetX = () => {
     if (isNarrow()) {
       return 0;
     }
 
     const width = dimensions().width;
-    if (width <= permissionsEditorMaxWidth) {
+    if (width <= modalPanelMaxWidth) {
       return 0;
     }
 
-    return Math.max(0, Math.floor((width - permissionsEditorMaxWidth) / 2));
+    return Math.max(0, Math.floor((width - modalPanelMaxWidth) / 2));
   };
-  const permissionsEditorInsetY = () => {
-    if (isShort()) {
-      return 0;
-    }
-
-    const height = dimensions().height;
-    if (height <= permissionsEditorMaxHeight) {
-      return 0;
-    }
-
-    return Math.max(0, Math.floor((height - permissionsEditorMaxHeight) / 2));
-  };
-  const modelsModalMaxHeight = () => (
+  const modalPanelMaxHeight = () => (
     props.modelsSetupState().step === 'list'
       ? modelsPanelMaxVisibleRows + 7
       : 12
   );
-  const modelsModalInsetY = () => {
+  const modalPanelInsetY = () => {
     if (isShort()) {
       return 0;
     }
 
     const height = dimensions().height;
-    const maxHeight = modelsModalMaxHeight();
+    const maxHeight = modalPanelMaxHeight();
     if (height <= maxHeight) {
       return 0;
     }
@@ -779,10 +766,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       {props.permissionsEditorOpen() ? (
         <box
           position="absolute"
-          top={permissionsEditorInsetY()}
-          right={permissionsEditorInsetX()}
-          bottom={permissionsEditorInsetY()}
-          left={permissionsEditorInsetX()}
+          top={modalPanelInsetY()}
+          right={modalPanelInsetX()}
+          bottom={modalPanelInsetY()}
+          left={modalPanelInsetX()}
           zIndex={1}
         >
           <PermissionsPanel
@@ -799,10 +786,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       {props.activeSetupModal() === 'providers' ? (
         <box
           position="absolute"
-          top={permissionsEditorInsetY()}
-          right={permissionsEditorInsetX()}
-          bottom={permissionsEditorInsetY()}
-          left={permissionsEditorInsetX()}
+          top={modalPanelInsetY()}
+          right={modalPanelInsetX()}
+          bottom={modalPanelInsetY()}
+          left={modalPanelInsetX()}
           zIndex={1}
         >
           <ProvidersPanel
@@ -834,10 +821,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       {props.activeSetupModal() === 'models' ? (
         <box
           position="absolute"
-          top={modelsModalInsetY()}
-          right={permissionsEditorInsetX()}
-          bottom={modelsModalInsetY()}
-          left={permissionsEditorInsetX()}
+          top={modalPanelInsetY()}
+          right={modalPanelInsetX()}
+          bottom={modalPanelInsetY()}
+          left={modalPanelInsetX()}
           zIndex={1}
         >
           <ModelsPanel
