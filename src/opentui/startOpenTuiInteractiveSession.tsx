@@ -412,6 +412,52 @@ export async function startOpenTuiInteractiveSession(
     refreshPermissionItems(activeSessionId());
   });
 
+  createEffect(() => {
+    if (activeSetupModal() !== 'providers' || providerSetupState().step !== 'list') {
+      return;
+    }
+
+    const filteredProviders = filterProviderChoices(connectProviderChoices, providerSetupState().query);
+    const nextSelectedIndex = filteredProviders.length === 0
+      ? 0
+      : Math.min(providerSetupState().selectedIndex, filteredProviders.length - 1);
+    const nextActiveProvider = filteredProviders[nextSelectedIndex] ?? null;
+
+    if (
+      nextSelectedIndex !== providerSetupState().selectedIndex
+      || nextActiveProvider !== providerSetupState().activeProvider
+    ) {
+      setProviderSetupState((currentState) => ({
+        ...currentState,
+        selectedIndex: nextSelectedIndex,
+        activeProvider: nextActiveProvider,
+      }));
+    }
+  });
+
+  createEffect(() => {
+    if (activeSetupModal() !== 'models' || modelsSetupState().step !== 'list') {
+      return;
+    }
+
+    const selectableRows = getSelectableModelRows(visibleModelRows());
+    const nextSelectedIndex = selectableRows.length === 0
+      ? 0
+      : Math.min(modelsSetupState().selectedIndex, selectableRows.length - 1);
+    const nextActiveProvider = selectableRows[nextSelectedIndex]?.provider ?? null;
+
+    if (
+      nextSelectedIndex !== modelsSetupState().selectedIndex
+      || nextActiveProvider !== modelsSetupState().activeProvider
+    ) {
+      setModelsSetupState((currentState) => ({
+        ...currentState,
+        selectedIndex: nextSelectedIndex,
+        activeProvider: nextActiveProvider,
+      }));
+    }
+  });
+
   const closePermissionsEditor = (): void => {
     setPermissionsEditorOpen(false);
     if (!isBusy()) {

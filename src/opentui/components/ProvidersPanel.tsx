@@ -104,7 +104,7 @@ export function ProvidersPanel(props: {
         <box backgroundColor={openTuiTheme.color.teal} paddingX={1} flexShrink={0}>
           <text fg={openTuiTheme.color.canvas}>
             {props.step === 'list'
-              ? `${Math.min(props.selectedIndex + 1, Math.max(props.providers.length, 1))}/${props.providers.length}`
+              ? `${props.providers.length === 0 ? 0 : Math.min(props.selectedIndex + 1, props.providers.length)}/${props.providers.length}`
               : formatProviderLabel(props.activeProvider ?? 'openai')}
           </text>
         </box>

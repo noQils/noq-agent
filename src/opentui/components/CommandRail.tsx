@@ -3,7 +3,6 @@
 import { For } from 'solid-js';
 
 import { openTuiTheme } from '../openTuiTheme';
-import { getSlashCommandCatalogEntries } from '../slashCommands';
 
 interface CommandHint {
   key: string;
@@ -12,6 +11,7 @@ interface CommandHint {
 
 function commandHints(isCompact: boolean): CommandHint[] {
   return [
+    { key: '/connect' },
     { key: '/models' },
     { key: '/permissions' },
     { key: '/exit' },
