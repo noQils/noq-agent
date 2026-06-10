@@ -35,6 +35,7 @@ import {
   getSlashCommandSuggestions,
 } from './slashCommands';
 import {
+  type OpenTuiCurrentModelSelection,
   type OpenTuiModelsSetupRow,
   type OpenTuiModelsSetupState,
   type OpenTuiPermissionItem,
@@ -61,6 +62,8 @@ interface OpenTuiInteractiveSessionAppProps {
   modelRows: OpenTuiModelsSetupRow[];
   selectedModelRowKey: string | null;
   permissionItems: Accessor<OpenTuiPermissionItem[]>;
+  workspacePath: string;
+  currentModelSelection: Accessor<OpenTuiCurrentModelSelection>;
   onInput: (value: string) => void;
   onSubmit: () => void;
   onExit: () => void;

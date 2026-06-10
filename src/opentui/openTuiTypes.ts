@@ -17,6 +17,11 @@ export interface OpenTuiPermissionItem {
   scopeDescription: string;
 }
 
+export interface OpenTuiCurrentModelSelection {
+  provider: ProviderName | null;
+  model: string | null;
+}
+
 export type OpenTuiSetupModalKind = 'providers' | 'models';
 
 export interface OpenTuiProviderSetupState {

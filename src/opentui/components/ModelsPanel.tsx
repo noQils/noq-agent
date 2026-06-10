@@ -9,6 +9,7 @@ import {
 } from '@opentui/core';
 
 import { type ProviderName } from '../../providers/types';
+import { formatProviderLabel } from '../providerLabels';
 import { type OpenTuiModelsSetupRow } from '../openTuiTypes';
 import { openTuiTheme } from '../openTuiTheme';
 
@@ -20,22 +21,6 @@ function clamp(value: number, min: number, max: number): number {
 
 function getSelectedRowAnchorIndex(visibleSelectableCount: number): number {
   return Math.max(0, Math.floor((visibleSelectableCount - 1) / 2));
-}
-
-function formatProviderLabel(provider: ProviderName): string {
-  if (provider === 'openai') {
-    return 'OpenAI';
-  }
-
-  if (provider === 'openrouter') {
-    return 'OpenRouter';
-  }
-
-  if (provider === 'ollama') {
-    return 'Ollama';
-  }
-
-  return 'Gemini';
 }
 
 function getProviderForRow(rows: OpenTuiModelsSetupRow[], rowIndex: number): ProviderName | null {

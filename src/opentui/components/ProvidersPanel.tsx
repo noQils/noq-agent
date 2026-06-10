@@ -9,6 +9,7 @@ import {
 } from '@opentui/core';
 
 import { openTuiTheme } from '../openTuiTheme';
+import { formatProviderLabel } from '../providerLabels';
 import { type ProviderName } from '../../providers/types';
 
 const providerDescriptions: Record<ProviderName, string> = {
@@ -17,22 +18,6 @@ const providerDescriptions: Record<ProviderName, string> = {
   openai: 'Connect an OpenAI API key.',
   openrouter: 'Connect an OpenRouter API key.',
 };
-
-function formatProviderLabel(provider: ProviderName): string {
-  if (provider === 'openai') {
-    return 'OpenAI';
-  }
-
-  if (provider === 'openrouter') {
-    return 'OpenRouter';
-  }
-
-  if (provider === 'ollama') {
-    return 'Ollama';
-  }
-
-  return 'Gemini';
-}
 
 function connectionStatus(provider: ProviderName, connectedProviders: ProviderName[]): string {
   if (provider === 'ollama') {

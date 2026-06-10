@@ -1,5 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
+import path from 'node:path';
+
 import { createEffect, createSignal } from 'solid-js';
 
 import { render, useRenderer } from '@opentui/solid';
@@ -52,6 +54,7 @@ import {
 import { parseSlashCommand, type SlashCommand } from './slashCommands';
 import {
   type OpenTuiModelGroup,
+  type OpenTuiCurrentModelSelection,
   type OpenTuiModelsSetupRow,
   type OpenTuiModelsSetupState,
   type OpenTuiPermissionItem,
@@ -60,6 +63,7 @@ import {
   type OpenTuiSetupModalKind,
 } from './openTuiTypes';
 import { type ProviderName } from '../providers/types';
+import { formatProviderLabel } from './providerLabels';
 
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
@@ -71,22 +75,6 @@ interface PendingModelChange {
   fromModel: string;
   toProvider: ProviderName;
   toModel: string;
-}
-
-function formatProviderLabel(provider: ProviderName): string {
-  if (provider === 'openai') {
-    return 'OpenAI';
-  }
-
-  if (provider === 'openrouter') {
-    return 'OpenRouter';
-  }
-
-  if (provider === 'ollama') {
-    return 'Ollama';
-  }
-
-  return 'Gemini';
 }
 
 function normalizeSearchText(value: string): string {
@@ -209,6 +197,14 @@ function printModeChange(mode: AgentMode): string {
   return `Switched to ${mode} mode.`;
 }
 
+function readCurrentModelSelection(): OpenTuiCurrentModelSelection {
+  const currentConfig = loadGlobalConfig();
+  return {
+    provider: currentConfig.defaultProvider ?? null,
+    model: currentConfig.defaultModel ?? null,
+  };
+}
+
 function formatModelChangeTranscriptEntry(change: PendingModelChange): string {
   return `Model changed from ${change.fromProvider}: ${change.fromModel} to ${change.toProvider}: ${change.toModel}!`;
 }
@@ -280,6 +276,8 @@ function SessionRoot(props: {
   modelRows: OpenTuiModelsSetupRow[];
   selectedModelRowKey: string | null;
   permissionItems: () => OpenTuiPermissionItem[];
+  workspacePath: string;
+  currentModelSelection: () => OpenTuiCurrentModelSelection;
   onInput: (value: string) => void;
   onSubmit: () => void;
   onExit: () => void;
@@ -320,6 +318,8 @@ function SessionRoot(props: {
       modelRows={props.modelRows}
       selectedModelRowKey={props.selectedModelRowKey}
       permissionItems={props.permissionItems}
+      workspacePath={props.workspacePath}
+      currentModelSelection={props.currentModelSelection}
       onInput={props.onInput}
       onSubmit={props.onSubmit}
       onExit={props.onExit}
@@ -349,6 +349,7 @@ export async function startOpenTuiInteractiveSession(
   options?: StartOpenTuiInteractiveSessionOptions,
 ): Promise<void> {
   const sessionWorkingDirectory = options?.cwd ?? process.cwd();
+  const workspacePath = path.resolve(sessionWorkingDirectory);
 
   if (sessionId) {
     setDebugLogFilePath(getSessionDebugLogPath(sessionId));
@@ -398,6 +399,9 @@ export async function startOpenTuiInteractiveSession(
   const [permissionItems, setPermissionItems] = createSignal<OpenTuiPermissionItem[]>([]);
   const [activeSessionId, setActiveSessionId] = createSignal<string | null>(sessionId ?? null);
   const [pendingModelChange, setPendingModelChange] = createSignal<PendingModelChange | null>(null);
+  const [currentModelSelection, setCurrentModelSelection] = createSignal<OpenTuiCurrentModelSelection>(
+    readCurrentModelSelection(),
+  );
 
   let shouldPrintHint = false;
   let isDestroyed = false;
@@ -481,6 +485,10 @@ export async function startOpenTuiInteractiveSession(
       isLoading: false,
       groups: [],
     });
+  };
+
+  const refreshCurrentModelSelection = (): void => {
+    setCurrentModelSelection(readCurrentModelSelection());
   };
 
   createEffect(() => {
@@ -778,6 +786,7 @@ export async function startOpenTuiInteractiveSession(
     const previousProvider = currentConfig.defaultProvider;
     const previousModel = currentConfig.defaultModel;
     saveGlobalModelSelection(selectedRow.provider, selectedRow.model);
+    refreshCurrentModelSelection();
     setPendingModelChange((currentChange) => updatePendingModelChange(
       currentChange,
       previousProvider,
@@ -805,6 +814,7 @@ export async function startOpenTuiInteractiveSession(
     const previousProvider = currentConfig.defaultProvider;
     const previousModel = currentConfig.defaultModel;
     saveGlobalModelSelection(activeProvider, modelId);
+    refreshCurrentModelSelection();
     setPendingModelChange((currentChange) => updatePendingModelChange(
       currentChange,
       previousProvider,
@@ -1120,6 +1130,8 @@ export async function startOpenTuiInteractiveSession(
           modelRows={visibleModelRows()}
           selectedModelRowKey={selectedModelRowKey()}
           permissionItems={permissionItems}
+          workspacePath={workspacePath}
+          currentModelSelection={currentModelSelection}
           onInput={setInputValue}
           onSubmit={() => {
             void handleSubmit();
