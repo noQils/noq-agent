@@ -173,7 +173,7 @@ function AssistantTranscriptContent(props: {
     <markdown
       content={props.text}
       syntaxStyle={getOpenTuiMarkdownSyntaxStyle()}
-      fg={openTuiTheme.color.textSoft}
+      fg={openTuiTheme.color.text}
       bg={props.backgroundColor}
       conceal
       concealCode
@@ -264,7 +264,7 @@ export function TranscriptEntry(props: {
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
       paddingX={1}
-      paddingY={0}
+      paddingY={role().label === 'User' ? 1 : 0}
     >
       {renderMode() === 'assistant-markdown' ? (
         <AssistantTranscriptContent

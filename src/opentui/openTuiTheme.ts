@@ -35,10 +35,10 @@ export const openTuiTheme = {
   },
   role: {
     user: {
-      label: 'You',
+      label: 'User',
       accent: '#60c5ff',
       border: '#2dd4bf',
-      background: '#242d35',
+      background: canvasColor,
       title: 'Prompt',
     },
     assistant: {
