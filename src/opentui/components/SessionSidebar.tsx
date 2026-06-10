@@ -1,20 +1,27 @@
 /** @jsxImportSource @opentui/solid */
 
-import os from 'node:os';
-import path from 'node:path';
-
 import { MacOSScrollAccel } from '@opentui/core';
 
 import { type AgentMode } from '../../agentMode';
 import { type OpenTuiCurrentModelSelection } from '../openTuiTypes';
 import { openTuiTheme, truncateMiddle } from '../openTuiTheme';
 import { formatProviderLabel } from '../providerLabels';
+import { formatWorkspacePathLabel } from '../workspacePathLabel';
 
 function sectionLabel(label: string) {
   return (
-    <text fg={openTuiTheme.color.textFaint}>
-      {label}
-    </text>
+    <box
+      border={['bottom']}
+      borderColor={openTuiTheme.color.line}
+      flexDirection="row"
+      // marginBottom={1}
+      height={0}
+    >
+      <text fg={openTuiTheme.color.amber} bg={openTuiTheme.color.canvas}>
+        {label}
+      </text>
+      <box backgroundColor={openTuiTheme.color.canvas} width={1}></box>
+    </box>
   );
 }
 
@@ -36,24 +43,8 @@ function modelIdLabel(selection: OpenTuiCurrentModelSelection): string {
   return selection.model ?? 'Not configured';
 }
 
-function formatWorkspacePath(workspacePath: string): string {
-  const normalizedWorkspacePath = path.resolve(workspacePath);
-  const homePath = path.resolve(os.homedir());
-  const relativeToHome = path.relative(homePath, normalizedWorkspacePath);
-
-  if (relativeToHome.length === 0) {
-    return '~';
-  }
-
-  if (!relativeToHome.startsWith('..') && !path.isAbsolute(relativeToHome)) {
-    return `~\\${relativeToHome}`;
-  }
-
-  return normalizedWorkspacePath;
-}
-
 const fullAsciiLogo = `
-████████╗ ██████╗  ██████╗
+███████╗  ██████╗  ██████╗
 ██╔═══██║██╔═══██╗██╔═══██╗
 ██║   ██║██║   ██║██║   ██║
 ██║   ██║╚██████╔╝╚██████╔╝
@@ -75,7 +66,7 @@ export function SessionSidebar(props: {
   const sessionIdLabel = () => truncateMiddle(props.sessionId, props.isShort ? 26 : 30);
   const modelLabel = () => modelIdLabel(props.currentModelSelection);
   const providerLabel = () => `via ${modelProviderLabel(props.currentModelSelection)}`;
-  const workspaceLabel = () => formatWorkspacePath(props.workspacePath);
+  const workspaceLabel = () => formatWorkspacePathLabel(props.workspacePath);
 
   const sidebarContent = () => (
     <box
@@ -105,7 +96,7 @@ export function SessionSidebar(props: {
 
       <box flexDirection="column" flexShrink={props.isShort ? 1 : 0} marginTop={sectionSpacing()}>
         {sectionLabel('Model')}
-        <text fg={openTuiTheme.color.text} wrapMode="word">
+        <text fg={openTuiTheme.color.textSoft} wrapMode="word">
           {modelLabel()}
         </text>
         <text fg={openTuiTheme.color.ghost} wrapMode="word">
