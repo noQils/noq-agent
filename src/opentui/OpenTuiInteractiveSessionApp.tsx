@@ -25,7 +25,6 @@ import { ModelsPanel, modelsPanelMaxVisibleRows } from './components/ModelsPanel
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
 import { ProvidersPanel } from './components/ProvidersPanel';
-import { SessionHeader } from './components/SessionHeader';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { openTuiTheme, statusColor, statusLabel, truncateMiddle } from './openTuiTheme';
@@ -642,6 +641,13 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const isShort = () => dimensions().height < 22;
   const isMediumTall = () => dimensions().height >= 32 && dimensions().height < 48;
   const isVeryTall = () => dimensions().height >= 48;
+  const showSidebar = () => dimensions().width >= 100;
+  const sidebarWidth = 30;
+  const appInnerWidth = () => Math.max(1, dimensions().width - 2);
+  const mainColumnWidth = () => Math.max(
+    1,
+    appInnerWidth() - (showSidebar() ? sidebarWidth + 1 : 0),
+  );
   const showEntryTime = () => dimensions().width >= 58;
   const resolvedStatusLabel = () => statusLabel(props.statusMessage(), props.isBusy());
   const resolvedStatusColor = () => statusColor(props.statusMessage(), props.isBusy());
@@ -723,21 +729,57 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       gap={0}
       backgroundColor={openTuiTheme.color.canvas}
     >
-      <SessionHeader
-        sessionLabel={sessionLabel()}
-        mode={props.mode()}
-        status={animatedStatus()}
-        statusColor={resolvedStatusColor()}
-        isNarrow={isNarrow()}
-      />
+      <box width="100%" flexGrow={1} minHeight={0} flexDirection="row" gap={showSidebar() ? 1 : 0}>
+        <box
+          flexDirection="column"
+          flexGrow={1}
+          minHeight={0}
+          width={showSidebar() ? mainColumnWidth() : '100%'}
+        >
+          <TranscriptPanel
+            entries={props.entries()}
+            isCompact={isCompact()}
+            isShort={isShort()}
+            showEntryTime={showEntryTime()}
+            scrollAcceleration={transcriptScrollAcceleration}
+          />
 
-      <TranscriptPanel
-        entries={props.entries()}
-        isCompact={isCompact()}
-        isShort={isShort()}
-        showEntryTime={showEntryTime()}
-        scrollAcceleration={transcriptScrollAcceleration}
-      />
+          <Composer
+            inputValue={props.inputValue()}
+            isBusy={props.isBusy()}
+            hasModalOverlay={hasModalOverlay()}
+            isNarrow={isNarrow()}
+            isCompact={isCompact()}
+            isMediumTall={isMediumTall()}
+            isVeryTall={isVeryTall()}
+            width={mainColumnWidth()}
+            onInput={props.onInput}
+            onSubmit={props.onSubmit}
+            textareaRef={(textarea) => {
+              composerTextarea = textarea;
+            }}
+          />
+
+          <CommandRail isCompact={isCompact()} />
+        </box>
+
+        {showSidebar() ? (
+          <box
+            width={sidebarWidth}
+            flexShrink={0}
+            flexDirection="column"
+            paddingX={1}
+            paddingY={1}
+            backgroundColor={openTuiTheme.color.panelRaised}
+          >
+            <text fg={openTuiTheme.color.textFaint}>Sidebar</text>
+            <text fg={resolvedStatusColor()}>{animatedStatus()}</text>
+            <text fg={openTuiTheme.color.ghost} truncate>
+              {sessionLabel()}
+            </text>
+          </box>
+        ) : null}
+      </box>
 
       {props.permissionRequest() ? (
         <box
@@ -862,27 +904,9 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           selectedIndex={selectedSlashCommandIndex()}
           isMediumTall={isMediumTall()}
           isVeryTall={isVeryTall()}
-          width={Math.max(28, dimensions().width - 6)}
+          width={Math.max(28, mainColumnWidth() - 4)}
         />
       ) : null}
-
-      <Composer
-        inputValue={props.inputValue()}
-        isBusy={props.isBusy()}
-        hasModalOverlay={hasModalOverlay()}
-        isNarrow={isNarrow()}
-        isCompact={isCompact()}
-        isMediumTall={isMediumTall()}
-        isVeryTall={isVeryTall()}
-        width={dimensions().width}
-        onInput={props.onInput}
-        onSubmit={props.onSubmit}
-        textareaRef={(textarea) => {
-          composerTextarea = textarea;
-        }}
-      />
-
-      <CommandRail isCompact={isCompact()} />
     </box>
   );
 }
