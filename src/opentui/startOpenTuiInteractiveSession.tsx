@@ -421,6 +421,43 @@ export async function startOpenTuiInteractiveSession(
   };
 
   const closeSetupModal = (): void => {
+    if (activeSetupModal() === 'providers' && providerSetupState().step === 'credential') {
+      const filteredProviders = filterProviderChoices(connectProviderChoices, providerSetupState().query);
+      const providerIndex = filteredProviders.findIndex((providerName) => providerName === providerSetupState().activeProvider);
+      setProviderSetupState((currentState) => ({
+        ...currentState,
+        step: 'list',
+        selectedIndex: providerIndex >= 0 ? providerIndex : 0,
+        activeProvider: providerIndex >= 0
+          ? filteredProviders[providerIndex] ?? null
+          : filteredProviders[0] ?? currentState.activeProvider,
+      }));
+      setStatusMessage('Connect provider');
+      renderer.requestRender();
+      return;
+    }
+
+    if (activeSetupModal() === 'models' && modelsSetupState().step === 'custom') {
+      const selectableRows = getSelectableModelRows(visibleModelRows());
+      const customRowKey = modelsSetupState().activeProvider
+        ? `custom:${modelsSetupState().activeProvider}`
+        : null;
+      const selectedIndex = customRowKey
+        ? selectableRows.findIndex((row) => row.key === customRowKey)
+        : -1;
+      setModelsSetupState((currentState) => ({
+        ...currentState,
+        step: 'list',
+        selectedIndex: selectedIndex >= 0 ? selectedIndex : 0,
+        activeProvider: selectedIndex >= 0
+          ? selectableRows[selectedIndex]?.provider ?? currentState.activeProvider
+          : selectableRows[0]?.provider ?? currentState.activeProvider,
+      }));
+      setStatusMessage('Choose model');
+      renderer.requestRender();
+      return;
+    }
+
     setActiveSetupModal(null);
     resetSetupModalState();
     if (!isBusy()) {

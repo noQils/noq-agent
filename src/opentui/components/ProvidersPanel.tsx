@@ -340,7 +340,7 @@ export function ProvidersPanel(props: {
         )}
         <box flexDirection="row" gap={1} flexShrink={0}>
           <text fg={openTuiTheme.color.teal}>esc</text>
-          <text fg={openTuiTheme.color.textMuted}>close</text>
+          <text fg={openTuiTheme.color.textMuted}>{props.step === 'list' ? 'close' : 'back'}</text>
         </box>
       </box>
     </box>
