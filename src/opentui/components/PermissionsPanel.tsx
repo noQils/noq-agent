@@ -136,14 +136,14 @@ export function PermissionsPanel(props: {
                     width="100%"
                     paddingX={1}
                     paddingY={0}
-                    backgroundColor={isSelected() ? openTuiTheme.color.tealFade : openTuiTheme.color.canvas}
+                    backgroundColor={isSelected() ? openTuiTheme.color.teal : openTuiTheme.color.canvas}
                     onMouseDown={() => props.onCycle()}
                   >
                     <box width="100%" flexDirection="row" justifyContent="space-between" gap={1}>
-                      <text fg={isSelected() ? openTuiTheme.color.text : openTuiTheme.color.textSoft} truncate flexGrow={1}>
+                      <text fg={isSelected() ? openTuiTheme.color.canvas : openTuiTheme.color.textSoft} truncate flexGrow={1}>
                         {formatScopeLabel(item.scope)}
                       </text>
-                      <text fg={outcomeColor(item.outcome)} flexShrink={0}>
+                      <text fg={isSelected() ? openTuiTheme.color.canvas : outcomeColor(item.outcome)} flexShrink={0}>
                         {item.outcome}
                       </text>
                     </box>
