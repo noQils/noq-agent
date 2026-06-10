@@ -23,6 +23,7 @@ import { CommandRail } from './components/CommandRail';
 import { Composer } from './components/Composer';
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
+import { ProvidersPanel } from './components/ProvidersPanel';
 import { SessionHeader } from './components/SessionHeader';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
 import { TranscriptPanel } from './components/TranscriptPanel';
@@ -39,6 +40,7 @@ import {
   type OpenTuiSessionEntry,
   type OpenTuiSetupModalKind,
 } from './openTuiTypes';
+import { type ProviderName } from '../providers/types';
 
 interface OpenTuiInteractiveSessionAppProps {
   sessionId: string;
@@ -52,6 +54,8 @@ interface OpenTuiInteractiveSessionAppProps {
   activeSetupModal: Accessor<OpenTuiSetupModalKind | null>;
   providerSetupState: Accessor<OpenTuiProviderSetupState>;
   modelsSetupState: Accessor<OpenTuiModelsSetupState>;
+  providerChoices: ProviderName[];
+  connectedProviders: ProviderName[];
   permissionItems: Accessor<OpenTuiPermissionItem[]>;
   onInput: (value: string) => void;
   onSubmit: () => void;
@@ -59,6 +63,12 @@ interface OpenTuiInteractiveSessionAppProps {
   onPermissionDecision: (decision: PermissionPromptDecision) => void;
   onClosePermissionsEditor: () => void;
   onCloseSetupModal: () => void;
+  onMoveProviderSelection: (direction: -1 | 1) => void;
+  onSelectProvider: (provider: ProviderName) => void;
+  onProviderQueryInput: (value: string) => void;
+  onProviderApiKeyInput: (value: string) => void;
+  onSubmitProviderSelection: () => void;
+  onSubmitProviderCredential: () => void;
   onCyclePermissionItem: (index: number) => void;
 }
 
@@ -192,7 +202,10 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   let cachedSelectionText = '';
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
+  let providersScrollBox: ScrollBoxRenderable | null = null;
   let composerTextarea: TextareaRenderable | null = null;
+  let providerSearchTextarea: TextareaRenderable | null = null;
+  let providerApiKeyTextarea: TextareaRenderable | null = null;
 
   useSelectionHandler((selection) => {
     const selectedText = selection.getSelectedText();
@@ -422,6 +435,46 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return;
     }
 
+    if (props.activeSetupModal() === 'providers') {
+      if (keyName === 'escape') {
+        props.onCloseSetupModal();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (props.providerSetupState().step === 'list') {
+        if (keyName === 'up') {
+          props.onMoveProviderSelection(-1);
+          providersScrollBox?.scrollBy(-1, 'step');
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        if (keyName === 'down') {
+          props.onMoveProviderSelection(1);
+          providersScrollBox?.scrollBy(1, 'step');
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        if (keyName === 'enter' || keyName === 'return' || keyName === 'kpenter') {
+          props.onSubmitProviderSelection();
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        return;
+      }
+
+      if (keyName === 'enter' || keyName === 'return' || keyName === 'kpenter') {
+        props.onSubmitProviderCredential();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      return;
+    }
+
     if (props.activeSetupModal()) {
       if (keyName === 'escape') {
         props.onCloseSetupModal();
@@ -497,6 +550,27 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     if (composerTextarea && composerTextarea.plainText !== currentValue) {
       composerTextarea.setText(currentValue);
     }
+  });
+
+  createEffect(() => {
+    if (props.activeSetupModal() !== 'providers') {
+      return;
+    }
+
+    if (props.providerSetupState().step === 'list') {
+      if (providerSearchTextarea && providerSearchTextarea.plainText !== props.providerSetupState().query) {
+        providerSearchTextarea.setText(props.providerSetupState().query);
+        providerSearchTextarea.cursorOffset = props.providerSetupState().query.length;
+      }
+      providerSearchTextarea?.focus();
+      return;
+    }
+
+    if (providerApiKeyTextarea && providerApiKeyTextarea.plainText !== props.providerSetupState().apiKeyInput) {
+      providerApiKeyTextarea.setText(props.providerSetupState().apiKeyInput);
+      providerApiKeyTextarea.cursorOffset = props.providerSetupState().apiKeyInput.length;
+    }
+    providerApiKeyTextarea?.focus();
   });
 
   createEffect(() => {
@@ -699,15 +773,28 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           left={permissionsEditorInsetX()}
           zIndex={1}
         >
-          <SetupModalPlaceholder
-            title="Connect Provider"
-            subtitle="Checkpoint 1: setup state is now modal-owned instead of transcript-owned."
-            lines={[
-              `step: ${props.providerSetupState().step}`,
-              `query: ${props.providerSetupState().query || '(empty)'}`,
-              `selected: ${String(props.providerSetupState().selectedIndex + 1)}`,
-              `provider: ${props.providerSetupState().activeProvider ?? '(none)'}`,
-            ]}
+          <ProvidersPanel
+            providers={props.providerChoices}
+            connectedProviders={props.connectedProviders}
+            selectedIndex={props.providerSetupState().selectedIndex}
+            query={props.providerSetupState().query}
+            step={props.providerSetupState().step}
+            activeProvider={props.providerSetupState().activeProvider}
+            apiKeyInput={props.providerSetupState().apiKeyInput}
+            onQueryInput={props.onProviderQueryInput}
+            onApiKeyInput={props.onProviderApiKeyInput}
+            onSubmitSelection={props.onSubmitProviderSelection}
+            onSubmitCredential={props.onSubmitProviderCredential}
+            onSelectProvider={props.onSelectProvider}
+            scrollRef={(scrollbox) => {
+              providersScrollBox = scrollbox;
+            }}
+            searchInputRef={(textarea) => {
+              providerSearchTextarea = textarea;
+            }}
+            apiKeyInputRef={(textarea) => {
+              providerApiKeyTextarea = textarea;
+            }}
           />
         </box>
       ) : null}

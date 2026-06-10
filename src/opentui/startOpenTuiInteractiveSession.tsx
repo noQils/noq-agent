@@ -6,6 +6,9 @@ import { render, useRenderer } from '@opentui/solid';
 import { CliRenderEvents } from '@opentui/core';
 
 import { type AgentMode } from '../agentMode';
+import { resetConfigCache } from '../config/config';
+import { loadAuthStore } from '../config/authStore';
+import { getProviderSettings } from '../config/providerSettings';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from '../permissions/approvals';
 import {
   resetPermissionPromptHandler,
@@ -28,6 +31,7 @@ import { runSessionTurn } from '../session/sessionTurnRunner';
 import {
   connectProviderChoices,
   getModelProviderChoices,
+  saveProviderConnection,
 } from '../setupCommands';
 import { setDebugLogFilePath } from '../config/runtimeSettings';
 import { createOpenTuiRenderer } from './createOpenTuiRenderer';
@@ -50,10 +54,20 @@ import {
   type OpenTuiSessionEntry,
   type OpenTuiSetupModalKind,
 } from './openTuiTypes';
+import { type ProviderName } from '../providers/types';
 
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
   cwd?: string;
+}
+
+function filterProviderChoices(providers: ProviderName[], query: string): ProviderName[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery.length === 0) {
+    return providers;
+  }
+
+  return providers.filter((providerName) => providerName.includes(normalizedQuery));
 }
 
 function appendEntry(
@@ -134,6 +148,8 @@ function SessionRoot(props: {
   activeSetupModal: () => OpenTuiSetupModalKind | null;
   providerSetupState: () => OpenTuiProviderSetupState;
   modelsSetupState: () => OpenTuiModelsSetupState;
+  providerChoices: ProviderName[];
+  connectedProviders: ProviderName[];
   permissionItems: () => OpenTuiPermissionItem[];
   onInput: (value: string) => void;
   onSubmit: () => void;
@@ -141,6 +157,12 @@ function SessionRoot(props: {
   onPermissionDecision: (decision: PermissionPromptDecision) => void;
   onClosePermissionsEditor: () => void;
   onCloseSetupModal: () => void;
+  onMoveProviderSelection: (direction: -1 | 1) => void;
+  onSelectProvider: (provider: ProviderName) => void;
+  onProviderQueryInput: (value: string) => void;
+  onProviderApiKeyInput: (value: string) => void;
+  onSubmitProviderSelection: () => void;
+  onSubmitProviderCredential: () => void;
   onCyclePermissionItem: (index: number) => void;
 }) {
   useRenderer();
@@ -158,6 +180,8 @@ function SessionRoot(props: {
       activeSetupModal={props.activeSetupModal}
       providerSetupState={props.providerSetupState}
       modelsSetupState={props.modelsSetupState}
+      providerChoices={props.providerChoices}
+      connectedProviders={props.connectedProviders}
       permissionItems={props.permissionItems}
       onInput={props.onInput}
       onSubmit={props.onSubmit}
@@ -165,6 +189,12 @@ function SessionRoot(props: {
       onPermissionDecision={props.onPermissionDecision}
       onClosePermissionsEditor={props.onClosePermissionsEditor}
       onCloseSetupModal={props.onCloseSetupModal}
+      onMoveProviderSelection={props.onMoveProviderSelection}
+      onSelectProvider={props.onSelectProvider}
+      onProviderQueryInput={props.onProviderQueryInput}
+      onProviderApiKeyInput={props.onProviderApiKeyInput}
+      onSubmitProviderSelection={props.onSubmitProviderSelection}
+      onSubmitProviderCredential={props.onSubmitProviderCredential}
       onCyclePermissionItem={props.onCyclePermissionItem}
     />
   );
@@ -287,20 +317,7 @@ export async function startOpenTuiInteractiveSession(
     setPermissionItems(getPermissionsEditorItems(sessionIdOverride ?? activeSessionId()));
   };
 
-  createEffect(() => {
-    refreshPermissionItems(activeSessionId());
-  });
-
-  const closePermissionsEditor = (): void => {
-    setPermissionsEditorOpen(false);
-    if (!isBusy()) {
-      setStatusMessage('Ready');
-    }
-    renderer.requestRender();
-  };
-
-  const closeSetupModal = (): void => {
-    setActiveSetupModal(null);
+  const resetSetupModalState = (): void => {
     setProviderSetupState({
       query: '',
       selectedIndex: 0,
@@ -315,10 +332,131 @@ export async function startOpenTuiInteractiveSession(
       customModelInput: '',
       isLoading: false,
     });
+  };
+
+  createEffect(() => {
+    refreshPermissionItems(activeSessionId());
+  });
+
+  const closePermissionsEditor = (): void => {
+    setPermissionsEditorOpen(false);
     if (!isBusy()) {
       setStatusMessage('Ready');
     }
     renderer.requestRender();
+  };
+
+  const closeSetupModal = (): void => {
+    setActiveSetupModal(null);
+    resetSetupModalState();
+    if (!isBusy()) {
+      setStatusMessage('Ready');
+    }
+    renderer.requestRender();
+  };
+
+  const closeSetupModalWithStatus = (message: string): void => {
+    setActiveSetupModal(null);
+    resetSetupModalState();
+    setStatusMessage(message);
+    renderer.requestRender();
+  };
+
+  const setProviderSelectionFromQuery = (query: string): void => {
+    const filteredProviders = filterProviderChoices(connectProviderChoices, query);
+    setProviderSetupState((currentState) => ({
+      ...currentState,
+      query,
+      selectedIndex: 0,
+      activeProvider: filteredProviders[0] ?? null,
+    }));
+    renderer.requestRender();
+  };
+
+  const selectProviderByIndex = (nextIndex: number): void => {
+    const filteredProviders = filterProviderChoices(connectProviderChoices, providerSetupState().query);
+    if (filteredProviders.length === 0) {
+      setProviderSetupState((currentState) => ({
+        ...currentState,
+        selectedIndex: 0,
+        activeProvider: null,
+      }));
+      renderer.requestRender();
+      return;
+    }
+
+    const normalizedIndex = Math.min(Math.max(nextIndex, 0), filteredProviders.length - 1);
+    setProviderSetupState((currentState) => ({
+      ...currentState,
+      selectedIndex: normalizedIndex,
+      activeProvider: filteredProviders[normalizedIndex] ?? null,
+    }));
+    renderer.requestRender();
+  };
+
+  const moveSelectedProvider = (direction: -1 | 1): void => {
+    const filteredProviders = filterProviderChoices(connectProviderChoices, providerSetupState().query);
+    if (filteredProviders.length === 0) {
+      return;
+    }
+
+    const nextIndex = (providerSetupState().selectedIndex + direction + filteredProviders.length) % filteredProviders.length;
+    selectProviderByIndex(nextIndex);
+  };
+
+  const submitSelectedProvider = (): void => {
+    const filteredProviders = filterProviderChoices(connectProviderChoices, providerSetupState().query);
+    const providerName = filteredProviders[providerSetupState().selectedIndex] ?? filteredProviders[0] ?? null;
+    if (!providerName) {
+      setStatusMessage('No matching providers');
+      renderer.requestRender();
+      return;
+    }
+
+    if (providerName === 'ollama') {
+      closeSetupModalWithStatus('Ollama does not need an API key');
+      return;
+    }
+
+    const existingApiKey = getProviderSettings(providerName).apiKey ?? '';
+    setProviderSetupState((currentState) => ({
+      ...currentState,
+      step: 'credential',
+      activeProvider: providerName,
+      apiKeyInput: existingApiKey,
+    }));
+    setStatusMessage(`Connect ${providerName}`);
+    renderer.requestRender();
+  };
+
+  const submitProviderCredential = (): void => {
+    const activeProvider = providerSetupState().activeProvider;
+    if (!activeProvider || activeProvider === 'ollama') {
+      return;
+    }
+
+    const apiKey = providerSetupState().apiKeyInput.trim();
+    if (apiKey.length === 0) {
+      setStatusMessage('API key cannot be empty');
+      renderer.requestRender();
+      return;
+    }
+
+    saveProviderConnection(activeProvider, { apiKey });
+    resetConfigCache();
+    closeSetupModalWithStatus(`Saved ${activeProvider} credentials`);
+  };
+
+  const connectedProviders = (): ProviderName[] => {
+    const authStore = loadAuthStore();
+    return connectProviderChoices.filter((providerName) => {
+      if (providerName === 'ollama') {
+        return false;
+      }
+
+      const apiKey = authStore[providerName]?.apiKey;
+      return typeof apiKey === 'string' && apiKey.trim().length > 0;
+    });
   };
 
   const cycleSelectedPermissionItem = (selectedIndex: number): void => {
@@ -391,6 +529,7 @@ export async function startOpenTuiInteractiveSession(
         });
         setActiveSetupModal('providers');
         setStatusMessage('Connect provider');
+        renderer.requestRender();
         return true;
 
       case 'models': {
@@ -404,6 +543,7 @@ export async function startOpenTuiInteractiveSession(
         });
         setActiveSetupModal('models');
         setStatusMessage('Choose model');
+        renderer.requestRender();
         return true;
       }
 
@@ -558,6 +698,8 @@ export async function startOpenTuiInteractiveSession(
           activeSetupModal={activeSetupModal}
           providerSetupState={providerSetupState}
           modelsSetupState={modelsSetupState}
+          providerChoices={filterProviderChoices(connectProviderChoices, providerSetupState().query)}
+          connectedProviders={connectedProviders()}
           permissionItems={permissionItems}
           onInput={setInputValue}
           onSubmit={() => {
@@ -567,6 +709,23 @@ export async function startOpenTuiInteractiveSession(
           onPermissionDecision={resolveActivePermissionPrompt}
           onClosePermissionsEditor={closePermissionsEditor}
           onCloseSetupModal={closeSetupModal}
+          onMoveProviderSelection={moveSelectedProvider}
+          onSelectProvider={(provider: ProviderName) => {
+            const filteredProviders = filterProviderChoices(connectProviderChoices, providerSetupState().query);
+            const selectedIndex = filteredProviders.indexOf(provider);
+            if (selectedIndex >= 0) {
+              selectProviderByIndex(selectedIndex);
+            }
+          }}
+          onProviderQueryInput={setProviderSelectionFromQuery}
+          onProviderApiKeyInput={(value: string) => {
+            setProviderSetupState((currentState) => ({
+              ...currentState,
+              apiKeyInput: value,
+            }));
+          }}
+          onSubmitProviderSelection={submitSelectedProvider}
+          onSubmitProviderCredential={submitProviderCredential}
           onCyclePermissionItem={cycleSelectedPermissionItem}
         />
       ),
