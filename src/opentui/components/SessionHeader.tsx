@@ -2,6 +2,7 @@
 
 import { type AgentMode } from '../../agentMode';
 import { openTuiTheme } from '../openTuiTheme';
+import { formatWorkspacePathLabel } from '../workspacePathLabel';
 
 export function SessionHeader(props: {
   sessionLabel: string;
@@ -9,7 +10,10 @@ export function SessionHeader(props: {
   status: string;
   statusColor: string;
   isNarrow: boolean;
+  workspacePath: string;
 }) {
+  const workspaceLabel = formatWorkspacePathLabel(props.workspacePath);
+
   return (
     <box
       backgroundColor={openTuiTheme.color.canvas}
@@ -20,7 +24,7 @@ export function SessionHeader(props: {
       flexDirection="row"
       gap={1}
     >
-      <box flexDirection="row" gap={1} flexShrink={1}>
+      <box flexDirection="row" gap={1} flexShrink={0}>
         <text fg={openTuiTheme.color.teal} selectable={false} truncate>
           noQ
         </text>
@@ -37,6 +41,7 @@ export function SessionHeader(props: {
               : openTuiTheme.color.amber
           }
           paddingX={1}
+          flexShrink={0}
         >
           <text
             fg={openTuiTheme.color.canvas}
@@ -46,6 +51,11 @@ export function SessionHeader(props: {
             {props.mode.toUpperCase()}
           </text>
         </box>
+      </box>
+      <box flexDirection="row" flexShrink={0} maxWidth={props.isNarrow ? 20 : 34}>
+        <text fg={openTuiTheme.color.textFaint} truncate>
+          {workspaceLabel}
+        </text>
       </box>
     </box>
   );

@@ -748,6 +748,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
               status={animatedStatus()}
               statusColor={resolvedStatusColor()}
               isNarrow={isNarrow()}
+              workspacePath={props.workspacePath}
             />
           ) : null}
 
