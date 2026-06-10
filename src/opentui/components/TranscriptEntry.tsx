@@ -231,7 +231,7 @@ function PlainTranscriptContent(props: {
 }) {
   return (
     <text
-      fg={props.kind === 'system' ? openTuiTheme.color.ghost : openTuiTheme.color.text}
+      fg={props.kind === 'system' ? openTuiTheme.color.textFaint : openTuiTheme.color.text}
       bg={props.backgroundColor}
       wrapMode="word"
       selectionBg={openTuiTheme.color.selectionBg}
