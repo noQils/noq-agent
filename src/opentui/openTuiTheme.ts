@@ -71,14 +71,14 @@ let diffSyntaxStyle: SyntaxStyle | null = null;
 export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
   if (!markdownSyntaxStyle) {
     markdownSyntaxStyle = SyntaxStyle.fromStyles({
-      default: { fg: openTuiTheme.color.textSoft },
-      text: { fg: openTuiTheme.color.textSoft },
+      default: { fg: openTuiTheme.color.text },
+      text: { fg: openTuiTheme.color.text },
       strong: { fg: openTuiTheme.color.text, bold: true },
       emphasis: { fg: openTuiTheme.color.cyanStrong, italic: true },
       heading: { fg: openTuiTheme.color.amber, bold: true },
       link: { fg: openTuiTheme.color.cyanStrong, underline: true },
       code: { fg: openTuiTheme.color.violet },
-      markup: { fg: openTuiTheme.color.textSoft },
+      markup: { fg: openTuiTheme.color.text },
       'markup.heading': { fg: openTuiTheme.color.amber, bold: true },
       'markup.heading.1': { fg: openTuiTheme.color.amber, bold: true },
       'markup.heading.2': { fg: openTuiTheme.color.amber, bold: true },
@@ -100,7 +100,7 @@ export function getOpenTuiMarkdownSyntaxStyle(): SyntaxStyle {
       number: { fg: openTuiTheme.color.amber },
       comment: { fg: openTuiTheme.color.textFaint, italic: true },
       function: { fg: openTuiTheme.color.cyan },
-      variable: { fg: openTuiTheme.color.textSoft },
+      variable: { fg: openTuiTheme.color.text },
       operator: { fg: openTuiTheme.color.textMuted },
       inserted: { fg: openTuiTheme.color.green },
       deleted: { fg: openTuiTheme.color.red },
