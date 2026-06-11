@@ -137,10 +137,11 @@ test('getSlashCommandSuggestions supports substring fallback on command text', (
   assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/diff']);
 });
 
-test('getSlashCommandSuggestions keeps matching commands visible while typing arguments', () => {
-  const suggestions = getSlashCommandSuggestions('/mode b');
-
-  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode']);
+test('getSlashCommandSuggestions hides suggestions after the first space in slash input', () => {
+  assert.equal(getSlashCommandSuggestions('/mode ').visible, false);
+  assert.equal(getSlashCommandSuggestions('/mode b').visible, false);
+  assert.equal(getSlashCommandSuggestions('/plan show').visible, false);
+  assert.equal(getSlashCommandSuggestions('/mo').visible, true);
 });
 
 test('getSlashCommandSuggestions only considers the first line of composer input', () => {

@@ -182,6 +182,14 @@ export function getSlashCommandSuggestions(input: string): SlashCommandSuggestio
     };
   }
 
+  if (query.includes(' ')) {
+    return {
+      visible: false,
+      query,
+      matches: [],
+    };
+  }
+
   const normalizedQuery = query.toLowerCase();
   const rankedMatches = slashCommandCatalog
     .map((entry, index) => ({
