@@ -151,6 +151,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const [dismissedSlashCommandQuery, setDismissedSlashCommandQuery] = createSignal('');
   const transcriptScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3.5 });
   let lastSlashCommandQuery = '';
+  let lastTranscriptEntryId: string | null = null;
+  let lastTranscriptEntryCount = 0;
   let cachedSelectionText = '';
   let transcriptScrollBox: ScrollBoxRenderable | null = null;
   let transcriptAtBottom = true;
@@ -299,6 +301,16 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const syncTranscriptBottomState = (): boolean => {
     transcriptAtBottom = isTranscriptAtBottom();
     return transcriptAtBottom;
+  };
+
+  const scrollTranscriptToBottom = (): void => {
+    if (!transcriptScrollBox) {
+      return;
+    }
+
+    transcriptScrollBox.scrollTo(transcriptScrollBox.scrollHeight);
+    syncTranscriptBottomState();
+    renderer.requestRender();
   };
 
   useKeyboard((key) => {
@@ -654,7 +666,26 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   });
 
   createEffect(() => {
-    props.entries();
+    const entries = props.entries();
+    const entryCount = entries.length;
+    const lastEntryId = entries[entryCount - 1]?.id ?? null;
+    const isFirstTranscriptRender = lastTranscriptEntryId === null && lastTranscriptEntryCount === 0;
+    const hasAppendedEntry = lastTranscriptEntryId !== null
+      && entryCount >= lastTranscriptEntryCount
+      && lastEntryId !== lastTranscriptEntryId;
+
+    const shouldAutoScroll = isFirstTranscriptRender || (hasAppendedEntry && transcriptAtBottom);
+
+    lastTranscriptEntryId = lastEntryId;
+    lastTranscriptEntryCount = entryCount;
+
+    if (shouldAutoScroll) {
+      queueMicrotask(() => {
+        scrollTranscriptToBottom();
+      });
+      return;
+    }
+
     syncTranscriptBottomState();
   });
 
