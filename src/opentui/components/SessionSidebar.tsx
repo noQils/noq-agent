@@ -72,7 +72,7 @@ export function SessionSidebar(props: {
         </text>
       </box>
 
-      <box backgroundColor={modeBadgeColor(props.mode)} paddingX={1} width={7} flexShrink={0}>
+      <box backgroundColor={modeBadgeColor(props.mode)} paddingX={1} width={props.mode.length + 2} flexShrink={0}>
         <text fg={openTuiTheme.color.canvas} selectable={false} truncate>
           {props.mode.toUpperCase()}
         </text>
