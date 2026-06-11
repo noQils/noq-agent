@@ -206,7 +206,7 @@ function readCurrentModelSelection(): OpenTuiCurrentModelSelection {
 }
 
 function formatModelChangeTranscriptEntry(change: PendingModelChange): string {
-  return `Model changed from ${change.fromProvider}: ${change.fromModel} to ${change.toProvider}: ${change.toModel}!`;
+  return `Model changed from ${change.fromProvider}: ${change.fromModel} to ${change.toProvider}: ${change.toModel}`;
 }
 
 function updatePendingModelChange(

@@ -51,7 +51,7 @@ export const openTuiTheme = {
     system: {
       label: 'System',
       accent: '#f6c768',
-      border: '#967342',
+      border: canvasColor,
       background: canvasColor,
       title: 'Notice',
     },

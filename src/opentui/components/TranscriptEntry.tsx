@@ -259,12 +259,12 @@ export function TranscriptEntry(props: {
       flexDirection="column"
       marginBottom={1}
       border={['left']}
-      borderStyle="heavy"
+      borderStyle="single"
       borderColor={role().border}
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
       paddingX={1}
-      paddingY={role().label === 'User' ? 1 : 0}
+      paddingY={0}
     >
       {renderMode() === 'assistant-markdown' ? (
         <AssistantTranscriptContent
