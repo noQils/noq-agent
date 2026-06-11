@@ -186,11 +186,11 @@ function getDiffTranscriptTitle(
   }
 
   if (toolName === 'edit_file' || (toolName === 'apply_patch' && mutationKind === 'edit')) {
-    return `← Edit ${getCompactDiffFilePath(filePath)}`;
+    return `→ Edit ${getCompactDiffFilePath(filePath)}`;
   }
 
   if (toolName === 'write_file' || (toolName === 'apply_patch' && mutationKind === 'write')) {
-    return `← Write ${getCompactDiffFilePath(filePath)}`;
+    return `→ Write ${getCompactDiffFilePath(filePath)}`;
   }
 
   return null;
@@ -266,7 +266,7 @@ function SystemDiffTranscriptContent(props: {
   backgroundColor: string;
 }) {
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" gap={1}>
       {props.title ? (
         <text fg={openTuiTheme.color.textFaint} bg={props.backgroundColor}>
           {props.title}
@@ -281,7 +281,7 @@ function SystemDiffTranscriptContent(props: {
         syntaxStyle={getOpenTuiDiffSyntaxStyle()}
         wrapMode="word"
         showLineNumbers={!props.isCompact}
-        lineNumberFg={openTuiTheme.color.textFaint}
+        lineNumberFg={openTuiTheme.color.textMuted}
         lineNumberBg={props.backgroundColor}
         addedLineNumberBg={openTuiTheme.color.diffAddedBg}
         removedLineNumberBg={openTuiTheme.color.diffRemovedBg}
