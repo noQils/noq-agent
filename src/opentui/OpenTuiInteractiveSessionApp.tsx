@@ -814,6 +814,9 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
               transcriptScrollBox = scrollbox;
               syncTranscriptBottomState();
             }}
+            onTranscriptScroll={() => {
+              syncTranscriptBottomState();
+            }}
           />
 
           <Composer
