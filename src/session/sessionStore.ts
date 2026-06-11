@@ -73,6 +73,7 @@ export interface SessionTranscriptEntry {
   createdAt: string;
   kind: SessionTranscriptEntryKind;
   text: string;
+  toolName?: string;
 }
 
 export interface SessionTuiState {
@@ -381,6 +382,9 @@ function normalizeTranscriptEntries(entries: unknown): SessionTranscriptEntry[] 
       createdAt: readStoredTimestamp(entry.createdAt),
       kind: entry.kind,
       text,
+      ...(typeof entry.toolName === 'string' && entry.toolName.length > 0
+        ? { toolName: entry.toolName }
+        : {}),
     }];
   });
 }

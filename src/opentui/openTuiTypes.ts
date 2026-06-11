@@ -9,6 +9,7 @@ export interface OpenTuiSessionEntry {
   createdAt: string;
   kind: OpenTuiSessionEntryKind;
   text: string;
+  toolName?: string;
 }
 
 export interface OpenTuiPermissionItem {

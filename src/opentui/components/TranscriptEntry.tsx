@@ -26,7 +26,9 @@ interface ParsedUnifiedDiffPatch {
 
 interface RenderableUnifiedDiff {
   diffText: string;
+  filePath?: string;
   filetype?: string;
+  mutationKind?: 'edit' | 'write';
 }
 
 const diffFiletypeByExtension: Record<string, string> = {
@@ -142,8 +144,72 @@ function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | u
   return inferPatchFiletype(firstPatch);
 }
 
-function buildRenderableUnifiedDiff(diffText: string, filetype: string | undefined): RenderableUnifiedDiff {
-  return filetype ? { diffText, filetype } : { diffText };
+function inferUnifiedDiffFilePath(patches: ParsedUnifiedDiffPatch[]): string | undefined {
+  const firstPatch = patches[0];
+  if (!firstPatch || patches.length > 1) {
+    return undefined;
+  }
+
+  return normalizeDiffFilePath(firstPatch.newFileName)
+    ?? normalizeDiffFilePath(firstPatch.oldFileName)
+    ?? undefined;
+}
+
+function getCompactDiffFilePath(filePath: string): string {
+  const normalizedPath = filePath.replaceAll('\\', '/');
+  const fileName = path.posix.basename(normalizedPath);
+  const parentDirectory = path.posix.basename(path.posix.dirname(normalizedPath));
+
+  return parentDirectory && parentDirectory !== '.'
+    ? `${parentDirectory}/${fileName}`
+    : fileName;
+}
+
+function inferUnifiedDiffMutationKind(
+  patches: ParsedUnifiedDiffPatch[],
+): RenderableUnifiedDiff['mutationKind'] {
+  const firstPatch = patches[0];
+  if (!firstPatch || patches.length > 1) {
+    return undefined;
+  }
+
+  return normalizeDiffFilePath(firstPatch.oldFileName) ? 'edit' : 'write';
+}
+
+function getDiffTranscriptTitle(
+  toolName: string | undefined,
+  filePath: string | undefined,
+  mutationKind: RenderableUnifiedDiff['mutationKind'],
+): string | null {
+  if (!filePath) {
+    return null;
+  }
+
+  if (toolName === 'edit_file' || (toolName === 'apply_patch' && mutationKind === 'edit')) {
+    return `← Edit ${getCompactDiffFilePath(filePath)}`;
+  }
+
+  if (toolName === 'write_file' || (toolName === 'apply_patch' && mutationKind === 'write')) {
+    return `← Write ${getCompactDiffFilePath(filePath)}`;
+  }
+
+  return null;
+}
+
+function buildRenderableUnifiedDiff(
+  diffText: string,
+  patches: ParsedUnifiedDiffPatch[],
+): RenderableUnifiedDiff {
+  const filePath = inferUnifiedDiffFilePath(patches);
+  const filetype = inferUnifiedDiffFiletype(patches);
+  const mutationKind = inferUnifiedDiffMutationKind(patches);
+
+  return {
+    diffText,
+    ...(filePath ? { filePath } : {}),
+    ...(filetype ? { filetype } : {}),
+    ...(mutationKind ? { mutationKind } : {}),
+  };
 }
 
 function getRenderableUnifiedDiff(text: string): RenderableUnifiedDiff | null {
@@ -153,12 +219,12 @@ function getRenderableUnifiedDiff(text: string): RenderableUnifiedDiff | null {
 
   try {
     const patches = parsePatch(text) as ParsedUnifiedDiffPatch[];
-    return buildRenderableUnifiedDiff(text, inferUnifiedDiffFiletype(patches));
+    return buildRenderableUnifiedDiff(text, patches);
   } catch {
     const healedDiff = healUnifiedDiffForRender(text);
     try {
       const patches = parsePatch(healedDiff) as ParsedUnifiedDiffPatch[];
-      return buildRenderableUnifiedDiff(healedDiff, inferUnifiedDiffFiletype(patches));
+      return buildRenderableUnifiedDiff(healedDiff, patches);
     } catch {
       return null;
     }
@@ -194,35 +260,43 @@ function AssistantTranscriptContent(props: {
 
 function SystemDiffTranscriptContent(props: {
   diffText: string;
+  title?: string;
   filetype?: string;
   isCompact: boolean;
   backgroundColor: string;
 }) {
   return (
-    <Dynamic
-      component={diffComponent}
-      diff={props.diffText}
-      filetype={props.filetype}
-      view="unified"
-      fg={openTuiTheme.color.textSoft}
-      syntaxStyle={getOpenTuiDiffSyntaxStyle()}
-      wrapMode="word"
-      showLineNumbers={!props.isCompact}
-      lineNumberFg={openTuiTheme.color.textFaint}
-      lineNumberBg={props.backgroundColor}
-      addedLineNumberBg={openTuiTheme.color.diffAddedBg}
-      removedLineNumberBg={openTuiTheme.color.diffRemovedBg}
-      addedBg={openTuiTheme.color.diffAddedBg}
-      removedBg={openTuiTheme.color.diffRemovedBg}
-      contextBg={props.backgroundColor}
-      addedContentBg={openTuiTheme.color.diffAddedContentBg}
-      removedContentBg={openTuiTheme.color.diffRemovedContentBg}
-      contextContentBg={props.backgroundColor}
-      addedSignColor={openTuiTheme.color.green}
-      removedSignColor={openTuiTheme.color.red}
-      selectionBg={openTuiTheme.color.selectionBg}
-      selectionFg={openTuiTheme.color.selectionFg}
-    />
+    <box flexDirection="column">
+      {props.title ? (
+        <text fg={openTuiTheme.color.textFaint} bg={props.backgroundColor}>
+          {props.title}
+        </text>
+      ) : null}
+      <Dynamic
+        component={diffComponent}
+        diff={props.diffText}
+        filetype={props.filetype}
+        view="unified"
+        fg={openTuiTheme.color.textSoft}
+        syntaxStyle={getOpenTuiDiffSyntaxStyle()}
+        wrapMode="word"
+        showLineNumbers={!props.isCompact}
+        lineNumberFg={openTuiTheme.color.textFaint}
+        lineNumberBg={props.backgroundColor}
+        addedLineNumberBg={openTuiTheme.color.diffAddedBg}
+        removedLineNumberBg={openTuiTheme.color.diffRemovedBg}
+        addedBg={openTuiTheme.color.diffAddedBg}
+        removedBg={openTuiTheme.color.diffRemovedBg}
+        contextBg={props.backgroundColor}
+        addedContentBg={openTuiTheme.color.diffAddedContentBg}
+        removedContentBg={openTuiTheme.color.diffRemovedContentBg}
+        contextContentBg={props.backgroundColor}
+        addedSignColor={openTuiTheme.color.green}
+        removedSignColor={openTuiTheme.color.red}
+        selectionBg={openTuiTheme.color.selectionBg}
+        selectionFg={openTuiTheme.color.selectionFg}
+      />
+    </box>
   );
 }
 
@@ -260,6 +334,11 @@ export function TranscriptEntry(props: {
   const systemRenderableDiff = () => (
     props.entry.kind === 'system' ? getRenderableUnifiedDiff(props.entry.text) : null
   );
+  const systemDiffTitle = () => getDiffTranscriptTitle(
+    props.entry.toolName,
+    systemRenderableDiff()?.filePath,
+    systemRenderableDiff()?.mutationKind,
+  );
   const renderMode = () => resolveTranscriptRenderMode(props.entry.kind, systemRenderableDiff()?.diffText ?? null);
 
   return (
@@ -283,6 +362,9 @@ export function TranscriptEntry(props: {
       ) : renderMode() === 'system-diff' ? (
         <SystemDiffTranscriptContent
           diffText={systemRenderableDiff()!.diffText}
+          {...(systemDiffTitle()
+            ? { title: systemDiffTitle()! }
+            : {})}
           {...(systemRenderableDiff()!.filetype
             ? { filetype: systemRenderableDiff()!.filetype }
             : {})}

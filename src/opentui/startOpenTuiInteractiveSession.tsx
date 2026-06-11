@@ -153,6 +153,7 @@ function appendEntry(
   entries: OpenTuiSessionEntry[],
   kind: OpenTuiSessionEntry['kind'],
   text: string,
+  toolName?: string,
 ): OpenTuiSessionEntry[] {
   return [
     ...entries,
@@ -161,6 +162,7 @@ function appendEntry(
       createdAt: new Date().toISOString(),
       kind,
       text,
+      ...(toolName ? { toolName } : {}),
     },
   ];
 }
@@ -411,8 +413,9 @@ export async function startOpenTuiInteractiveSession(
   const appendTranscriptEntry = (
     kind: OpenTuiSessionEntry['kind'],
     text: string,
+    toolName?: string,
   ): void => {
-    const nextEntries = appendEntry(entries(), kind, text);
+    const nextEntries = appendEntry(entries(), kind, text, toolName);
     setEntries(nextEntries);
     const resolvedSessionId = activeSessionId();
     if (resolvedSessionId) {
@@ -1094,7 +1097,7 @@ export async function startOpenTuiInteractiveSession(
       const { response } = await runSessionTurn(resolvedSessionId, rawInput, mode(), {
         workingDirectory: sessionWorkingDirectory,
         onMutation: (event) => {
-          appendTranscriptEntry('system', event.diff);
+          appendTranscriptEntry('system', event.diff, event.toolName);
           renderer.requestRender();
         },
       });
