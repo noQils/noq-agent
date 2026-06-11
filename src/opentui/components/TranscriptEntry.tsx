@@ -230,15 +230,22 @@ function PlainTranscriptContent(props: {
   backgroundColor: string;
 }) {
   return (
-    <text
-      fg={props.kind === 'system' ? openTuiTheme.color.textFaint : openTuiTheme.color.text}
-      bg={props.backgroundColor}
-      wrapMode="word"
-      selectionBg={openTuiTheme.color.selectionBg}
-      selectionFg={openTuiTheme.color.selectionFg}
-    >
-      {props.kind === 'system' ? '◈ ' : ''}{props.text}
-    </text>
+    <box flexDirection="row" gap={1}>
+      {props.kind === 'system' ? (
+          <text fg={openTuiTheme.color.textFaint}>
+            ◈
+          </text>
+      ) : null}
+      <text
+        fg={props.kind === 'system' ? openTuiTheme.color.textFaint : openTuiTheme.color.text}
+        bg={props.backgroundColor}
+        wrapMode="word"
+        selectionBg={openTuiTheme.color.selectionBg}
+        selectionFg={openTuiTheme.color.selectionFg}
+      >
+        {props.text}
+      </text>
+    </box>
   );
 }
 
