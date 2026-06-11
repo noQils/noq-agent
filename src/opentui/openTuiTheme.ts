@@ -28,10 +28,10 @@ export const openTuiTheme = {
     input: '#252a32',
     selectionBg: '#295f66',
     selectionFg: '#f4f7fb',
-    diffAddedBg: '#21382c',
-    diffAddedContentBg: '#244432',
-    diffRemovedBg: '#3a272c',
-    diffRemovedContentBg: '#472b31',
+    diffAddedBg: '#1c2a1c',
+    diffAddedContentBg: '#1f3220',
+    diffRemovedBg: '#2e1c1c',
+    diffRemovedContentBg: '#381f1f',
   },
   role: {
     user: {

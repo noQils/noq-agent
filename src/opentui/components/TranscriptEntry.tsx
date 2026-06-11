@@ -210,6 +210,8 @@ function SystemDiffTranscriptContent(props: {
       showLineNumbers={!props.isCompact}
       lineNumberFg={openTuiTheme.color.textFaint}
       lineNumberBg={props.backgroundColor}
+      addedLineNumberBg={openTuiTheme.color.diffAddedBg}
+      removedLineNumberBg={openTuiTheme.color.diffRemovedBg}
       addedBg={openTuiTheme.color.diffAddedBg}
       removedBg={openTuiTheme.color.diffRemovedBg}
       contextBg={props.backgroundColor}
@@ -267,7 +269,7 @@ export function TranscriptEntry(props: {
       marginBottom={1}
       border={['left']}
       borderStyle="heavy"
-      borderColor={role().border}
+      borderColor={renderMode() === 'system-diff' ? openTuiTheme.color.amber : role().border}
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
       paddingX={1}
