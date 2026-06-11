@@ -152,6 +152,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const transcriptScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3.5 });
   let lastSlashCommandQuery = '';
   let cachedSelectionText = '';
+  let transcriptScrollBox: ScrollBoxRenderable | null = null;
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
   let providersScrollBox: ScrollBoxRenderable | null = null;
@@ -759,6 +760,9 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             showEntryTime={showEntryTime()}
             showSidebar={showSidebar()}
             scrollAcceleration={transcriptScrollAcceleration}
+            scrollRef={(scrollbox) => {
+              transcriptScrollBox = scrollbox;
+            }}
           />
 
           <Composer

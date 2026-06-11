@@ -2,7 +2,7 @@
 
 import { For } from 'solid-js';
 
-import { type ScrollAcceleration } from '@opentui/core';
+import { type ScrollAcceleration, type ScrollBoxRenderable } from '@opentui/core';
 
 import { cappedEntries, openTuiTheme } from '../openTuiTheme';
 import { type OpenTuiSessionEntry } from '../openTuiTypes';
@@ -18,6 +18,7 @@ export function TranscriptPanel(props: {
   showEntryTime: boolean;
   showSidebar: boolean;
   scrollAcceleration: ScrollAcceleration;
+  scrollRef: (scrollbox: ScrollBoxRenderable) => void;
 }) {
   const visibleEntries = () => cappedEntries(props.entries, maxRenderedEntries);
   const hiddenEntryCount = () => Math.max(0, props.entries.length - visibleEntries().length);
@@ -33,9 +34,8 @@ export function TranscriptPanel(props: {
       minHeight={props.isShort ? 3 : 8}
     >
       <scrollbox
+        ref={props.scrollRef}
         flexGrow={1}
-        stickyScroll
-        stickyStart="bottom"
         viewportCulling
         scrollAcceleration={props.scrollAcceleration}
         backgroundColor={openTuiTheme.color.canvas}
