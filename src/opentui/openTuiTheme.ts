@@ -2,7 +2,7 @@ import { SyntaxStyle } from '@opentui/core';
 
 export type OpenTuiEntryRole = 'user' | 'assistant' | 'system';
 export type OpenTuiStatusTone = 'ready' | 'busy' | 'success' | 'warning' | 'danger';
-export const canvasColor = '#1a1c22';
+export const canvasColor = '#1a1c24';
 
 export const openTuiTheme = {
   color: {
