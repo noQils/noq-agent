@@ -22,10 +22,14 @@ const diffComponent: any = 'diff';
 interface ParsedUnifiedDiffPatch {
   oldFileName?: string;
   newFileName?: string;
+  hunks?: Array<{
+    lines: string[];
+  }>;
 }
 
 interface RenderableUnifiedDiff {
   diffText: string;
+  renderedLineCount: number;
   filePath?: string;
   filetype?: string;
   mutationKind?: 'edit' | 'write';
@@ -176,6 +180,23 @@ function inferUnifiedDiffMutationKind(
   return normalizeDiffFilePath(firstPatch.oldFileName) ? 'edit' : 'write';
 }
 
+function getUnifiedDiffRenderedLineCount(patches: ParsedUnifiedDiffPatch[]): number {
+  const firstPatch = patches[0];
+  if (!firstPatch) {
+    return 1;
+  }
+
+  const lineCount = firstPatch.hunks?.reduce((total, hunk) => (
+    total + hunk.lines.filter((line) => (
+      line.startsWith(' ')
+      || line.startsWith('+')
+      || line.startsWith('-')
+    )).length
+  ), 0) ?? 0;
+
+  return Math.max(1, lineCount);
+}
+
 function getDiffTranscriptTitle(
   toolName: string | undefined,
   filePath: string | undefined,
@@ -206,6 +227,7 @@ function buildRenderableUnifiedDiff(
 
   return {
     diffText,
+    renderedLineCount: getUnifiedDiffRenderedLineCount(patches),
     ...(filePath ? { filePath } : {}),
     ...(filetype ? { filetype } : {}),
     ...(mutationKind ? { mutationKind } : {}),
@@ -260,6 +282,7 @@ function AssistantTranscriptContent(props: {
 
 function SystemDiffTranscriptContent(props: {
   diffText: string;
+  renderedLineCount: number;
   title?: string;
   filetype?: string;
   isCompact: boolean;
@@ -272,30 +295,49 @@ function SystemDiffTranscriptContent(props: {
           {props.title}
         </text>
       ) : null}
-      <Dynamic
-        component={diffComponent}
-        diff={props.diffText}
-        filetype={props.filetype}
-        view="unified"
-        fg={openTuiTheme.color.textSoft}
-        syntaxStyle={getOpenTuiDiffSyntaxStyle()}
-        wrapMode="word"
-        showLineNumbers={!props.isCompact}
-        lineNumberFg={openTuiTheme.color.textMuted}
-        lineNumberBg={props.backgroundColor}
-        addedLineNumberBg={openTuiTheme.color.diffAddedBg}
-        removedLineNumberBg={openTuiTheme.color.diffRemovedBg}
-        addedBg={openTuiTheme.color.diffAddedBg}
-        removedBg={openTuiTheme.color.diffRemovedBg}
-        contextBg={props.backgroundColor}
-        addedContentBg={openTuiTheme.color.diffAddedContentBg}
-        removedContentBg={openTuiTheme.color.diffRemovedContentBg}
-        contextContentBg={props.backgroundColor}
-        addedSignColor={openTuiTheme.color.green}
-        removedSignColor={openTuiTheme.color.red}
-        selectionBg={openTuiTheme.color.selectionBg}
-        selectionFg={openTuiTheme.color.selectionFg}
-      />
+      <scrollbox
+        scrollX
+        scrollY={false}
+        height={props.renderedLineCount}
+        backgroundColor={props.backgroundColor}
+        viewportOptions={{
+          backgroundColor: props.backgroundColor,
+        }}
+        contentOptions={{
+          backgroundColor: props.backgroundColor,
+        }}
+        horizontalScrollbarOptions={{
+          trackOptions: {
+            backgroundColor: props.backgroundColor,
+            foregroundColor: openTuiTheme.color.panelRaised,
+          },
+        }}
+      >
+        <Dynamic
+          component={diffComponent}
+          diff={props.diffText}
+          filetype={props.filetype}
+          view="unified"
+          fg={openTuiTheme.color.textSoft}
+          syntaxStyle={getOpenTuiDiffSyntaxStyle()}
+          wrapMode="none"
+          showLineNumbers={!props.isCompact}
+          lineNumberFg={openTuiTheme.color.textMuted}
+          lineNumberBg={props.backgroundColor}
+          addedLineNumberBg={openTuiTheme.color.diffAddedBg}
+          removedLineNumberBg={openTuiTheme.color.diffRemovedBg}
+          addedBg={openTuiTheme.color.diffAddedBg}
+          removedBg={openTuiTheme.color.diffRemovedBg}
+          contextBg={props.backgroundColor}
+          addedContentBg={openTuiTheme.color.diffAddedContentBg}
+          removedContentBg={openTuiTheme.color.diffRemovedContentBg}
+          contextContentBg={props.backgroundColor}
+          addedSignColor={openTuiTheme.color.green}
+          removedSignColor={openTuiTheme.color.red}
+          selectionBg={openTuiTheme.color.selectionBg}
+          selectionFg={openTuiTheme.color.selectionFg}
+        />
+      </scrollbox>
     </box>
   );
 }
@@ -362,6 +404,7 @@ export function TranscriptEntry(props: {
       ) : renderMode() === 'system-diff' ? (
         <SystemDiffTranscriptContent
           diffText={systemRenderableDiff()!.diffText}
+          renderedLineCount={systemRenderableDiff()!.renderedLineCount}
           {...(systemDiffTitle()
             ? { title: systemDiffTitle()! }
             : {})}
