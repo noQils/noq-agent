@@ -237,7 +237,7 @@ function PlainTranscriptContent(props: {
       selectionBg={openTuiTheme.color.selectionBg}
       selectionFg={openTuiTheme.color.selectionFg}
     >
-      {props.text}
+      {props.kind === 'system' ? '◈ ' : ''}{props.text}
     </text>
   );
 }
@@ -259,7 +259,7 @@ export function TranscriptEntry(props: {
       flexDirection="column"
       marginBottom={1}
       border={['left']}
-      borderStyle="single"
+      borderStyle="heavy"
       borderColor={role().border}
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
