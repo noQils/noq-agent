@@ -45,6 +45,10 @@ import {
   type OpenTuiSetupModalKind,
 } from './openTuiTypes';
 import { type ProviderName } from '../providers/types';
+import {
+  getTranscriptMaxScrollTop,
+  TranscriptAutoScrollState,
+} from './transcriptAutoScroll';
 
 interface OpenTuiInteractiveSessionAppProps {
   sessionId: string;
@@ -150,12 +154,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const [selectedSlashCommandIndex, setSelectedSlashCommandIndex] = createSignal(0);
   const [dismissedSlashCommandQuery, setDismissedSlashCommandQuery] = createSignal('');
   const transcriptScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3.5 });
+  const transcriptAutoScrollState = new TranscriptAutoScrollState();
   let lastSlashCommandQuery = '';
-  let lastTranscriptEntryId: string | null = null;
-  let lastTranscriptEntryCount = 0;
   let cachedSelectionText = '';
   let transcriptScrollBox: ScrollBoxRenderable | null = null;
-  let transcriptAtBottom = true;
+  let transcriptScrollChangeListener: (() => void) | null = null;
+  let pendingTranscriptFrameListener: (() => void) | null = null;
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
   let providersScrollBox: ScrollBoxRenderable | null = null;
@@ -290,28 +294,89 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     return true;
   };
 
-  const isTranscriptAtBottom = (): boolean => {
+  const syncTranscriptBottomState = (): boolean => {
     if (!transcriptScrollBox) {
       return true;
     }
 
-    return transcriptScrollBox.scrollTop + transcriptScrollBox.viewport.height >= transcriptScrollBox.scrollHeight;
+    const isAtBottom = transcriptAutoScrollState.syncScrollPosition({
+      scrollTop: transcriptScrollBox.scrollTop,
+      scrollHeight: transcriptScrollBox.scrollHeight,
+      viewportHeight: transcriptScrollBox.viewport.height,
+    });
+
+    if (!isAtBottom && pendingTranscriptFrameListener) {
+      renderer.off('frame', pendingTranscriptFrameListener);
+      pendingTranscriptFrameListener = null;
+    }
+
+    return isAtBottom;
   };
 
-  const syncTranscriptBottomState = (): boolean => {
-    transcriptAtBottom = isTranscriptAtBottom();
-    return transcriptAtBottom;
-  };
-
-  const scrollTranscriptToBottom = (): void => {
-    if (!transcriptScrollBox) {
+  const scheduleTranscriptBottomAlignment = (): void => {
+    if (
+      pendingTranscriptFrameListener
+      || !transcriptAutoScrollState.hasPendingBottomAlignment
+    ) {
       return;
     }
 
-    transcriptScrollBox.scrollTo(transcriptScrollBox.scrollHeight);
-    syncTranscriptBottomState();
+    const frameListener = (): void => {
+      if (pendingTranscriptFrameListener !== frameListener) {
+        return;
+      }
+
+      pendingTranscriptFrameListener = null;
+
+      if (!transcriptScrollBox) {
+        return;
+      }
+
+      if (!transcriptAutoScrollState.consumePendingBottomAlignment()) {
+        return;
+      }
+
+      transcriptScrollBox.scrollTo(getTranscriptMaxScrollTop({
+        scrollTop: transcriptScrollBox.scrollTop,
+        scrollHeight: transcriptScrollBox.scrollHeight,
+        viewportHeight: transcriptScrollBox.viewport.height,
+      }));
+      syncTranscriptBottomState();
+      renderer.requestRender();
+    };
+
+    pendingTranscriptFrameListener = frameListener;
+    renderer.once('frame', frameListener);
     renderer.requestRender();
   };
+
+  const setTranscriptScrollBox = (scrollbox: ScrollBoxRenderable): void => {
+    if (transcriptScrollBox && transcriptScrollChangeListener) {
+      transcriptScrollBox.verticalScrollBar.off('change', transcriptScrollChangeListener);
+    }
+
+    transcriptScrollBox = scrollbox;
+    transcriptScrollChangeListener = () => {
+      syncTranscriptBottomState();
+    };
+    transcriptScrollBox.verticalScrollBar.on('change', transcriptScrollChangeListener);
+    syncTranscriptBottomState();
+    scheduleTranscriptBottomAlignment();
+  };
+
+  onCleanup(() => {
+    if (pendingTranscriptFrameListener) {
+      renderer.off('frame', pendingTranscriptFrameListener);
+      pendingTranscriptFrameListener = null;
+    }
+
+    transcriptAutoScrollState.cancelPendingBottomAlignment();
+
+    if (transcriptScrollBox && transcriptScrollChangeListener) {
+      transcriptScrollBox.verticalScrollBar.off('change', transcriptScrollChangeListener);
+      transcriptScrollChangeListener = null;
+    }
+  });
 
   useKeyboard((key) => {
     const keyName = key.name.toLowerCase();
@@ -666,27 +731,9 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   });
 
   createEffect(() => {
-    const entries = props.entries();
-    const entryCount = entries.length;
-    const lastEntryId = entries[entryCount - 1]?.id ?? null;
-    const isFirstTranscriptRender = lastTranscriptEntryId === null && lastTranscriptEntryCount === 0;
-    const hasAppendedEntry = lastTranscriptEntryId !== null
-      && entryCount >= lastTranscriptEntryCount
-      && lastEntryId !== lastTranscriptEntryId;
-
-    const shouldAutoScroll = isFirstTranscriptRender || (hasAppendedEntry && transcriptAtBottom);
-
-    lastTranscriptEntryId = lastEntryId;
-    lastTranscriptEntryCount = entryCount;
-
-    if (shouldAutoScroll) {
-      queueMicrotask(() => {
-        scrollTranscriptToBottom();
-      });
-      return;
+    if (transcriptAutoScrollState.recordEntryCount(props.entries().length)) {
+      scheduleTranscriptBottomAlignment();
     }
-
-    syncTranscriptBottomState();
   });
 
   const isNarrow = () => dimensions().width < 72;
@@ -810,13 +857,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             showEntryTime={showEntryTime()}
             showSidebar={showSidebar()}
             scrollAcceleration={transcriptScrollAcceleration}
-            scrollRef={(scrollbox) => {
-              transcriptScrollBox = scrollbox;
-              syncTranscriptBottomState();
-            }}
-            onTranscriptScroll={() => {
-              syncTranscriptBottomState();
-            }}
+            scrollRef={setTranscriptScrollBox}
           />
 
           <Composer

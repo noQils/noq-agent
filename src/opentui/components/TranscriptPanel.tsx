@@ -19,15 +19,9 @@ export function TranscriptPanel(props: {
   showSidebar: boolean;
   scrollAcceleration: ScrollAcceleration;
   scrollRef: (scrollbox: ScrollBoxRenderable) => void;
-  onTranscriptScroll: () => void;
 }) {
   const visibleEntries = () => cappedEntries(props.entries, maxRenderedEntries);
   const hiddenEntryCount = () => Math.max(0, props.entries.length - visibleEntries().length);
-  const notifyTranscriptScroll = () => {
-    queueMicrotask(() => {
-      props.onTranscriptScroll();
-    });
-  };
 
   return (
     <box
@@ -44,10 +38,6 @@ export function TranscriptPanel(props: {
         flexGrow={1}
         viewportCulling
         scrollAcceleration={props.scrollAcceleration}
-        onMouseScroll={notifyTranscriptScroll}
-        onMouseDrag={notifyTranscriptScroll}
-        onMouseDragEnd={notifyTranscriptScroll}
-        onKeyDown={notifyTranscriptScroll}
         backgroundColor={openTuiTheme.color.canvas}
         contentOptions={{
           backgroundColor: openTuiTheme.color.canvas,
