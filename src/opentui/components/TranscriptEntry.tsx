@@ -2,7 +2,7 @@
 
 import path from 'node:path';
 
-import { DiffRenderable } from '@opentui/core';
+import { DiffRenderable, MacOSScrollAccel } from '@opentui/core';
 import { parsePatch } from 'diff';
 import { Dynamic, extend } from '@opentui/solid';
 
@@ -288,6 +288,8 @@ function SystemDiffTranscriptContent(props: {
   isCompact: boolean;
   backgroundColor: string;
 }) {
+  const scrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3 });
+
   return (
     <box flexDirection="column" gap={1}>
       {props.title ? (
@@ -298,6 +300,7 @@ function SystemDiffTranscriptContent(props: {
       <scrollbox
         scrollX
         scrollY={false}
+        scrollAcceleration={scrollAcceleration}
         height={props.renderedLineCount}
         backgroundColor={props.backgroundColor}
         viewportOptions={{
