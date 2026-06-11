@@ -153,6 +153,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   let lastSlashCommandQuery = '';
   let cachedSelectionText = '';
   let transcriptScrollBox: ScrollBoxRenderable | null = null;
+  let transcriptAtBottom = true;
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
   let providersScrollBox: ScrollBoxRenderable | null = null;
@@ -285,6 +286,19 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     renderer.requestRender();
     props.onSubmit();
     return true;
+  };
+
+  const isTranscriptAtBottom = (): boolean => {
+    if (!transcriptScrollBox) {
+      return true;
+    }
+
+    return transcriptScrollBox.scrollTop + transcriptScrollBox.viewport.height >= transcriptScrollBox.scrollHeight;
+  };
+
+  const syncTranscriptBottomState = (): boolean => {
+    transcriptAtBottom = isTranscriptAtBottom();
+    return transcriptAtBottom;
   };
 
   useKeyboard((key) => {
@@ -639,6 +653,11 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     });
   });
 
+  createEffect(() => {
+    props.entries();
+    syncTranscriptBottomState();
+  });
+
   const isNarrow = () => dimensions().width < 72;
   const isCompact = () => dimensions().width < 72 || dimensions().height < 22;
   const isShort = () => dimensions().height < 22;
@@ -762,6 +781,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             scrollAcceleration={transcriptScrollAcceleration}
             scrollRef={(scrollbox) => {
               transcriptScrollBox = scrollbox;
+              syncTranscriptBottomState();
             }}
           />
 
