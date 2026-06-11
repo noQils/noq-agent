@@ -44,6 +44,7 @@ import {
   applyOpenTuiTerminalBackground,
   resetOpenTuiTerminalBackground,
 } from './openTuiTerminalAppearance';
+import { OPEN_TUI_ASCII_LOGO } from './asciiLogo';
 import {
   OpenTuiInteractiveSessionApp,
 } from './OpenTuiInteractiveSessionApp';
@@ -178,15 +179,7 @@ function formatPermissionSummary(request: PermissionRequest): string {
 
 function printSessionContinuationHint(sessionId: string): void {
   console.log(
-`
-███╗   ██╗ ██████╗  ██████╗
-████╗  ██║██╔═══██╗██╔═══██╗
-██╔██╗ ██║██║   ██║██║   ██║
-██║╚██╗██║██║   ██║██║   ██║
-██║ ╚████║╚██████╔╝╚██████╔╝
-╚═╝  ╚═══╝ ╚═════╝  ╚══▀█▄╗
-                        ╚═╝
-`
+    OPEN_TUI_ASCII_LOGO,
   );
   console.log(`To continue this conversation use: noq --session ${sessionId}`);
 }

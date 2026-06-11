@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 
+import { OPEN_TUI_ASCII_LOGO } from '../asciiLogo';
 import { openTuiTheme } from '../openTuiTheme';
 
 export function EmptyTranscriptState(props: { isCompact: boolean }) {
@@ -16,15 +17,7 @@ export function EmptyTranscriptState(props: { isCompact: boolean }) {
     >
       <box flexDirection="row" gap={1}>
         <text fg={openTuiTheme.color.teal} selectable={false}>
-{`
-███████╗  ██████╗  ██████╗
-██╔═══██╗██╔═══██╗██╔═══██╗
-██║   ██║██║   ██║██║   ██║
-██║   ██║██║   ██║██║   ██║
-██║   ██║╚██████╔╝╚██████╔╝
-╚═╝   ╚═╝ ╚═════╝  ╚══▀█▄╗
-                       ╚═╝
-`}
+          {OPEN_TUI_ASCII_LOGO}
         </text>
       </box>
       {props.isCompact ? (

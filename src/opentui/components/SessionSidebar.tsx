@@ -3,6 +3,7 @@
 import { MacOSScrollAccel } from '@opentui/core';
 
 import { type AgentMode } from '../../agentMode';
+import { OPEN_TUI_ASCII_LOGO } from '../asciiLogo';
 import { type OpenTuiCurrentModelSelection } from '../openTuiTypes';
 import { openTuiTheme, truncateMiddle } from '../openTuiTheme';
 import { formatProviderLabel } from '../providerLabels';
@@ -42,15 +43,6 @@ function modelIdLabel(selection: OpenTuiCurrentModelSelection): string {
   return selection.model ?? 'Not configured';
 }
 
-const fullAsciiLogo = `
-███████╗  ██████╗  ██████╗
-██╔═══██║██╔═══██╗██╔═══██╗
-██║   ██║██║   ██║██║   ██║
-██║   ██║╚██████╔╝╚██████╔╝
-╚═╝   ╚═╝ ╚═════╝  ╚══▀█▄╗
-                       ╚═╝
-`;
-
 export function SessionSidebar(props: {
   sessionId: string;
   mode: AgentMode;
@@ -76,7 +68,7 @@ export function SessionSidebar(props: {
     >
       <box flexDirection="column" flexShrink={0}>
         <text fg={openTuiTheme.color.teal} bg={openTuiTheme.color.canvas} selectable={false}>
-          {fullAsciiLogo}
+          {OPEN_TUI_ASCII_LOGO}
         </text>
       </box>
 
