@@ -75,7 +75,7 @@ export function SessionSidebar(props: {
       paddingBottom={props.isVeryShort ? 1 : 0}
     >
       <box flexDirection="column" flexShrink={0}>
-        <text fg={openTuiTheme.color.teal} selectable={false}>
+        <text fg={openTuiTheme.color.teal} bg={openTuiTheme.color.canvas} selectable={false}>
           {fullAsciiLogo}
         </text>
       </box>
@@ -88,7 +88,7 @@ export function SessionSidebar(props: {
 
       <box flexDirection="column" flexShrink={0} marginTop={sectionSpacing()}>
         {sectionLabel('Session ID')}
-        <text fg={openTuiTheme.color.textSoft} truncate>
+        <text fg={openTuiTheme.color.textSoft} bg={openTuiTheme.color.canvas} truncate>
           {sessionIdLabel()}
         </text>
       </box>
@@ -98,14 +98,14 @@ export function SessionSidebar(props: {
         <text fg={openTuiTheme.color.textSoft} wrapMode="word">
           {modelLabel()}
         </text>
-        <text fg={openTuiTheme.color.ghost} wrapMode="word">
+        <text fg={openTuiTheme.color.ghost} bg={openTuiTheme.color.canvas} wrapMode="word">
           {providerLabel()}
         </text>
       </box>
 
       <box flexDirection="column" flexShrink={1} marginTop={sectionSpacing()}>
         {sectionLabel('Workspace')}
-        <text fg={openTuiTheme.color.textSoft} wrapMode="word">
+        <text fg={openTuiTheme.color.textSoft} bg={openTuiTheme.color.canvas} wrapMode="word">
           {workspaceLabel()}
         </text>
       </box>
