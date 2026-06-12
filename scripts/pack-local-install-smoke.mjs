@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const wrapperDir = path.join(rootDir, 'packages', 'noq-agent');
+const rootPackageJson = JSON.parse(
+  fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'),
+);
+const expectedVersion = rootPackageJson.version;
 const packageMap = {
   'win32-x64': 'noq-agent-windows-x64',
   'darwin-arm64': 'noq-agent-darwin-arm64',
@@ -75,8 +79,8 @@ const noqBin = process.platform === 'win32'
 const versionOutput = run(noqBin, ['--version'], tempDir);
 const helpOutput = run(noqBin, ['--help'], tempDir);
 
-if (versionOutput !== '1.0.0') {
-  throw new Error(`Expected version 1.0.0, received ${versionOutput}`);
+if (versionOutput !== expectedVersion) {
+  throw new Error(`Expected version ${expectedVersion}, received ${versionOutput}`);
 }
 
 if (!helpOutput.includes('noq-agent - local AI coding agent CLI')) {
