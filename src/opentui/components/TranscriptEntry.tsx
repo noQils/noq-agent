@@ -206,11 +206,19 @@ function getDiffTranscriptTitle(
     return null;
   }
 
-  if (toolName === 'edit_file' || (toolName === 'apply_patch' && mutationKind === 'edit')) {
+  if (
+    toolName === 'edit_file'
+    || (toolName === 'apply_patch' && mutationKind === 'edit')
+    || (!toolName && mutationKind === 'edit')
+  ) {
     return `→ Edit ${getCompactDiffFilePath(filePath)}`;
   }
 
-  if (toolName === 'write_file' || (toolName === 'apply_patch' && mutationKind === 'write')) {
+  if (
+    toolName === 'write_file'
+    || (toolName === 'apply_patch' && mutationKind === 'write')
+    || (!toolName && mutationKind === 'write')
+  ) {
     return `→ Write ${getCompactDiffFilePath(filePath)}`;
   }
 
