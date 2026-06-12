@@ -149,6 +149,32 @@ function busySuffix(frame: number): string {
   return '.'.repeat(frame % 4);
 }
 
+function FullscreenInsetModal(props: {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  children: any;
+}) {
+  return (
+    <box
+      border
+      borderStyle="rounded"
+      borderColor={openTuiTheme.color.amber}
+      focusedBorderColor={openTuiTheme.color.amber}
+      backgroundColor={openTuiTheme.color.canvas}
+      position="absolute"
+      top={props.top}
+      right={props.right}
+      bottom={props.bottom}
+      left={props.left}
+      zIndex={1}
+    >
+      {props.children}
+    </box>
+  );
+}
+
 export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionAppProps) {
   const renderer = useRenderer();
   const dimensions = useTerminalDimensions();
@@ -955,18 +981,11 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       </box>
 
       {props.permissionRequest() ? (
-        <box
-          border
-          borderStyle="rounded"
-          borderColor={openTuiTheme.color.amber}
-          focusedBorderColor={openTuiTheme.color.amber}
-          backgroundColor={openTuiTheme.color.canvas}
-          position="absolute"
+        <FullscreenInsetModal
           top={permissionModalInsetY()}
           right={permissionModalInsetX()}
           bottom={permissionModalInsetY()}
           left={permissionModalInsetX()}
-          zIndex={1}
         >
           <PermissionPromptPanel
             request={props.permissionRequest()!}
@@ -978,22 +997,15 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
               permissionPreviewScrollBox = scrollbox;
             }}
           />
-        </box>
+        </FullscreenInsetModal>
       ) : null}
 
       {props.activeDiffModal() ? (
-        <box
-          border
-          borderStyle="rounded"
-          borderColor={openTuiTheme.color.amber}
-          focusedBorderColor={openTuiTheme.color.amber}
-          backgroundColor={openTuiTheme.color.canvas}
-          position="absolute"
+        <FullscreenInsetModal
           top={permissionModalInsetY()}
           right={permissionModalInsetX()}
           bottom={permissionModalInsetY()}
           left={permissionModalInsetX()}
-          zIndex={1}
         >
           <ShowDiffPanel
             state={props.activeDiffModal()!}
@@ -1002,7 +1014,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
               diffPreviewScrollBox = scrollbox;
             }}
           />
-        </box>
+        </FullscreenInsetModal>
       ) : null}
 
       {props.permissionsEditorOpen() ? (
