@@ -35,7 +35,7 @@ It currently includes:
 - a shared internal tool registry
 - a workflow layer that pushes the model to verify and finish work
 - runtime-enforced permissions
-- persistent global sessions with diff, undo, and saved plan artifacts
+- persistent global sessions with diff, undo, saved plan artifacts, and session-scoped permission overrides
 - an OpenTUI-based interactive session UI
 
 ## Current Capabilities
@@ -56,6 +56,10 @@ Today the agent can:
 - undo the latest recorded agent snapshot
 - save the latest plan-mode artifact for later review
 - remember named-session approvals, including approved external directories
+- change permission scopes for the active session from inside the TUI
+- connect providers and switch models from inside the TUI with searchable setup panels
+- discover provider models live when available and save custom model ids when needed
+- use slash-command autocomplete for common interactive commands
 - resume sessions from any directory
 - work across directories when the permission policy allows it
 
@@ -173,6 +177,7 @@ Popup window launch is currently implemented on Windows and falls back to the cu
 Useful interactive commands:
 
 ```text
+/permissions
 /connect
 /models
 /mode plan
@@ -180,25 +185,33 @@ Useful interactive commands:
 /plan show
 /diff
 /undo
+/quit
 /exit
 ```
 
 Setup flow details:
 
+- `/permissions`
+  Opens a session-scoped permissions editor inside the TUI
 - `/connect`
-  Saves provider credentials into `~/.noq/auth.json`
+  Opens a searchable provider chooser and saves provider credentials into `~/.noq/auth.json`
 - `/models`
-  Lets you choose the global default provider and model in `~/.noq/config.json`
+  Opens a searchable model picker and saves the global default provider and model in `~/.noq/config.json`
 - `/models` applies immediately to the next turn in the current session
 - `/connect` makes a provider available immediately, but does not change the active provider/model until `/models`
 - `/models` tries live model discovery first and falls back to curated presets when discovery is unavailable
+- `/models` groups choices by provider and supports saving a custom model id when the discovered list is not enough
 - Ollama does not need an API key for `/connect`; you can just use `/models`
 
 TUI details:
 
 - new sessions get a generated id when you send the first real prompt
 - session transcript entries are persisted with the session
+- the sidebar shows the current session id, active mode, selected model/provider, and workspace path
 - permission prompts are shown inline in the TUI with previews for commands and edits
+- `/diff` opens a full-screen latest-diff viewer with syntax-aware rendering plus tool and file metadata
+- slash commands show inline suggestions; `Tab` inserts open-ended commands like `/mode ` and `Enter` runs fixed commands like `/diff`
+- transcript autoscroll follows new output only while you stay exactly at the bottom
 - external-directory prompts show both the session workspace and the outside directory being requested
 - `Ctrl+C` copies the current selection
 - `Ctrl+V` pastes the last copied selection into the composer
@@ -224,6 +237,7 @@ Session data includes:
 - persistent turn history
 - recorded snapshots of agent-made file changes
 - named-session permission approvals
+- session permission overrides for scopes like `edit`, `bash`, and `external_directory`
 - approved external directories
 - latest saved plan artifact
 - TUI transcript state and stored mode
@@ -290,6 +304,12 @@ Approval choices:
 - deny
 
 In interactive TUI sessions, approvals are shown inline. In plain terminal mode, prompts fall back to a text-based approval prompt. Without a TTY, permission prompts default to deny.
+
+The TUI also has a session permissions editor exposed by `/permissions`.
+
+- it covers `read`, `edit`, `list`, `glob`, `grep`, `bash`, and `external_directory`
+- each scope cycles through `ask`, `allow`, and `deny`
+- overrides are saved with the session and take precedence over workspace config for later turns in that session
 
 External directory behavior:
 
