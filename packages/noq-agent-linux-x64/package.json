@@ -1,6 +1,6 @@
 {
   "name": "noq-agent-linux-x64",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Linux x64 standalone runtime for noq-agent",
   "license": "ISC",
   "files": [

@@ -1,6 +1,6 @@
 {
   "name": "noq-agent",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "noq-agent – Local AI coding agent CLI. Analyzes repos, answers code questions, edits files, runs commands.",
   "main": "dist/index.js",
   "bin": {

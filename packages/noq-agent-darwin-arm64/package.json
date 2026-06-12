@@ -1,6 +1,6 @@
 {
   "name": "noq-agent-darwin-arm64",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "macOS arm64 standalone runtime for noq-agent",
   "license": "ISC",
   "files": [
