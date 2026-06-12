@@ -54,6 +54,7 @@ import {
 } from './permissionsEditorState';
 import { parseSlashCommand, type SlashCommand } from './slashCommands';
 import {
+  type OpenTuiDiffModalState,
   type OpenTuiModelGroup,
   type OpenTuiCurrentModelSelection,
   type OpenTuiModelsSetupRow,
@@ -263,6 +264,7 @@ function SessionRoot(props: {
   statusMessage: () => string | null;
   permissionRequest: () => PermissionRequest | null;
   permissionsEditorOpen: () => boolean;
+  activeDiffModal: () => OpenTuiDiffModalState | null;
   activeSetupModal: () => OpenTuiSetupModalKind | null;
   providerSetupState: () => OpenTuiProviderSetupState;
   modelsSetupState: () => OpenTuiModelsSetupState;
@@ -278,6 +280,7 @@ function SessionRoot(props: {
   onExit: () => void;
   onPermissionDecision: (decision: PermissionPromptDecision) => void;
   onClosePermissionsEditor: () => void;
+  onCloseDiffModal: () => void;
   onCloseSetupModal: () => void;
   onMoveProviderSelection: (direction: -1 | 1) => void;
   onSelectProvider: (provider: ProviderName) => void;
@@ -305,6 +308,7 @@ function SessionRoot(props: {
       statusMessage={props.statusMessage}
       permissionRequest={props.permissionRequest}
       permissionsEditorOpen={props.permissionsEditorOpen}
+      activeDiffModal={props.activeDiffModal}
       activeSetupModal={props.activeSetupModal}
       providerSetupState={props.providerSetupState}
       modelsSetupState={props.modelsSetupState}
@@ -320,6 +324,7 @@ function SessionRoot(props: {
       onExit={props.onExit}
       onPermissionDecision={props.onPermissionDecision}
       onClosePermissionsEditor={props.onClosePermissionsEditor}
+      onCloseDiffModal={props.onCloseDiffModal}
       onCloseSetupModal={props.onCloseSetupModal}
       onMoveProviderSelection={props.onMoveProviderSelection}
       onSelectProvider={props.onSelectProvider}
@@ -374,6 +379,7 @@ export async function startOpenTuiInteractiveSession(
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
   const [permissionRequest, setPermissionRequest] = createSignal<PermissionRequest | null>(null);
   const [permissionsEditorOpen, setPermissionsEditorOpen] = createSignal(false);
+  const [activeDiffModal, setActiveDiffModal] = createSignal<OpenTuiDiffModalState | null>(null);
   const [activeSetupModal, setActiveSetupModal] = createSignal<OpenTuiSetupModalKind | null>(null);
   const [providerSetupState, setProviderSetupState] = createSignal<OpenTuiProviderSetupState>({
     query: '',
@@ -539,6 +545,14 @@ export async function startOpenTuiInteractiveSession(
 
   const closePermissionsEditor = (): void => {
     setPermissionsEditorOpen(false);
+    if (!isBusy()) {
+      setStatusMessage('Ready');
+    }
+    renderer.requestRender();
+  };
+
+  const closeDiffModal = (): void => {
+    setActiveDiffModal(null);
     if (!isBusy()) {
       setStatusMessage('Ready');
     }
@@ -1047,6 +1061,10 @@ export async function startOpenTuiInteractiveSession(
       return;
     }
 
+    if (activeDiffModal()) {
+      return;
+    }
+
     if (activeSetupModal()) {
       return;
     }
@@ -1118,6 +1136,7 @@ export async function startOpenTuiInteractiveSession(
           statusMessage={statusMessage}
           permissionRequest={permissionRequest}
           permissionsEditorOpen={permissionsEditorOpen}
+          activeDiffModal={activeDiffModal}
           activeSetupModal={activeSetupModal}
           providerSetupState={providerSetupState}
           modelsSetupState={modelsSetupState}
@@ -1135,6 +1154,7 @@ export async function startOpenTuiInteractiveSession(
           onExit={exitSession}
           onPermissionDecision={resolveActivePermissionPrompt}
           onClosePermissionsEditor={closePermissionsEditor}
+          onCloseDiffModal={closeDiffModal}
           onCloseSetupModal={closeSetupModal}
           onMoveProviderSelection={moveSelectedProvider}
           onSelectProvider={(provider: ProviderName) => {

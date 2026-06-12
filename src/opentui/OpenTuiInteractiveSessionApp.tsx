@@ -36,6 +36,7 @@ import {
   getSlashCommandSuggestions,
 } from './slashCommands';
 import {
+  type OpenTuiDiffModalState,
   type OpenTuiCurrentModelSelection,
   type OpenTuiModelsSetupRow,
   type OpenTuiModelsSetupState,
@@ -59,6 +60,7 @@ interface OpenTuiInteractiveSessionAppProps {
   statusMessage: Accessor<string | null>;
   permissionRequest: Accessor<PermissionRequest | null>;
   permissionsEditorOpen: Accessor<boolean>;
+  activeDiffModal: Accessor<OpenTuiDiffModalState | null>;
   activeSetupModal: Accessor<OpenTuiSetupModalKind | null>;
   providerSetupState: Accessor<OpenTuiProviderSetupState>;
   modelsSetupState: Accessor<OpenTuiModelsSetupState>;
@@ -74,6 +76,7 @@ interface OpenTuiInteractiveSessionAppProps {
   onExit: () => void;
   onPermissionDecision: (decision: PermissionPromptDecision) => void;
   onClosePermissionsEditor: () => void;
+  onCloseDiffModal: () => void;
   onCloseSetupModal: () => void;
   onMoveProviderSelection: (direction: -1 | 1) => void;
   onSelectProvider: (provider: ProviderName) => void;
@@ -482,6 +485,17 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
       return;
     }
 
+    if (props.activeDiffModal()) {
+      if (keyName === 'escape') {
+        props.onCloseDiffModal();
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      stopPermissionKeyEvent(key);
+      return;
+    }
+
     if (props.activeSetupModal() === 'providers') {
       if (keyName === 'escape') {
         props.onCloseSetupModal();
@@ -754,7 +768,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   const resolvedStatusLabel = () => statusLabel(props.statusMessage(), props.isBusy());
   const resolvedStatusColor = () => statusColor(props.statusMessage(), props.isBusy());
   const hasPermissionRequest = () => props.permissionRequest() !== null;
-  const hasModalOverlay = () => hasPermissionRequest() || props.permissionsEditorOpen() || props.activeSetupModal() !== null;
+  const hasModalOverlay = () => (
+    hasPermissionRequest()
+    || props.permissionsEditorOpen()
+    || props.activeDiffModal() !== null
+    || props.activeSetupModal() !== null
+  );
   const slashCommandSuggestions = () => getSlashCommandSuggestions(props.inputValue());
   const slashCommandPopupVisible = () => (
     slashCommandSuggestions().visible

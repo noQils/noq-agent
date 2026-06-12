@@ -23,6 +23,14 @@ export interface OpenTuiCurrentModelSelection {
   model: string | null;
 }
 
+export interface OpenTuiDiffModalState {
+  diffText: string;
+  toolName?: string;
+  filePath?: string;
+  filetype?: string;
+  mutationKind?: 'edit' | 'write';
+}
+
 export type OpenTuiSetupModalKind = 'providers' | 'models';
 
 export interface OpenTuiProviderSetupState {
