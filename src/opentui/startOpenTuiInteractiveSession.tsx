@@ -22,7 +22,7 @@ import { type PermissionRequest } from '../permissions/types';
 import {
   formatLatestSessionPlan,
   generateUniqueSessionId,
-  getLatestSessionDiff,
+  getLatestSessionDiffDetails,
   getSessionDebugLogPath,
   loadSessionTuiState,
   saveSessionTuiEntries,
@@ -995,8 +995,16 @@ export async function startOpenTuiInteractiveSession(
           return true;
         }
         try {
-          const result = getLatestSessionDiff(activeSessionId()!);
-          appendTranscriptEntry('system', result);
+          const result = getLatestSessionDiffDetails(activeSessionId()!);
+          setActiveDiffModal({
+            diffText: result.diffText,
+            ...(result.toolName ? { toolName: result.toolName } : {}),
+            ...(result.filePath ? { filePath: result.filePath } : {}),
+            ...(result.filetype ? { filetype: result.filetype } : {}),
+            ...(result.mutationKind ? { mutationKind: result.mutationKind } : {}),
+          });
+          setStatusMessage('Latest diff');
+          renderer.requestRender();
         } catch (error) {
           appendTranscriptEntry('system', `Command failed: ${formatErrorMessage(error)}`);
         }

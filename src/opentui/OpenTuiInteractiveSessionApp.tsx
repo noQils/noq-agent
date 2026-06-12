@@ -25,6 +25,7 @@ import { ModelsPanel, modelsPanelMaxVisibleRows } from './components/ModelsPanel
 import { PermissionPromptPanel } from './components/PermissionPromptPanel';
 import { PermissionsPanel } from './components/PermissionsPanel';
 import { ProvidersPanel } from './components/ProvidersPanel';
+import { ShowDiffPanel } from './components/ShowDiffPanel';
 import { SessionHeader } from './components/SessionHeader';
 import { SessionSidebar } from './components/SessionSidebar';
 import { SlashCommandPopup } from './components/SlashCommandPopup';
@@ -164,6 +165,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   let transcriptScrollChangeListener: (() => void) | null = null;
   let pendingTranscriptFrameListener: (() => void) | null = null;
   let permissionPreviewScrollBox: ScrollBoxRenderable | null = null;
+  let diffPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
   let providersScrollBox: ScrollBoxRenderable | null = null;
   let modelsScrollBox: ScrollBoxRenderable | null = null;
@@ -233,6 +235,11 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
   const scrollPermissionPreview = (direction: -1 | 1): void => {
     permissionPreviewScrollBox?.scrollBy(direction * 3, 'step');
+    renderer.requestRender();
+  };
+
+  const scrollDiffPreview = (direction: -1 | 1): void => {
+    diffPreviewScrollBox?.scrollBy(direction * 3, 'step');
     renderer.requestRender();
   };
 
@@ -486,6 +493,18 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     }
 
     if (props.activeDiffModal()) {
+      if (key.shift && keyName === 'up') {
+        scrollDiffPreview(-1);
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
+      if (key.shift && keyName === 'down') {
+        scrollDiffPreview(1);
+        stopPermissionKeyEvent(key);
+        return;
+      }
+
       if (keyName === 'escape') {
         props.onCloseDiffModal();
         stopPermissionKeyEvent(key);
@@ -648,6 +667,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     if (props.permissionsEditorOpen()) {
       setSelectedPermissionItemIndex(0);
       permissionsScrollBox?.scrollTo(0);
+    }
+  });
+
+  createEffect(() => {
+    if (props.activeDiffModal()) {
+      diffPreviewScrollBox?.scrollTo(0);
     }
   });
 
@@ -951,6 +976,30 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             onAction={choosePermissionAction}
             previewScrollRef={(scrollbox) => {
               permissionPreviewScrollBox = scrollbox;
+            }}
+          />
+        </box>
+      ) : null}
+
+      {props.activeDiffModal() ? (
+        <box
+          border
+          borderStyle="rounded"
+          borderColor={openTuiTheme.color.amber}
+          focusedBorderColor={openTuiTheme.color.amber}
+          backgroundColor={openTuiTheme.color.canvas}
+          position="absolute"
+          top={permissionModalInsetY()}
+          right={permissionModalInsetX()}
+          bottom={permissionModalInsetY()}
+          left={permissionModalInsetX()}
+          zIndex={1}
+        >
+          <ShowDiffPanel
+            state={props.activeDiffModal()!}
+            targetMaxLength={isNarrow() ? 36 : 76}
+            previewScrollRef={(scrollbox) => {
+              diffPreviewScrollBox = scrollbox;
             }}
           />
         </box>

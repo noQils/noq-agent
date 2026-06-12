@@ -50,6 +50,14 @@ export interface SessionSnapshot {
   diff: string;
 }
 
+export interface LatestSessionDiffDetails {
+  diffText: string;
+  toolName?: 'edit' | 'write';
+  filePath?: string;
+  filetype?: string;
+  mutationKind?: 'edit' | 'write';
+}
+
 export interface SessionPermissionApproval {
   createdAt: string;
   scope: PermissionScope;
@@ -493,6 +501,74 @@ function extractResponsePaths(response: string): string[] {
   return Array.from(new Set(response.match(fileReferenceRegex) ?? []));
 }
 
+function normalizeSnapshotFilePath(filePath: string): string {
+  return filePath.replaceAll('\\', '/').replace(/^\/+/, '');
+}
+
+function getFileExtension(filePath: string): string | null {
+  const extension = path.posix.extname(filePath).toLowerCase();
+  return extension.length > 1 ? extension.slice(1) : null;
+}
+
+function inferDiffFiletype(filePath: string): string | undefined {
+  const extension = getFileExtension(filePath);
+  if (!extension) {
+    return undefined;
+  }
+
+  const diffFiletypeByExtension: Record<string, string> = {
+    cjs: 'javascript',
+    css: 'css',
+    htm: 'html',
+    html: 'html',
+    js: 'javascript',
+    json: 'json',
+    jsx: 'javascript',
+    markdown: 'markdown',
+    md: 'markdown',
+    mjs: 'javascript',
+    mts: 'typescript',
+    py: 'python',
+    sh: 'bash',
+    ts: 'typescript',
+    tsx: 'typescript',
+    yaml: 'yaml',
+    yml: 'yaml',
+  };
+
+  return diffFiletypeByExtension[extension];
+}
+
+function getLatestSnapshotMutationKind(
+  latestSnapshot: SessionSnapshot,
+): 'edit' | 'write' | undefined {
+  if (latestSnapshot.fileChanges.length !== 1) {
+    return undefined;
+  }
+
+  return latestSnapshot.fileChanges[0]?.existedBefore ? 'edit' : 'write';
+}
+
+function buildLatestSessionDiffDetails(
+  latestSnapshot: SessionSnapshot,
+): LatestSessionDiffDetails {
+  const mutationKind = getLatestSnapshotMutationKind(latestSnapshot);
+  const singleFileChange = latestSnapshot.fileChanges.length === 1
+    ? latestSnapshot.fileChanges[0]
+    : null;
+  const normalizedFilePath = singleFileChange
+    ? normalizeSnapshotFilePath(singleFileChange.filePath)
+    : undefined;
+  const filetype = normalizedFilePath ? inferDiffFiletype(normalizedFilePath) : undefined;
+
+  return {
+    diffText: latestSnapshot.diff,
+    ...(mutationKind ? { toolName: mutationKind, mutationKind } : {}),
+    ...(normalizedFilePath ? { filePath: normalizedFilePath } : {}),
+    ...(filetype ? { filetype } : {}),
+  };
+}
+
 function formatToolArgs(args: Record<string, unknown>): string {
   const entries = Object.entries(args)
     .filter(([, value]) => value !== undefined)
@@ -908,6 +984,21 @@ export function getLatestSessionDiff(sessionId: string): string {
   }
 
   return latestSnapshot.diff || `No diff is stored for snapshot ${latestSnapshot.id}.`;
+}
+
+export function getLatestSessionDiffDetails(sessionId: string): LatestSessionDiffDetails {
+  const session = loadExistingSession(sessionId);
+
+  const latestSnapshot = session.snapshots.at(-1);
+  if (!latestSnapshot) {
+    throw new Error(`No agent-generated file snapshots are recorded for session "${sessionId}".`);
+  }
+
+  if (!latestSnapshot.diff) {
+    throw new Error(`No diff is stored for snapshot ${latestSnapshot.id}.`);
+  }
+
+  return buildLatestSessionDiffDetails(latestSnapshot);
 }
 
 export function undoLastSessionSnapshot(sessionId: string): string {
