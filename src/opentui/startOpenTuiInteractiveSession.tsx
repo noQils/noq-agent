@@ -403,6 +403,7 @@ export async function startOpenTuiInteractiveSession(
   const [currentModelSelection, setCurrentModelSelection] = createSignal<OpenTuiCurrentModelSelection>(
     readCurrentModelSelection(),
   );
+  const [statusMessageBeforeDiffModal, setStatusMessageBeforeDiffModal] = createSignal<string | null>(null);
 
   let shouldPrintHint = false;
   let isDestroyed = false;
@@ -553,9 +554,8 @@ export async function startOpenTuiInteractiveSession(
 
   const closeDiffModal = (): void => {
     setActiveDiffModal(null);
-    if (!isBusy()) {
-      setStatusMessage('Ready');
-    }
+    setStatusMessage(statusMessageBeforeDiffModal());
+    setStatusMessageBeforeDiffModal(null);
     renderer.requestRender();
   };
 
@@ -996,6 +996,7 @@ export async function startOpenTuiInteractiveSession(
         }
         try {
           const result = getLatestSessionDiffDetails(activeSessionId()!);
+          setStatusMessageBeforeDiffModal(statusMessage());
           setActiveDiffModal({
             diffText: result.diffText,
             ...(result.toolName ? { toolName: result.toolName } : {}),
