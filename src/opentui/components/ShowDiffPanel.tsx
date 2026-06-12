@@ -31,7 +31,20 @@ function getFileLabel(filePath: string | undefined): string {
     return '(multiple files)';
   }
 
-  return filePath.replaceAll('\\', '/');
+  return path.resolve(process.cwd(), filePath).replaceAll('\\', '/');
+}
+
+function getMoreFilesLabel(state: OpenTuiDiffModalState): string | null {
+  const additionalFileCount = state.additionalFileCount ?? 0;
+  if (additionalFileCount <= 0) {
+    return null;
+  }
+
+  const primaryFileLabel = state.filePath
+    ? path.posix.basename(state.filePath.replaceAll('\\', '/'))
+    : 'snapshot';
+
+  return `${additionalFileCount} more file${additionalFileCount === 1 ? '' : 's'}, primary ${primaryFileLabel}`;
 }
 
 export function ShowDiffPanel(props: {
@@ -41,6 +54,7 @@ export function ShowDiffPanel(props: {
 }) {
   const previewScrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3 });
   const detailLabelWidth = 4;
+  const moreFilesLabel = () => getMoreFilesLabel(props.state);
 
   return (
     <box
@@ -102,6 +116,16 @@ export function ShowDiffPanel(props: {
             {truncateMiddle(getFileLabel(props.state.filePath), props.targetMaxLength)}
           </text>
         </box>
+        {moreFilesLabel() ? (
+          <box flexDirection="row" gap={1}>
+            <box width={detailLabelWidth} flexShrink={0}>
+              <text fg={openTuiTheme.color.textFaint}>More</text>
+            </box>
+            <text fg={openTuiTheme.color.textSoft} truncate flexGrow={1}>
+              {moreFilesLabel()!}
+            </text>
+          </box>
+        ) : null}
       </box>
 
       <box

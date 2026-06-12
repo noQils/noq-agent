@@ -29,6 +29,7 @@ export interface OpenTuiDiffModalState {
   filePath?: string;
   filetype?: string;
   mutationKind?: 'edit' | 'write';
+  additionalFileCount?: number;
 }
 
 export type OpenTuiSetupModalKind = 'providers' | 'models';

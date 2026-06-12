@@ -1002,6 +1002,9 @@ export async function startOpenTuiInteractiveSession(
             ...(result.filePath ? { filePath: result.filePath } : {}),
             ...(result.filetype ? { filetype: result.filetype } : {}),
             ...(result.mutationKind ? { mutationKind: result.mutationKind } : {}),
+            ...(typeof result.additionalFileCount === 'number'
+              ? { additionalFileCount: result.additionalFileCount }
+              : {}),
           });
           setStatusMessage('Latest diff');
           renderer.requestRender();

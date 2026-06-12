@@ -56,6 +56,7 @@ export interface LatestSessionDiffDetails {
   filePath?: string;
   filetype?: string;
   mutationKind?: 'edit' | 'write';
+  additionalFileCount?: number;
 }
 
 export interface SessionPermissionApproval {
@@ -542,30 +543,40 @@ function inferDiffFiletype(filePath: string): string | undefined {
 function getLatestSnapshotMutationKind(
   latestSnapshot: SessionSnapshot,
 ): 'edit' | 'write' | undefined {
-  if (latestSnapshot.fileChanges.length !== 1) {
+  if (latestSnapshot.fileChanges.length === 0) {
     return undefined;
   }
 
-  return latestSnapshot.fileChanges[0]?.existedBefore ? 'edit' : 'write';
+  const allWrites = latestSnapshot.fileChanges.every((change) => !change.existedBefore);
+  if (allWrites) {
+    return 'write';
+  }
+
+  const allEdits = latestSnapshot.fileChanges.every((change) => change.existedBefore);
+  if (allEdits) {
+    return 'edit';
+  }
+
+  return undefined;
 }
 
 function buildLatestSessionDiffDetails(
   latestSnapshot: SessionSnapshot,
 ): LatestSessionDiffDetails {
   const mutationKind = getLatestSnapshotMutationKind(latestSnapshot);
-  const singleFileChange = latestSnapshot.fileChanges.length === 1
-    ? latestSnapshot.fileChanges[0]
-    : null;
-  const normalizedFilePath = singleFileChange
-    ? normalizeSnapshotFilePath(singleFileChange.filePath)
+  const primaryFileChange = latestSnapshot.fileChanges[0] ?? null;
+  const normalizedFilePath = primaryFileChange
+    ? normalizeSnapshotFilePath(primaryFileChange.filePath)
     : undefined;
   const filetype = normalizedFilePath ? inferDiffFiletype(normalizedFilePath) : undefined;
+  const additionalFileCount = Math.max(0, latestSnapshot.fileChanges.length - 1);
 
   return {
     diffText: latestSnapshot.diff,
     ...(mutationKind ? { toolName: mutationKind, mutationKind } : {}),
     ...(normalizedFilePath ? { filePath: normalizedFilePath } : {}),
     ...(filetype ? { filetype } : {}),
+    ...(additionalFileCount > 0 ? { additionalFileCount } : {}),
   };
 }
 
