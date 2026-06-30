@@ -86,6 +86,7 @@ Current provider backends:
 
 - OpenAI
 - OpenRouter
+- DeepSeek
 - Google Gemini
 - Ollama
 
@@ -107,7 +108,7 @@ Provider selection order:
 
 A provider is usable only when:
 
-- OpenAI, OpenRouter, Gemini: matching auth exists in `~/.noq/auth.json` and the chosen default provider/model exists in config
+- OpenAI, OpenRouter, Gemini, DeepSeek: matching auth exists in `~/.noq/auth.json` and the chosen default provider/model exists in config
 - Ollama: the chosen default provider/model exists in config
 
 The provider layer normalizes tool calling into one internal `ChatResult`, but each backend still keeps its own request and loop behavior.
