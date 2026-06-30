@@ -91,6 +91,26 @@ export function getProviderSettings(providerName: ProviderName): ProviderSetting
       return settings;
     }
 
+    case 'deepseek': {
+      const settings: ProviderSettings = {};
+      const apiKey = getConfiguredStringValue(
+        authRecord?.apiKey,
+      );
+      const model = getConfiguredStringValue(
+        getDefaultModelForProvider('deepseek'),
+      );
+
+      if (apiKey) {
+        settings.apiKey = apiKey;
+      }
+
+      if (model) {
+        settings.model = model;
+      }
+
+      return settings;
+    }
+
     case 'gemini': {
       const settings: ProviderSettings = {};
       const apiKey = getConfiguredStringValue(
@@ -139,6 +159,7 @@ export function getRequiredProviderApiKey(providerName: Exclude<ProviderName, 'o
     const providerLabelMap: Record<Exclude<ProviderName, 'ollama'>, string> = {
       openai: 'OpenAI',
       openrouter: 'OpenRouter',
+      deepseek: 'DeepSeek',
       gemini: 'Gemini',
     };
     const providerLabel = providerLabelMap[providerName];
@@ -176,7 +197,7 @@ export function buildMissingProviderError(): string {
     '- For Ollama, you can skip /connect and just run /models',
     '',
     'A provider is usable only when:',
-    '- OpenAI/OpenRouter/Gemini: auth exists in ~/.noq/auth.json and the chosen default provider/model exists in ~/.noq/config.json',
+    '- OpenAI/OpenRouter/Gemini/DeepSeek: auth exists in ~/.noq/auth.json and the chosen default provider/model exists in ~/.noq/config.json',
     '- Ollama: the chosen default provider/model exists in ~/.noq/config.json',
     '',
     `Global config path: ${getGlobalConfigPath()}`,

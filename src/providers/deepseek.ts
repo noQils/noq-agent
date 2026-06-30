@@ -1,0 +1,309 @@
+import OpenAI from 'openai';
+import {
+  type ChatCompletion,
+  type ChatCompletionAssistantMessageParam,
+  type ChatCompletionMessageFunctionToolCall,
+  type ChatCompletionMessageParam,
+  type ChatCompletionMessageToolCall,
+  type ChatCompletionTool,
+  type ChatCompletionToolMessageParam,
+} from 'openai/resources/chat/completions';
+
+import {
+  type ChatMessage,
+  type ChatOptions,
+  type ChatResult,
+  type ExecutedToolCall,
+} from './types';
+import {
+  allTools,
+  getToolsForMode,
+  type InternalTool,
+} from '../tools';
+import {
+  canonicalizeArgs,
+  areSameStallSensitiveCalls,
+  type ToolCallFingerprint,
+} from './shared/toolFingerprint';
+import { buildInvalidToolArgsFailure } from './shared/toolFailures';
+import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
+import { runProviderRequest } from './shared/providerRuntime';
+import { executeToolCall } from '../runtime/executeToolCall';
+import { getProviderModelSetting, getRequiredProviderApiKey } from '../config/providerSettings';
+import { debugLog, getProviderMaxToolRounds } from '../config/runtimeSettings';
+
+function getApiKey(): string {
+  return getRequiredProviderApiKey('deepseek');
+}
+
+function toDeepSeekSchema(schema: InternalTool['parameters']) {
+  const properties = Object.fromEntries(
+    Object.entries(schema.properties).map(([name, value]) => {
+      const jsonType =
+        value.nullable || !value.required
+          ? [value.type, 'null']
+          : value.type;
+
+      return [
+        name,
+        {
+          type: jsonType,
+          description: value.description,
+        },
+      ];
+    }),
+  );
+
+  return {
+    type: 'object',
+    properties,
+    required: Object.entries(schema.properties)
+      .filter(([, value]) => value.required)
+      .map(([name]) => name),
+    additionalProperties: schema.additionalProperties ?? false,
+  };
+}
+
+function toDeepSeekTools(internalTools: InternalTool[]): ChatCompletionTool[] {
+  return internalTools.map((tool) => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: toDeepSeekSchema(tool.parameters),
+    },
+  }));
+}
+
+function toDeepSeekHistory(messages: ChatMessage[]): ChatCompletionMessageParam[] {
+  if (messages.length === 0) {
+    return [{ role: 'user', content: 'Hello!' }];
+  }
+
+  const completionMessages: ChatCompletionMessageParam[] = [];
+
+  for (const message of messages) {
+    if ((message.role === 'system' || message.role === 'user') && message.content) {
+      completionMessages.push({
+        role: message.role,
+        content: message.content,
+      });
+      continue;
+    }
+
+    if (message.role === 'model') {
+      completionMessages.push({
+        role: 'assistant',
+        content: message.content ?? '',
+      });
+      continue;
+    }
+
+    if (message.role === 'tool' && message.toolCallId) {
+      completionMessages.push({
+        role: 'tool',
+        tool_call_id: message.toolCallId,
+        content: message.content ?? '',
+      });
+    }
+  }
+
+  return completionMessages;
+}
+
+function safeCanonicalizeArgs(argumentsJson: string): string {
+  try {
+    return canonicalizeArgs(argumentsJson);
+  } catch {
+    return argumentsJson;
+  }
+}
+
+function collectCurrentRoundFunctionCalls(toolCalls: ChatCompletionMessageToolCall[]): ToolCallFingerprint[] {
+  return toolCalls
+    .filter(isFunctionToolCall)
+    .map((toolCall) => ({
+      toolName: toolCall.function.name,
+      argsKey: safeCanonicalizeArgs(toolCall.function.arguments),
+    }));
+}
+
+function isFunctionToolCall(
+  toolCall: ChatCompletionMessageToolCall,
+): toolCall is ChatCompletionMessageFunctionToolCall {
+  return toolCall.type === 'function';
+}
+
+function toAssistantMessage(
+  completion: ChatCompletion,
+): ChatCompletionAssistantMessageParam {
+  const assistantMessage = completion.choices[0]?.message;
+  if (!assistantMessage) {
+    throw new Error('DeepSeek returned no assistant message.');
+  }
+
+  return {
+    role: 'assistant',
+    content: assistantMessage.content ?? null,
+    ...(assistantMessage.tool_calls ? { tool_calls: assistantMessage.tool_calls } : {}),
+  };
+}
+
+function getAssistantText(assistantMessage: ChatCompletionAssistantMessageParam): string {
+  return typeof assistantMessage.content === 'string'
+    ? assistantMessage.content.trim()
+    : '';
+}
+
+let deepSeekClient: OpenAI | undefined;
+let deepSeekClientApiKey: string | undefined;
+
+function getDeepSeekClient(): OpenAI {
+  const apiKey = getApiKey();
+
+  if (!deepSeekClient || deepSeekClientApiKey !== apiKey) {
+    deepSeekClient = new OpenAI({
+      baseURL: 'https://api.deepseek.com',
+      apiKey,
+      maxRetries: 3,
+    });
+    deepSeekClientApiKey = apiKey;
+  }
+
+  return deepSeekClient;
+}
+
+export async function chat(
+  messages: ChatMessage[],
+  options?: ChatOptions,
+): Promise<ChatResult> {
+  const model = getProviderModelSetting('deepseek', options?.model);
+  if (!model) {
+    throw new Error('DeepSeek model not specified');
+  }
+
+  const selectedTools = options?.tools ?? (options?.mode ? getToolsForMode(options.mode) : allTools);
+  const deepSeekTools = toDeepSeekTools(selectedTools);
+  const completionMessages = toDeepSeekHistory(messages);
+  const executedToolCalls: ExecutedToolCall[] = [];
+  const deepseek = getDeepSeekClient();
+  const maxToolRounds = getProviderMaxToolRounds();
+  debugLog('DeepSeek chat start:', {
+    model,
+    mode: options?.mode,
+    messageCount: messages.length,
+    toolCount: deepSeekTools.length,
+    maxToolRounds,
+  });
+
+  let toolRoundCount = 0;
+  let previousRoundCalls: ToolCallFingerprint[] = [];
+
+  while (true) {
+    const completion = await runProviderRequest('DeepSeek', 'chat.completions.create', () =>
+      deepseek.chat.completions.create({
+        model,
+        messages: completionMessages,
+        tools: deepSeekTools,
+        tool_choice: 'auto',
+      })
+    );
+
+    const assistantMessage = toAssistantMessage(completion);
+    const toolCalls = (assistantMessage.tool_calls ?? []).filter(isFunctionToolCall);
+    const currentRoundCalls = collectCurrentRoundFunctionCalls(toolCalls);
+
+    if (areSameStallSensitiveCalls(previousRoundCalls, currentRoundCalls)) {
+      debugLog('DeepSeek chat stopped: repeated tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+      });
+      return {
+        text: getAssistantText(assistantMessage),
+        executedToolCalls,
+        stopReason: 'repeated_tool_calls',
+      };
+    }
+
+    previousRoundCalls = currentRoundCalls;
+    completionMessages.push(assistantMessage);
+
+    if (toolCalls.length === 0) {
+      debugLog('DeepSeek chat completed: no tool calls.', {
+        toolRoundCount,
+        executedToolCallCount: executedToolCalls.length,
+        textLength: getAssistantText(assistantMessage).length,
+      });
+      return {
+        text: getAssistantText(assistantMessage),
+        executedToolCalls,
+        stopReason: 'no_tool_calls',
+      };
+    }
+
+    if (toolRoundCount >= maxToolRounds) {
+      debugLog('DeepSeek chat stopped: tool round limit reached.', {
+        toolRoundCount,
+        maxToolRounds,
+        executedToolCallCount: executedToolCalls.length,
+      });
+      return {
+        text: getAssistantText(assistantMessage),
+        executedToolCalls,
+        stopReason: 'tool_round_limit_reached',
+      };
+    }
+
+    debugLog(`Round ${toolRoundCount + 1}: ${JSON.stringify(currentRoundCalls)}`);
+
+    for (const toolCall of toolCalls) {
+      const normalizedArgs = parseAndNormalizeToolArgsJson(toolCall.function.arguments);
+
+      if (!normalizedArgs.ok) {
+        const invalidArgsFailure = buildInvalidToolArgsFailure(
+          toolCall.function.name,
+          normalizedArgs.error,
+        );
+
+        completionMessages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: invalidArgsFailure.output,
+        } satisfies ChatCompletionToolMessageParam);
+        executedToolCalls.push(invalidArgsFailure.executedToolCall);
+        debugLog('DeepSeek tool call rejected: invalid arguments.', {
+          toolName: toolCall.function.name,
+          error: normalizedArgs.error,
+        });
+        continue;
+      }
+
+      const args = normalizedArgs.args;
+      debugLog('Tool call', toolCall.function.name, 'with args:', args);
+
+      const executionResult = await executeToolCall(
+        toolCall.function.name,
+        args,
+        {
+          ...(options?.mode ? { mode: options.mode } : {}),
+          ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+        },
+      );
+
+      completionMessages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: executionResult.output,
+      } satisfies ChatCompletionToolMessageParam);
+      executedToolCalls.push(executionResult.executedToolCall);
+      debugLog('DeepSeek tool call result:', {
+        toolName: toolCall.function.name,
+        succeeded: executionResult.executedToolCall.succeeded,
+        failureKind: executionResult.executedToolCall.failureKind,
+        outputLength: executionResult.output.length,
+      });
+    }
+
+    toolRoundCount++;
+  }
+}

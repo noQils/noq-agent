@@ -3,7 +3,7 @@ import { type InternalTool } from '../tools';
 import { type PermissionScope } from '../permissions/types';
 import { type SessionFileChange } from '../session/sessionChangeTracker';
 
-export const providerNames = ['ollama', 'gemini', 'openai', 'openrouter'] as const;
+export const providerNames = ['ollama', 'gemini', 'openai', 'openrouter', 'deepseek'] as const;
 export type ProviderName = typeof providerNames[number];
 
 export interface ToolCall {

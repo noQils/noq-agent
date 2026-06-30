@@ -9,6 +9,10 @@ export function formatProviderLabel(provider: ProviderName): string {
     return 'OpenRouter';
   }
 
+  if (provider === 'deepseek') {
+    return 'DeepSeek';
+  }
+
   if (provider === 'ollama') {
     return 'Ollama';
   }

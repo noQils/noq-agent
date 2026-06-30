@@ -6,6 +6,7 @@ import {
   getExplicitProviderNameSetting,
 } from '../config/providerSettings';
 import { chat as geminiChat } from './gemini';
+import { chat as deepSeekChat } from './deepseek';
 import { chat as ollamaChat } from './ollama';
 import { chat as openAIChat } from './openai';
 import { chat as openRouterChat } from './openrouter';
@@ -16,6 +17,7 @@ const providerMap: Record<ProviderName, Provider> = {
   gemini: { chat: geminiChat },
   openai: { chat: openAIChat },
   openrouter: { chat: openRouterChat },
+  deepseek: { chat: deepSeekChat },
 };
 
 function isProviderName(value: string): value is ProviderName {

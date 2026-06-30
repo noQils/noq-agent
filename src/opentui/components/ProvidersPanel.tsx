@@ -17,6 +17,7 @@ const providerDescriptions: Record<ProviderName, string> = {
   gemini: 'Connect a Google Gemini API key.',
   openai: 'Connect an OpenAI API key.',
   openrouter: 'Connect an OpenRouter API key.',
+  deepseek: 'Connect a DeepSeek API key.',
 };
 
 function connectionStatus(provider: ProviderName, connectedProviders: ProviderName[]): string {

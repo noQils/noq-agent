@@ -13,6 +13,7 @@ export const connectProviderChoices: ProviderName[] = [...providerNames];
 export const modelPresets: Record<ProviderName, string[]> = {
   openai: ['gpt-5.4-mini', 'gpt-5.4', 'gpt-4.1-mini'],
   openrouter: ['openai/gpt-4.1-mini', 'anthropic/claude-3.7-sonnet', 'google/gemini-2.5-flash'],
+  deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro'],
   gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
   ollama: ['llama3.1:8b', 'qwen2.5-coder:7b', 'deepseek-r1:8b'],
 };
@@ -65,6 +66,21 @@ async function fetchOpenRouterModels(apiKey?: string): Promise<string[]> {
   const response = await fetchJson<{ data?: Array<{ id?: string }> }>(
     'https://openrouter.ai/api/v1/models',
     { headers },
+  );
+
+  return normalizeDiscoveredModelIds(
+    (response.data ?? []).flatMap((model) => typeof model.id === 'string' ? [model.id] : []),
+  );
+}
+
+async function fetchDeepSeekModels(apiKey: string): Promise<string[]> {
+  const response = await fetchJson<{ data?: Array<{ id?: string }> }>(
+    'https://api.deepseek.com/models',
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    },
   );
 
   return normalizeDiscoveredModelIds(
@@ -126,6 +142,12 @@ async function discoverProviderModels(providerName: ProviderName): Promise<strin
 
     case 'openrouter':
       return await fetchOpenRouterModels(settings.apiKey);
+
+    case 'deepseek':
+      if (!settings.apiKey) {
+        throw new Error('DeepSeek is not connected yet.');
+      }
+      return await fetchDeepSeekModels(settings.apiKey);
 
     case 'gemini':
       if (!settings.apiKey) {
