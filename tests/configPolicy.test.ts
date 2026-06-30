@@ -154,6 +154,27 @@ test('provider settings resolve credentials from auth store and model from globa
   });
 });
 
+test('deepseek provider settings resolve credentials and model', async () => {
+  await withTempNoqHome(async () => {
+    saveGlobalConfig({
+      defaultProvider: 'deepseek',
+      defaultModel: 'deepseek-v4-flash',
+    });
+    saveAuthStore({
+      deepseek: { apiKey: 'deepseek-key' },
+    });
+
+    await withTempWorkspace(() => {
+      const settings = getProviderSettings('deepseek');
+
+      assert.equal(settings.apiKey, 'deepseek-key');
+      assert.equal(settings.model, 'deepseek-v4-flash');
+      assert.deepEqual(getConfiguredProviderNames(), ['deepseek']);
+      assert.equal(getExplicitProviderNameSetting(), 'deepseek');
+    });
+  });
+});
+
 test('workspace config overrides global model for provider settings', async () => {
   await withTempNoqHome(async () => {
     saveGlobalConfig({

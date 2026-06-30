@@ -167,3 +167,40 @@ test('getModelChoices uses live OpenRouter models when discovery succeeds', asyn
     }
   });
 });
+
+test('getModelChoices uses live DeepSeek models when discovery succeeds', async () => {
+  const originalFetch = globalThis.fetch;
+
+  await withTempNoqHome(async () => {
+    saveAuthStore({
+      deepseek: { apiKey: 'deepseek-key' },
+    });
+
+    globalThis.fetch = async (input, init) => {
+      assert.equal(String(input), 'https://api.deepseek.com/models');
+      assert.equal((init?.headers as Record<string, string>).Authorization, 'Bearer deepseek-key');
+
+      return new Response(JSON.stringify({
+        data: [
+          { id: 'deepseek-v4-pro' },
+          { id: 'deepseek-v4-flash' },
+        ],
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+
+    try {
+      const modelChoices = await getModelChoices('deepseek');
+
+      assert.equal(modelChoices.source, 'live');
+      assert.deepEqual(modelChoices.models, [
+        'deepseek-v4-flash',
+        'deepseek-v4-pro',
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
