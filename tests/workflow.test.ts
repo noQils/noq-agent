@@ -243,6 +243,59 @@ test('runAgentTurn asks for a summary when provider tool rounds hit their limit'
   });
 });
 
+test('runAgentTurn continues past the old build flow round limit until final text', async () => {
+  await withTempWorkspace(async () => {
+    const { calls, provider } = createSequenceProvider([
+      {
+        text: '',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [{
+          toolName: 'run_command',
+          args: { command: 'echo first' },
+          succeeded: true,
+        }],
+      },
+      {
+        text: '',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [{
+          toolName: 'run_command',
+          args: { command: 'echo second' },
+          succeeded: true,
+        }],
+      },
+      {
+        text: '',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [{
+          toolName: 'run_command',
+          args: { command: 'echo third' },
+          succeeded: true,
+        }],
+      },
+      {
+        text: '',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [{
+          toolName: 'run_command',
+          args: { command: 'echo fourth' },
+          succeeded: true,
+        }],
+      },
+      {
+        text: 'Final response after more than three build flow rounds.',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [],
+      },
+    ]);
+
+    const response = await runAgentTurn('keep working until final text', 'build', { provider });
+
+    assert.equal(response.response, 'Final response after more than three build flow rounds.');
+    assert.equal(calls.length, 5);
+  });
+});
+
 test('runAgentTurn rewrites a false denial of recorded prior tool usage', async () => {
   await withTempWorkspace(async () => {
     const { calls, provider } = createSequenceProvider([

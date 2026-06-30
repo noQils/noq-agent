@@ -494,7 +494,7 @@ function buildTodoStateMessage(): string {
 
 type CompletionAction =
     | { type: 'return'; text: string }
-    | { type: 'continue'; reminder: string; fastForwardToFinalRound?: boolean };
+    | { type: 'continue'; reminder: string };
 
 function handlePlanModeCompletion(
     userPrompt: string,
@@ -534,7 +534,6 @@ function handlePlanModeCompletion(
         return {
             type: 'continue',
             reminder: buildPlanSummaryOnlyMessage(),
-            fastForwardToFinalRound: true,
         };
     }
 
@@ -580,7 +579,6 @@ function handleBuildModeCompletion(
             return {
                 type: 'continue',
                 reminder: buildSummaryOnlyMessage(),
-                fastForwardToFinalRound: true,
             };
         }
 
@@ -704,9 +702,7 @@ export async function runAgentTurn(
         }
     }
 
-    const maxFlowRounds = mode === 'plan' ? 4 : 3;
     let response: ChatResult = { text: ''};
-    let stopMessage: string | undefined;
     let workflowState: WorkflowState = {
         mutatedFilesNeedingVerification: new Set(),
         verificationCommandsNeedingRerun: new Set(),
@@ -720,7 +716,7 @@ export async function runAgentTurn(
         toolUsageContradictionRewriteIssued: false,
     }
     
-    while (workflowState.flowRoundCount < maxFlowRounds) {
+    while (true) {
         workflowState.flowRoundCount++;
         debugLog(`Flow round ${workflowState.flowRoundCount}`);
 
@@ -836,16 +832,11 @@ export async function runAgentTurn(
             debugLog('Workflow continuing with reminder.', {
                 flowRound: workflowState.flowRoundCount,
                 reminderLength: completionAction.reminder.length,
-                fastForwardToFinalRound: completionAction.fastForwardToFinalRound ?? false,
             });
             messages.push({
                 role: 'user' as const,
                 content: completionAction.reminder,
             });
-
-            if (completionAction.fastForwardToFinalRound) {
-                workflowState.flowRoundCount = maxFlowRounds - 1;
-            }
 
             continue;
         }
@@ -883,20 +874,4 @@ export async function runAgentTurn(
             content: buildContinueMessage(Array.from(turnState.mutatedFiles)),
         });
     }
-
-    if (!stopMessage) {
-        stopMessage = 'Stopped because the workflow reached its maximum number of rounds before the task fully converged.';
-    }
-    debugLog('Agent turn stopped at max workflow rounds.', {
-        maxFlowRounds,
-        latestResponseLength: response.text?.length ?? 0,
-    });
-    
-    return {
-        response: response.text
-            ? `${stopMessage}\n\nLatest response:\n${response.text}`
-            : stopMessage,
-        executedToolCalls: response.executedToolCalls ?? [],
-        stopReason: response.stopReason,
-    };
 }
