@@ -35,6 +35,10 @@ export function hasTodoItems(): boolean {
   return todoItems.length > 0;
 }
 
+export function hasUnfinishedTodoItems(): boolean {
+  return todoItems.some((item) => item.status !== 'completed');
+}
+
 function buildTodoSummary(items: TodoItem[]): string {
   const counts = {
     pending: 0,

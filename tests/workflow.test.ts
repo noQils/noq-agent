@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { runAgentTurn } from '../src/workflow';
+import { replaceTodoItems } from '../src/todoState';
 import {
   type ChatMessage,
   type ChatOptions,
@@ -240,6 +241,103 @@ test('runAgentTurn asks for a summary when provider tool rounds hit their limit'
 
     assert.equal(response.response, 'Latest work summarized after the tool round limit.');
     assert.match(getLastUserMessage(calls[1]!), /requested changes are already applied and verified/i);
+  });
+});
+
+test('runAgentTurn does not finalize a capped build response while todos are unfinished', async () => {
+  await withTempWorkspace(async () => {
+    const calls: ChatMessage[][] = [];
+    let callIndex = 0;
+    const provider: Provider = {
+      async chat(messages) {
+        calls.push(messages);
+        callIndex++;
+
+        if (callIndex === 1) {
+          replaceTodoItems([
+            { status: 'in_progress', content: 'Finish the implementation' },
+            { status: 'pending', content: 'Run verification' },
+          ]);
+
+          return {
+            text: 'Done.',
+            stopReason: 'tool_round_limit_reached',
+            executedToolCalls: [],
+          };
+        }
+
+        if (callIndex === 2) {
+          replaceTodoItems([
+            { status: 'completed', content: 'Finish the implementation' },
+            { status: 'completed', content: 'Run verification' },
+          ]);
+
+          return {
+            text: 'Finished after completing the todo list.',
+            stopReason: 'no_tool_calls',
+            executedToolCalls: [],
+          };
+        }
+
+        throw new Error(`Unexpected provider call ${callIndex}.`);
+      },
+    };
+
+    const response = await runAgentTurn('finish all tracked work', 'build', { provider });
+
+    assert.equal(response.response, 'Finished after completing the todo list.');
+    assert.match(getLastUserMessage(calls[1]!), /todo list still contains pending or in-progress work/i);
+  });
+});
+
+test('runAgentTurn does not finalize a capped build response while verification needs rerun', async () => {
+  await withTempWorkspace(async () => {
+    const { calls, provider } = createSequenceProvider([
+      {
+        text: '',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [{
+          toolName: 'run_command',
+          args: { command: 'npm test' },
+          succeeded: true,
+        }],
+      },
+      {
+        text: 'Done.',
+        stopReason: 'tool_round_limit_reached',
+        executedToolCalls: [
+          {
+            toolName: 'edit_file',
+            args: {
+              filePath: 'src/app.ts',
+              oldText: 'before',
+              newText: 'after',
+            },
+            succeeded: true,
+          },
+          {
+            toolName: 'read_file',
+            args: { filePath: 'src/app.ts' },
+            succeeded: true,
+          },
+        ],
+      },
+      {
+        text: 'Reran verification and finished.',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [{
+          toolName: 'run_command',
+          args: { command: 'npm test' },
+          succeeded: true,
+        }],
+      },
+    ]);
+
+    const response = await runAgentTurn('update src/app.ts and test it', 'build', { provider });
+
+    assert.equal(response.response, 'Reran verification and finished.');
+    assert.match(getLastUserMessage(calls[2]!), /Run the verification command\(s\) again/);
+    assert.match(getLastUserMessage(calls[2]!), /npm test/);
   });
 });
 

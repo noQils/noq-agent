@@ -67,6 +67,7 @@ function withRuntimeEnv(values: Record<string, string>, callback: () => void): v
 
 test('runtime settings use quiet defaults', () => {
   withRuntimeEnv({}, () => {
+    assert.equal(defaultProviderMaxToolRounds, 40);
     assert.deepEqual(getRuntimeSettings(), {
       debug: false,
       providerTimeoutMs: defaultProviderTimeoutMs,

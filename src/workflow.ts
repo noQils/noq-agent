@@ -15,7 +15,7 @@ import { buildReferencedPathGroups } from './analysis/pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
 import { debugLog } from './config/runtimeSettings';
 import { getToolsForMode } from './tools';
-import { formatTodoItems, hasTodoItems, resetTodoState } from './todoState';
+import { formatTodoItems, hasTodoItems, hasUnfinishedTodoItems, resetTodoState } from './todoState';
 
 export interface RunAgentTurnOptions {
     historyMessages?: ChatMessage[];
@@ -305,6 +305,14 @@ function buildRerunVerificationCommandMessage(commands: string[]): string {
     );
 }
 
+function buildFinishTodoItemsMessage(): string {
+    return buildWorkflowReminder(
+        'Your todo list still contains pending or in-progress work. ' +
+        'Continue the original task until every remaining todo is either completed or clearly blocked. ' +
+        'Update the todo list with todo_write before attempting a final answer.'
+    );
+}
+
 function buildExistingPathMessage(filePath: string): string {
     return `The referenced path "${filePath}" exists. Use this exact path directly when it is relevant instead of searching for it again.`;
 }
@@ -561,9 +569,24 @@ function handleBuildModeCompletion(
     workflowState: WorkflowState,
 ): CompletionAction | null {
     const allMutationsVerified = workflowState.mutatedFilesNeedingVerification.size === 0;
+    const verificationCommandsNeedingRerun = Array.from(workflowState.verificationCommandsNeedingRerun);
 
     if (response.stopReason === 'tool_round_limit_reached') {
+        if (hasUnfinishedTodoItems()) {
+            return {
+                type: 'continue',
+                reminder: buildFinishTodoItemsMessage(),
+            };
+        }
+
         if (allMutationsVerified) {
+            if (verificationCommandsNeedingRerun.length > 0) {
+                return {
+                    type: 'continue',
+                    reminder: buildRerunVerificationCommandMessage(verificationCommandsNeedingRerun),
+                };
+            }
+
             if (response.text?.trim()) {
                 if (shouldRewriteBuildResponse('build', userPrompt, response.text, workflowState)) {
                     workflowState.buildResponseRewriteIssued = true;
@@ -595,7 +618,6 @@ function handleBuildModeCompletion(
         };
     }
 
-    const verificationCommandsNeedingRerun = Array.from(workflowState.verificationCommandsNeedingRerun);
     if (verificationCommandsNeedingRerun.length > 0) {
         return {
             type: 'continue',

@@ -5,7 +5,7 @@ import util from 'node:util';
 import { getRuntimeEnvVar } from '../runtimeEnv';
 
 export const defaultProviderTimeoutMs = 180_000;
-export const defaultProviderMaxToolRounds = 10;
+export const defaultProviderMaxToolRounds = 40;
 export const minProviderTimeoutMs = 1_000;
 export const minProviderMaxToolRounds = 1;
 
