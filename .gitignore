@@ -141,9 +141,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
-.opencode
-.noq
-.crush
 
 # Temp
 .tmp*
@@ -153,3 +150,13 @@ tmp/
 packages/noq-agent-*/bin/noq-agent
 packages/noq-agent-*/bin/noq-agent.exe
 dist/runtime/
+
+# Agents
+.opencode
+.noq
+.crush
+CLAUDE.md
+.claude/
+
+# graphify
+graphify-out/
