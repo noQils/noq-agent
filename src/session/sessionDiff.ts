@@ -56,12 +56,15 @@ function buildFallbackDiff(fileChanges: SessionFileChange[]): string {
 }
 
 function sanitizeGitBackedDiff(diff: string): string {
+  // Strip only trailing newlines: a hunk whose last context line is blank ends
+  // in a space-only line, and .trim() would delete it, breaking the line
+  // counts promised by the @@ hunk header.
   return diff
     .replaceAll('a/before/', 'a/')
     .replaceAll('a/after/', 'a/')
     .replaceAll('b/before/', 'b/')
     .replaceAll('b/after/', 'b/')
-    .trim();
+    .replace(/[\r\n]+$/, '');
 }
 
 export function buildSessionFileDiff(fileChanges: SessionFileChange[]): string {
