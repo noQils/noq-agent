@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 
-import { createEffect, createSignal, onCleanup, Index } from 'solid-js';
+import { createEffect, createMemo, createSignal, onCleanup, Index } from 'solid-js';
 
 import { type AgentActivityEvent } from '../../providers/types';
 import { describeAgentActivity } from '../agentActivityLabels';
@@ -58,10 +58,13 @@ export function AgentActivityIndicator(props: {
     });
   });
 
-  const label = () => {
+  // Memoized so the creative word/action/detail are picked once per activity
+  // event, not re-randomized every animation frame (frame ticks every 90ms
+  // for the glint sweep and must not influence which words get displayed).
+  const label = createMemo(() => {
     const activity = props.activity();
     return activity && props.isBusy() ? describeAgentActivity(activity) : null;
-  };
+  });
 
   const displayText = () => {
     const current = label();
