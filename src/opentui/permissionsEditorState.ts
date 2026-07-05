@@ -15,6 +15,7 @@ const permissionScopes: PermissionScope[] = [
   'bash',
   'external_directory',
   'web_fetch',
+  'git',
 ];
 
 const permissionCycle: PermissionOutcome[] = ['ask', 'allow', 'deny'];
@@ -37,6 +38,8 @@ function getPermissionScopeDescription(scope: PermissionScope): string {
       return 'Access paths outside the workspace';
     case 'web_fetch':
       return 'Fetch content from URLs';
+    case 'git':
+      return 'Read git status and diffs';
     case 'todo':
       return 'Manage the internal todo list';
   }

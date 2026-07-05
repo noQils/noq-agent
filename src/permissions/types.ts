@@ -9,7 +9,8 @@ export type PermissionScope =
   | 'grep'
   | 'bash'
   | 'external_directory'
-  | 'web_fetch';
+  | 'web_fetch'
+  | 'git';
 
 export interface PermissionRequest {
   scope: PermissionScope;

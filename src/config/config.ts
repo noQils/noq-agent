@@ -21,6 +21,7 @@ export interface PermissionConfig {
   bash: CommandPermissionConfig;
   external_directory: PermissionOutcome;
   web_fetch: PermissionOutcome;
+  git: PermissionOutcome;
 }
 
 export interface AgentConfig {
@@ -53,6 +54,7 @@ const permissionScopes: Set<PermissionScope> = new Set([
   'bash',
   'external_directory',
   'web_fetch',
+  'git',
 ]);
 
 const permissionOutcomes: PermissionOutcome[] = ['allow', 'ask', 'deny'];
@@ -69,6 +71,7 @@ export const defaultConfig: AgentConfig = {
     bash: 'ask',
     external_directory: 'deny',
     web_fetch: 'ask',
+    git: 'allow',
   },
 };
 

@@ -72,7 +72,7 @@ test('getPermissionsEditorItems uses workspace values when no session override e
     const todoItem = items.find((item) => item.scope === 'todo');
 
     assert.equal(todoItem, undefined);
-    assert.equal(items.length, 8);
+    assert.equal(items.length, 9);
     assert.deepEqual(editItem, {
       scope: 'edit',
       outcome: 'deny',
