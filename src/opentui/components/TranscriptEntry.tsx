@@ -2,7 +2,14 @@
 
 import path from 'node:path';
 
-import { BoxRenderable, CodeRenderable, DiffRenderable, MacOSScrollAccel, type RenderNodeContext } from '@opentui/core';
+import {
+  BoxRenderable,
+  CodeRenderable,
+  DiffRenderable,
+  MacOSScrollAccel,
+  pathToFiletype,
+  type RenderNodeContext,
+} from '@opentui/core';
 import { Dynamic, extend } from '@opentui/solid';
 import type { Token } from 'marked';
 
@@ -36,26 +43,6 @@ interface RenderableUnifiedDiff {
   mutationKind?: 'edit' | 'write';
 }
 
-const diffFiletypeByExtension: Record<string, string> = {
-  cjs: 'javascript',
-  css: 'css',
-  htm: 'html',
-  html: 'html',
-  js: 'javascript',
-  json: 'json',
-  jsx: 'javascript',
-  markdown: 'markdown',
-  md: 'markdown',
-  mjs: 'javascript',
-  mts: 'typescript',
-  py: 'python',
-  sh: 'bash',
-  ts: 'typescript',
-  tsx: 'typescript',
-  yaml: 'yaml',
-  yml: 'yaml',
-};
-
 function normalizeDiffFilePath(filePath: string | undefined): string | null {
   if (!filePath) {
     return null;
@@ -69,30 +56,11 @@ function normalizeDiffFilePath(filePath: string | undefined): string | null {
   return trimmedPath.replace(/^(?:a|b)\//, '');
 }
 
-function getDiffFileExtension(filePath: string | null): string | null {
-  if (!filePath) {
-    return null;
-  }
-
-  const basename = path.posix.basename(filePath.replaceAll('\\', '/'));
-  const extensionIndex = basename.lastIndexOf('.');
-  if (extensionIndex <= 0 || extensionIndex === basename.length - 1) {
-    return null;
-  }
-
-  return basename.slice(extensionIndex + 1).toLowerCase();
-}
-
 function inferPatchFiletype(patch: ParsedUnifiedDiffPatch): string | undefined {
   const normalizedPath = normalizeDiffFilePath(patch.newFileName)
     ?? normalizeDiffFilePath(patch.oldFileName);
-  const extension = getDiffFileExtension(normalizedPath);
 
-  if (!extension) {
-    return undefined;
-  }
-
-  return diffFiletypeByExtension[extension];
+  return normalizedPath ? pathToFiletype(normalizedPath) : undefined;
 }
 
 function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | undefined {

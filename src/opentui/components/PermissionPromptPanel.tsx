@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { For } from 'solid-js';
 
-import { MacOSScrollAccel, type ScrollBoxRenderable } from '@opentui/core';
+import { MacOSScrollAccel, pathToFiletype, type ScrollBoxRenderable } from '@opentui/core';
 
 import { type PermissionPromptDecision } from '../../permissions/prompt';
 import { type PermissionRequest } from '../../permissions/types';
@@ -114,24 +114,7 @@ function formatUnknownArgPreview(args: Record<string, unknown>): string[] {
 }
 
 function inferPreviewFiletype(target: string): string {
-  const extension = target.split(/[\\/]/).pop()?.split('.').pop()?.toLowerCase() ?? '';
-  const extensionMap: Record<string, string> = {
-    css: 'css',
-    html: 'html',
-    js: 'javascript',
-    jsx: 'javascript',
-    json: 'json',
-    md: 'markdown',
-    ps1: 'powershell',
-    py: 'python',
-    sh: 'bash',
-    ts: 'typescript',
-    tsx: 'typescript',
-    yaml: 'yaml',
-    yml: 'yaml',
-  };
-
-  return extensionMap[extension] ?? 'text';
+  return pathToFiletype(target) ?? 'text';
 }
 
 function buildEditPreviewLines(args: Record<string, unknown>): string[] {

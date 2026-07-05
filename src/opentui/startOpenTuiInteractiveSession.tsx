@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createEffect, createSignal } from 'solid-js';
 
 import { render, useRenderer } from '@opentui/solid';
-import { CliRenderEvents } from '@opentui/core';
+import { CliRenderEvents, pathToFiletype } from '@opentui/core';
 
 import { type AgentMode } from '../agentMode';
 import { resetConfigCache } from '../config/config';
@@ -1049,12 +1049,13 @@ export async function startOpenTuiInteractiveSession(
         }
         try {
           const result = getLatestSessionDiffDetails(activeSessionId()!);
+          const filetype = result.filePath ? pathToFiletype(result.filePath) : undefined;
           setStatusMessageBeforeDiffModal(statusMessage());
           setActiveDiffModal({
             diffText: result.diffText,
             ...(result.toolName ? { toolName: result.toolName } : {}),
             ...(result.filePath ? { filePath: result.filePath } : {}),
-            ...(result.filetype ? { filetype: result.filetype } : {}),
+            ...(filetype ? { filetype } : {}),
             ...(result.mutationKind ? { mutationKind: result.mutationKind } : {}),
             ...(typeof result.additionalFileCount === 'number'
               ? { additionalFileCount: result.additionalFileCount }
