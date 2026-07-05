@@ -39,6 +39,7 @@ interface RenderableUnifiedDiff {
   diffText: string;
   renderedLineCount: number;
   filePath?: string;
+  fileCount: number;
   filetype?: string;
   mutationKind?: 'edit' | 'write';
 }
@@ -64,17 +65,18 @@ function inferPatchFiletype(patch: ParsedUnifiedDiffPatch): string | undefined {
 }
 
 function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | undefined {
-  const firstPatch = patches[0];
-  if (!firstPatch || patches.length > 1) {
+  const firstFiletype = patches[0] ? inferPatchFiletype(patches[0]) : undefined;
+  if (!firstFiletype) {
     return undefined;
   }
 
-  return inferPatchFiletype(firstPatch);
+  const allSameFiletype = patches.every((patch) => inferPatchFiletype(patch) === firstFiletype);
+  return allSameFiletype ? firstFiletype : undefined;
 }
 
 function inferUnifiedDiffFilePath(patches: ParsedUnifiedDiffPatch[]): string | undefined {
   const firstPatch = patches[0];
-  if (!firstPatch || patches.length > 1) {
+  if (!firstPatch) {
     return undefined;
   }
 
@@ -93,15 +95,21 @@ function getCompactDiffFilePath(filePath: string): string {
     : fileName;
 }
 
+function getPatchMutationKind(patch: ParsedUnifiedDiffPatch): 'edit' | 'write' {
+  return normalizeDiffFilePath(patch.oldFileName) ? 'edit' : 'write';
+}
+
 function inferUnifiedDiffMutationKind(
   patches: ParsedUnifiedDiffPatch[],
 ): RenderableUnifiedDiff['mutationKind'] {
   const firstPatch = patches[0];
-  if (!firstPatch || patches.length > 1) {
+  if (!firstPatch) {
     return undefined;
   }
 
-  return normalizeDiffFilePath(firstPatch.oldFileName) ? 'edit' : 'write';
+  const firstKind = getPatchMutationKind(firstPatch);
+  const allSameKind = patches.every((patch) => getPatchMutationKind(patch) === firstKind);
+  return allSameKind ? firstKind : undefined;
 }
 
 function getUnifiedDiffRenderedLineCount(patches: ParsedUnifiedDiffPatch[]): number {
@@ -118,21 +126,33 @@ function getUnifiedDiffRenderedLineCount(patches: ParsedUnifiedDiffPatch[]): num
   return Math.max(1, lineCount);
 }
 
+function getMoreFilesSuffix(fileCount: number): string {
+  const additionalFileCount = fileCount - 1;
+  if (additionalFileCount <= 0) {
+    return '';
+  }
+
+  return ` +${additionalFileCount} more file${additionalFileCount === 1 ? '' : 's'}`;
+}
+
 function getDiffTranscriptTitle(
   toolName: string | undefined,
   filePath: string | undefined,
   mutationKind: RenderableUnifiedDiff['mutationKind'],
+  fileCount: number,
 ): string | null {
   if (!filePath) {
     return null;
   }
+
+  const moreFilesSuffix = getMoreFilesSuffix(fileCount);
 
   if (
     toolName === 'edit_file'
     || (toolName === 'apply_patch' && mutationKind === 'edit')
     || (!toolName && mutationKind === 'edit')
   ) {
-    return `→ Edit ${getCompactDiffFilePath(filePath)}`;
+    return `→ Edit ${getCompactDiffFilePath(filePath)}${moreFilesSuffix}`;
   }
 
   if (
@@ -140,7 +160,11 @@ function getDiffTranscriptTitle(
     || (toolName === 'apply_patch' && mutationKind === 'write')
     || (!toolName && mutationKind === 'write')
   ) {
-    return `→ Write ${getCompactDiffFilePath(filePath)}`;
+    return `→ Write ${getCompactDiffFilePath(filePath)}${moreFilesSuffix}`;
+  }
+
+  if (fileCount > 1) {
+    return `→ Change ${getCompactDiffFilePath(filePath)}${moreFilesSuffix}`;
   }
 
   return null;
@@ -157,6 +181,7 @@ function buildRenderableUnifiedDiff(
   return {
     diffText,
     renderedLineCount: getUnifiedDiffRenderedLineCount(patches),
+    fileCount: patches.length,
     ...(filePath ? { filePath } : {}),
     ...(filetype ? { filetype } : {}),
     ...(mutationKind ? { mutationKind } : {}),
@@ -342,6 +367,7 @@ export function TranscriptEntry(props: {
     props.entry.toolName,
     systemRenderableDiff()?.filePath,
     systemRenderableDiff()?.mutationKind,
+    systemRenderableDiff()?.fileCount ?? 1,
   );
   const renderMode = () => resolveTranscriptRenderMode(props.entry.kind, systemRenderableDiff()?.diffText ?? null);
 
