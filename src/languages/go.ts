@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { type FormattedDefinitionLocation } from '../analysis/definitionTypes';
 import { type FormattedDiagnostic } from '../analysis/diagnosticsTypes';
+import { type RenameFileEdit } from '../analysis/renameTypes';
 import { resolveProjectPath } from '../fileUtils';
 import {
   ensureFileExists,
@@ -120,4 +121,77 @@ export function getGoDefinition(options: {
     column: startColumn,
     lineText: getSourceLine(definitionFilePath, startLine),
   }];
+}
+
+interface GoReferenceEntry {
+  uri?: string;
+  range?: {
+    start?: {
+      line?: number;
+      character?: number;
+    };
+  };
+  span?: {
+    uri?: string;
+    start?: {
+      line?: number;
+      column?: number;
+    };
+  };
+}
+
+export function getGoReferences(options: {
+  filePath: string;
+  line: number;
+  symbol: string;
+  occurrence: number;
+}): FormattedDefinitionLocation[] {
+  const absoluteFilePath = ensureFileExists(options.filePath);
+  const lineText = getSourceLine(absoluteFilePath, options.line);
+  const columnIndex = findSymbolColumn(lineText, options.symbol, options.occurrence);
+  const target = `${absoluteFilePath}:${options.line}:${columnIndex + 1}`;
+  const result = runCommand('gopls', ['references', '-json', target], {
+    missingMessage: 'Cannot resolve go references because "gopls" is not installed.',
+  });
+
+  if (result.status !== 0) {
+    const message = (result.stderr || result.stdout).trim();
+    throw new Error(message.length > 0 ? message : 'gopls exited with an error.');
+  }
+
+  const trimmedOutput = result.stdout.trim();
+  if (trimmedOutput.length === 0) {
+    return [];
+  }
+
+  const entries = JSON.parse(trimmedOutput) as GoReferenceEntry[];
+
+  return entries.flatMap((entry) => {
+    if (entry.span?.uri && entry.span.start?.line && entry.span.start?.column) {
+      const referenceFilePath = fileURLToPath(entry.span.uri);
+      return [{
+        filePath: toWorkspaceRelativePath(normalizeFilePath(referenceFilePath)),
+        line: entry.span.start.line,
+        column: entry.span.start.column,
+        lineText: getSourceLine(referenceFilePath, entry.span.start.line),
+      }];
+    }
+
+    if (entry.uri && entry.range?.start?.line !== undefined && entry.range.start?.character !== undefined) {
+      const referenceFilePath = fileURLToPath(entry.uri);
+      const line = entry.range.start.line + 1;
+      return [{
+        filePath: toWorkspaceRelativePath(normalizeFilePath(referenceFilePath)),
+        line,
+        column: entry.range.start.character + 1,
+        lineText: getSourceLine(referenceFilePath, line),
+      }];
+    }
+
+    return [];
+  });
+}
+
+export function planGoRename(): RenameFileEdit[] {
+  throw new Error('rename_symbol is not supported for Go yet.');
 }
