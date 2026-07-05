@@ -64,7 +64,7 @@ import {
   type OpenTuiSessionEntry,
   type OpenTuiSetupModalKind,
 } from './openTuiTypes';
-import { type ProviderName } from '../providers/types';
+import { type AgentActivityEvent, type ProviderName } from '../providers/types';
 import { formatProviderLabel } from './providerLabels';
 
 addDefaultParsers(additionalLanguageParsers);
@@ -230,6 +230,7 @@ function SessionRoot(props: {
   entries: () => OpenTuiSessionEntry[];
   inputValue: () => string;
   isBusy: () => boolean;
+  agentActivity: () => AgentActivityEvent | null;
   statusMessage: () => string | null;
   permissionRequest: () => PermissionRequest | null;
   permissionsEditorOpen: () => boolean;
@@ -279,6 +280,7 @@ function SessionRoot(props: {
       entries={props.entries}
       inputValue={props.inputValue}
       isBusy={props.isBusy}
+      agentActivity={props.agentActivity}
       statusMessage={props.statusMessage}
       permissionRequest={props.permissionRequest}
       permissionsEditorOpen={props.permissionsEditorOpen}
@@ -355,6 +357,7 @@ export async function startOpenTuiInteractiveSession(
   const [entries, setEntries] = createSignal<OpenTuiSessionEntry[]>(initialTuiState.entries);
   const [inputValue, setInputValue] = createSignal('');
   const [isBusy, setIsBusy] = createSignal(false);
+  const [agentActivity, setAgentActivity] = createSignal<AgentActivityEvent | null>(null);
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
   const [permissionRequest, setPermissionRequest] = createSignal<PermissionRequest | null>(null);
   const [permissionsEditorOpen, setPermissionsEditorOpen] = createSignal(false);
@@ -1170,6 +1173,7 @@ export async function startOpenTuiInteractiveSession(
     appendTranscriptEntry('user', rawInput);
 
     setIsBusy(true);
+    setAgentActivity(null);
     setStatusMessage('Running turn...');
 
     try {
@@ -1180,6 +1184,10 @@ export async function startOpenTuiInteractiveSession(
           appendTranscriptEntry('system', event.diff, event.toolName);
           renderer.requestRender();
         },
+        onActivity: (event) => {
+          setAgentActivity(event);
+          renderer.requestRender();
+        },
       });
       appendTranscriptEntry('assistant', response);
       setStatusMessage('Turn completed');
@@ -1188,6 +1196,7 @@ export async function startOpenTuiInteractiveSession(
       setStatusMessage('Turn failed');
     } finally {
       setIsBusy(false);
+      setAgentActivity(null);
     }
   };
 
@@ -1202,6 +1211,7 @@ export async function startOpenTuiInteractiveSession(
           entries={entries}
           inputValue={inputValue}
           isBusy={isBusy}
+          agentActivity={agentActivity}
           statusMessage={statusMessage}
           permissionRequest={permissionRequest}
           permissionsEditorOpen={permissionsEditorOpen}

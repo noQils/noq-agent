@@ -4,8 +4,10 @@ import { For } from 'solid-js';
 
 import { type ScrollAcceleration, type ScrollBoxRenderable } from '@opentui/core';
 
+import { type AgentActivityEvent } from '../../providers/types';
 import { cappedEntries, openTuiTheme } from '../openTuiTheme';
 import { type OpenTuiSessionEntry } from '../openTuiTypes';
+import { AgentActivityIndicator } from './AgentActivityIndicator';
 import { EmptyTranscriptState } from './EmptyTranscriptState';
 import { TranscriptEntry } from './TranscriptEntry';
 
@@ -17,6 +19,8 @@ export function TranscriptPanel(props: {
   isShort: boolean;
   showEntryTime: boolean;
   showSidebar: boolean;
+  isBusy: boolean;
+  agentActivity: AgentActivityEvent | null;
   scrollAcceleration: ScrollAcceleration;
   scrollRef: (scrollbox: ScrollBoxRenderable) => void;
 }) {
@@ -65,6 +69,11 @@ export function TranscriptPanel(props: {
             <TranscriptEntry entry={entry} showTime={props.showEntryTime} isCompact={props.isCompact} />
           )}
         </For>
+
+        <AgentActivityIndicator
+          activity={() => props.agentActivity}
+          isBusy={() => props.isBusy}
+        />
 
         {props.entries.length === 0 ? (
           <EmptyTranscriptState isCompact={props.isCompact} />

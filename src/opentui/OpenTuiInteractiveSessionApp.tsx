@@ -46,7 +46,7 @@ import {
   type OpenTuiSessionEntry,
   type OpenTuiSetupModalKind,
 } from './openTuiTypes';
-import { type ProviderName } from '../providers/types';
+import { type AgentActivityEvent, type ProviderName } from '../providers/types';
 import {
   getTranscriptMaxScrollTop,
   TranscriptAutoScrollState,
@@ -58,6 +58,7 @@ interface OpenTuiInteractiveSessionAppProps {
   entries: Accessor<OpenTuiSessionEntry[]>;
   inputValue: Accessor<string>;
   isBusy: Accessor<boolean>;
+  agentActivity: Accessor<AgentActivityEvent | null>;
   statusMessage: Accessor<string | null>;
   permissionRequest: Accessor<PermissionRequest | null>;
   permissionsEditorOpen: Accessor<boolean>;
@@ -976,6 +977,8 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
             isShort={isShort()}
             showEntryTime={showEntryTime()}
             showSidebar={showSidebar()}
+            isBusy={props.isBusy()}
+            agentActivity={props.agentActivity()}
             scrollAcceleration={transcriptScrollAcceleration}
             scrollRef={setTranscriptScrollBox}
           />
