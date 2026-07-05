@@ -8,7 +8,7 @@ export const openTuiTheme = {
   color: {
     canvas: canvasColor,
     panelRaised: '#323742',
-    codeBlockBg: '#1f2129',
+    codeBlockBg: '#292c37',
     rail: '#000000',
     line: '#3a3f49',
     lineStrong: '#4b5360',

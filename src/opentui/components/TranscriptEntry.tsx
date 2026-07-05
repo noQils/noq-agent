@@ -2,7 +2,7 @@
 
 import path from 'node:path';
 
-import { CodeRenderable, DiffRenderable, MacOSScrollAccel, type RenderNodeContext } from '@opentui/core';
+import { BoxRenderable, CodeRenderable, DiffRenderable, MacOSScrollAccel, type RenderNodeContext } from '@opentui/core';
 import { Dynamic, extend } from '@opentui/solid';
 import type { Token } from 'marked';
 
@@ -225,10 +225,25 @@ function renderMarkdownNode(token: Token, context: RenderNodeContext) {
   }
 
   const rendered = context.defaultRender();
-  if (rendered instanceof CodeRenderable) {
-    rendered.bg = openTuiTheme.color.codeBlockBg;
+  if (!(rendered instanceof CodeRenderable)) {
+    return rendered;
   }
-  return rendered;
+
+  // CodeRenderable only paints bg behind its own text cells, so setting its
+  // `bg` alone leaves blank lines and trailing padding showing the canvas
+  // color through — wrap it in a filled box so the whole fence is covered.
+  rendered.bg = openTuiTheme.color.codeBlockBg;
+  const panel = new BoxRenderable(rendered.ctx, {
+    id: `${rendered.id}-panel`,
+    width: '100%',
+    backgroundColor: openTuiTheme.color.codeBlockBg,
+    paddingLeft: 1,
+    paddingRight: 1,
+    paddingTop: 1,
+    paddingBottom: 1,
+  });
+  panel.add(rendered);
+  return panel;
 }
 
 function AssistantTranscriptContent(props: {
