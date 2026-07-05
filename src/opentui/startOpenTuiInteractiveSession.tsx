@@ -5,9 +5,10 @@ import path from 'node:path';
 import { createEffect, createSignal } from 'solid-js';
 
 import { render, useRenderer } from '@opentui/solid';
-import { CliRenderEvents, pathToFiletype } from '@opentui/core';
+import { addDefaultParsers, CliRenderEvents, pathToFiletype } from '@opentui/core';
 
 import { type AgentMode } from '../agentMode';
+import { additionalLanguageParsers } from './treeSitterLanguageParsers';
 import { resetConfigCache } from '../config/config';
 import { loadAuthStore } from '../config/authStore';
 import { loadGlobalConfig } from '../config/globalConfig';
@@ -65,6 +66,8 @@ import {
 } from './openTuiTypes';
 import { type ProviderName } from '../providers/types';
 import { formatProviderLabel } from './providerLabels';
+
+addDefaultParsers(additionalLanguageParsers);
 
 export interface StartOpenTuiInteractiveSessionOptions {
   restoreStoredMode?: boolean;
