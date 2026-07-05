@@ -132,3 +132,36 @@ export function getJavaDefinition(options: {
 
   return definitions;
 }
+
+export function getJavaReferences(options: {
+  filePath: string;
+  symbol: string;
+}): FormattedDefinitionLocation[] {
+  ensureFileExists(options.filePath);
+
+  const javaFiles = getProjectFilePaths().filter((filePath) => path.extname(filePath).toLowerCase() === '.java');
+  const symbolPattern = new RegExp(`\\b${escapeRegex(options.symbol)}\\b`, 'g');
+  const references: FormattedDefinitionLocation[] = [];
+
+  for (const filePath of javaFiles) {
+    const absoluteFilePath = normalizeFilePath(resolveProjectPath(filePath));
+    const lines = splitFileLines(fs.readFileSync(absoluteFilePath, 'utf-8'));
+
+    for (const [index, lineText] of lines.entries()) {
+      for (const match of lineText.matchAll(symbolPattern)) {
+        if (match.index === undefined) {
+          continue;
+        }
+
+        references.push({
+          filePath: toWorkspaceRelativePath(absoluteFilePath),
+          line: index + 1,
+          column: match.index + 1,
+          lineText,
+        });
+      }
+    }
+  }
+
+  return references;
+}
