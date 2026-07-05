@@ -35,6 +35,8 @@ const permissionScopes: PermissionScope[] = [
   'grep',
   'bash',
   'external_directory',
+  'web_fetch',
+  'git',
 ];
 
 export interface SessionTurn {
