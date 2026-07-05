@@ -1010,8 +1010,6 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
           <CommandRail
             isCompact={isCompact()}
-            status={animatedStatus()}
-            statusColor={resolvedStatusColor()}
           />
         </box>
 
