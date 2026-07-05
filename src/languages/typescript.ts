@@ -5,6 +5,7 @@ import * as ts from 'typescript';
 
 import { type FormattedDefinitionLocation } from '../analysis/definitionTypes';
 import { type FormattedDiagnostic } from '../analysis/diagnosticsTypes';
+import { type RenameFileEdit } from '../analysis/renameTypes';
 import { getProjectFilePaths, resolveProjectPath } from '../fileUtils';
 import {
   ensureFileExists,
@@ -261,12 +262,12 @@ export function getTypeScriptDiagnostics(options?: {
   return dedupeDiagnostics(diagnostics).slice(0, maxDiagnostics);
 }
 
-export function goToTypeScriptDefinition(options: {
+function resolveTypeScriptPosition(options: {
   filePath: string;
   line: number;
   symbol: string;
   occurrence?: number;
-}): FormattedDefinitionLocation[] {
+}): { project: LoadedTypeScriptProject; absoluteFilePath: string; position: number } {
   validatePositiveInteger(options.line, 'line');
 
   const occurrence = options.occurrence ?? 1;
@@ -291,6 +292,18 @@ export function goToTypeScriptDefinition(options: {
 
   const columnIndex = findSymbolColumn(lineText, options.symbol, occurrence);
   const position = sourceFile.getPositionOfLineAndCharacter(options.line - 1, columnIndex);
+
+  return { project, absoluteFilePath, position };
+}
+
+export function goToTypeScriptDefinition(options: {
+  filePath: string;
+  line: number;
+  symbol: string;
+  occurrence?: number;
+}): FormattedDefinitionLocation[] {
+  const { project, absoluteFilePath, position } = resolveTypeScriptPosition(options);
+  const program = project.languageService.getProgram();
   const definitions = project.languageService.getDefinitionAtPosition(absoluteFilePath, position) ?? [];
 
   return definitions.map((definition) => {
@@ -307,4 +320,90 @@ export function goToTypeScriptDefinition(options: {
       lineText: getSourceLine(definition.fileName, lineCharacter.line + 1),
     };
   });
+}
+
+export function findTypeScriptReferences(options: {
+  filePath: string;
+  line: number;
+  symbol: string;
+  occurrence?: number;
+}): FormattedDefinitionLocation[] {
+  const { project, absoluteFilePath, position } = resolveTypeScriptPosition(options);
+  const program = project.languageService.getProgram();
+  const referencedSymbols = project.languageService.findReferences(absoluteFilePath, position) ?? [];
+
+  return referencedSymbols.flatMap((referencedSymbol) => referencedSymbol.references.map((reference) => {
+    const referenceSourceFile = program?.getSourceFile(reference.fileName);
+    if (!referenceSourceFile) {
+      throw new Error(`TypeScript could not load reference file: ${reference.fileName}`);
+    }
+
+    const lineCharacter = referenceSourceFile.getLineAndCharacterOfPosition(reference.textSpan.start);
+    return {
+      filePath: toWorkspaceRelativePath(normalizeFilePath(reference.fileName)),
+      line: lineCharacter.line + 1,
+      column: lineCharacter.character + 1,
+      lineText: getSourceLine(reference.fileName, lineCharacter.line + 1),
+    };
+  }));
+}
+
+export function planTypeScriptRename(options: {
+  filePath: string;
+  line: number;
+  symbol: string;
+  newName: string;
+  occurrence?: number;
+}): RenameFileEdit[] {
+  if (!options.newName.trim()) {
+    throw new Error('newName must be a non-empty string.');
+  }
+
+  const { project, absoluteFilePath, position } = resolveTypeScriptPosition(options);
+  const renameInfo = project.languageService.getRenameInfo(absoluteFilePath, position, {
+    allowRenameOfImportPath: false,
+  });
+
+  if (!renameInfo.canRename) {
+    throw new Error(renameInfo.localizedErrorMessage);
+  }
+
+  const renameLocations = project.languageService.findRenameLocations(
+    absoluteFilePath,
+    position,
+    false,
+    false,
+    false,
+  ) ?? [];
+
+  const locationsByFile = new Map<string, ts.RenameLocation[]>();
+  for (const location of renameLocations) {
+    const existing = locationsByFile.get(location.fileName);
+    if (existing) {
+      existing.push(location);
+    } else {
+      locationsByFile.set(location.fileName, [location]);
+    }
+  }
+
+  const edits: RenameFileEdit[] = [];
+  for (const [fileName, locations] of locationsByFile) {
+    let content = fs.readFileSync(fileName, 'utf-8');
+    const sortedLocations = [...locations].sort((a, b) => b.textSpan.start - a.textSpan.start);
+
+    for (const location of sortedLocations) {
+      const start = location.textSpan.start;
+      const end = start + location.textSpan.length;
+      content = content.slice(0, start) + options.newName + content.slice(end);
+    }
+
+    const absolutePath = normalizeFilePath(fileName);
+    edits.push({
+      absoluteFilePath: absolutePath,
+      relativeFilePath: toWorkspaceRelativePath(absolutePath),
+      newContent: content,
+    });
+  }
+
+  return edits;
 }
