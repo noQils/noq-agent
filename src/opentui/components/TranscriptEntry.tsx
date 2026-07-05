@@ -391,7 +391,7 @@ export function TranscriptEntry(props: {
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
       paddingX={1}
-      paddingY={0}
+      paddingY={props.entry.kind === 'user' ? 1 : 0}
     >
       {renderMode() === 'assistant-markdown' ? (
         <AssistantTranscriptContent

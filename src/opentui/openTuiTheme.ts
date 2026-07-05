@@ -7,8 +7,8 @@ export const canvasColor = '#232530';
 export const openTuiTheme = {
   color: {
     canvas: canvasColor,
-    panelRaised: '#323742',
-    codeBlockBg: '#2e323f',
+    panelRaised: '#343a47',
+    codeBlockBg: '#2a2e3a',
     rail: '#000000',
     line: '#3a3f49',
     lineStrong: '#4b5360',
@@ -39,7 +39,7 @@ export const openTuiTheme = {
       label: 'User',
       accent: '#60c5ff',
       border: '#2dd4bf',
-      background: '#323742',
+      background: '#343a47',
       title: 'Prompt',
     },
     assistant: {
