@@ -201,6 +201,7 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
+    options?.onActivity?.({ type: 'thinking' });
     const completion = await runProviderRequest('DeepSeek', 'chat.completions.create', (signal) =>
       deepseek.chat.completions.create({
         model,
@@ -281,6 +282,7 @@ export async function chat(
 
       const args = normalizedArgs.args;
       debugLog('Tool call', toolCall.function.name, 'with args:', args);
+      options?.onActivity?.({ type: 'tool', toolName: toolCall.function.name, args });
 
       const executionResult = await executeToolCall(
         toolCall.function.name,

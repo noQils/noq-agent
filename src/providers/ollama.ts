@@ -88,6 +88,7 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
+    options?.onActivity?.({ type: 'thinking' });
     const response = await runProviderRequest('Ollama', 'chat', () => ollama.chat({
         model,
         messages: ollamaMessages,
@@ -163,6 +164,8 @@ export async function chat(
         });
         continue;
       }
+
+      options?.onActivity?.({ type: 'tool', toolName: call.function.name, args: normalizedArgs.args });
 
       const executionResult = await executeToolCall(
         call.function.name,

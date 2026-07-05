@@ -177,6 +177,7 @@ export async function chat(
     maxToolRounds,
   });
 
+  options?.onActivity?.({ type: 'thinking' });
   let response = await runProviderRequest('OpenAI', 'responses.create', (signal) =>
     openai.responses.create({
       model: model,
@@ -233,8 +234,9 @@ export async function chat(
       }
 
       const args = normalizedArgs.args;
-      
+
       debugLog('Tool call', item.name, 'with args:', args);
+      options?.onActivity?.({ type: 'tool', toolName: item.name, args });
 
       const executionResult = await executeToolCall(
         item.name,
@@ -286,6 +288,7 @@ export async function chat(
       };
     }
 
+    options?.onActivity?.({ type: 'thinking' });
     response = await runProviderRequest('OpenAI', 'responses.create', (signal) =>
       openai.responses.create({
         model,

@@ -12,7 +12,7 @@ import {
   loadOrCreateSession,
   saveSessionPlanArtifact,
 } from './sessionStore';
-import { type Provider, type ToolMutationCallback } from '../providers/types';
+import { type AgentActivityCallback, type Provider, type ToolMutationCallback } from '../providers/types';
 import { debugLog, getDebugLogFilePath, setDebugLogFilePath } from '../config/runtimeSettings';
 import { runAgentTurn } from '../workflow';
 
@@ -24,6 +24,7 @@ export interface SessionTurnResult {
 
 export interface SessionTurnOptions {
   onMutation?: ToolMutationCallback;
+  onActivity?: AgentActivityCallback;
   workingDirectory?: string;
   provider?: Provider;
 }
@@ -68,6 +69,7 @@ export async function runSessionTurn(
       turnResult = await withWorkingDirectory(effectiveWorkingDirectory, () => runAgentTurn(userPrompt, mode, {
         historyMessages,
         ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+        ...(options?.onActivity ? { onActivity: options.onActivity } : {}),
         ...(options?.provider ? { provider: options.provider } : {}),
       }));
     } catch (error) {

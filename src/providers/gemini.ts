@@ -201,6 +201,7 @@ async function executeFunctionCalls(
     const args = normalizedArgs.args;
 
     debugLog(`Executing tool ${functionCall.name}`, 'with args', args);
+    options?.onActivity?.({ type: 'tool', toolName, args });
     const executionResult = await executeToolCall(
       toolName,
       args,
@@ -270,6 +271,7 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
+    options?.onActivity?.({ type: 'thinking' });
     const response = await runProviderRequest('Gemini', 'models.generateContent', (signal) =>
       gemini.models.generateContent({
         model: model,

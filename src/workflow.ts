@@ -3,6 +3,7 @@ import { findClosestFileMatch } from './pathMatcher';
 import { type AgentMode } from './agentMode';
 import { getProvider } from './providers';
 import {
+  type AgentActivityCallback,
   type ChatMessage,
   type ChatResult,
   type ExecutedToolCall,
@@ -20,6 +21,7 @@ import { formatTodoItems, hasTodoItems, hasUnfinishedTodoItems, resetTodoState }
 export interface RunAgentTurnOptions {
     historyMessages?: ChatMessage[];
     onMutation?: ToolMutationCallback;
+    onActivity?: AgentActivityCallback;
     provider?: Provider;
 }
 
@@ -792,6 +794,7 @@ export async function runAgentTurn(
             mode,
             tools: availableTools,
             ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
+            ...(options?.onActivity ? { onActivity: options.onActivity } : {}),
         });
         debugLog('Provider response received:', {
             flowRound: workflowState.flowRoundCount,

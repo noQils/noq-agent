@@ -50,6 +50,12 @@ export type ToolMutationCallback = (
   event: ToolMutationEvent,
 ) => void | Promise<void>;
 
+export type AgentActivityEvent =
+  | { type: 'thinking' }
+  | { type: 'tool'; toolName: string; args: Record<string, unknown> };
+
+export type AgentActivityCallback = (event: AgentActivityEvent) => void;
+
 export type StopReason =
   | 'no_tool_calls'
   | 'repeated_tool_calls'
@@ -66,6 +72,7 @@ export interface ChatOptions {
   mode?: AgentMode;
   tools?: InternalTool[];
   onMutation?: ToolMutationCallback;
+  onActivity?: AgentActivityCallback;
 }
 
 export interface Provider {
