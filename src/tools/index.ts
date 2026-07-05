@@ -11,6 +11,7 @@ import { applyPatchTool } from './applyPatch';
 import { getDiagnosticsTool } from './getDiagnostics';
 import { goToDefinitionTool } from './goToDefinition';
 import { webFetchTool } from './webFetch';
+import { gitStatusTool, gitDiffTool } from './git';
 import { PermissionScope } from '../permissions/types';
 import { type AgentMode } from '../agentMode';
 
@@ -24,6 +25,8 @@ export const allTools: InternalTool[] = [
   getDiagnosticsTool,
   goToDefinitionTool,
   webFetchTool,
+  gitStatusTool,
+  gitDiffTool,
   applyPatchTool,
   editFileTool,
   writeFileTool,
@@ -46,6 +49,8 @@ const planModeToolNames = new Set([
   getDiagnosticsTool.name,
   goToDefinitionTool.name,
   webFetchTool.name,
+  gitStatusTool.name,
+  gitDiffTool.name,
   listDirTool.name,
 ]);
 
