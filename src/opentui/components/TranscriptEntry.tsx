@@ -386,7 +386,7 @@ export function TranscriptEntry(props: {
       flexDirection="column"
       marginBottom={1}
       border={['left']}
-      borderStyle="single"
+      borderStyle={props.entry.kind === 'user' ? "heavy" : "single"}
       borderColor={renderMode() === 'system-diff' ? openTuiTheme.color.amber : role().border}
       focusedBorderColor={role().accent}
       backgroundColor={role().background}
