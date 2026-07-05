@@ -105,18 +105,15 @@ function inferUnifiedDiffMutationKind(
 }
 
 function getUnifiedDiffRenderedLineCount(patches: ParsedUnifiedDiffPatch[]): number {
-  const firstPatch = patches[0];
-  if (!firstPatch) {
-    return 1;
-  }
-
-  const lineCount = firstPatch.hunks?.reduce((total, hunk) => (
-    total + hunk.lines.filter((line) => (
-      line.startsWith(' ')
-      || line.startsWith('+')
-      || line.startsWith('-')
-    )).length
-  ), 0) ?? 0;
+  const lineCount = patches.reduce((patchTotal, patch) => (
+    patchTotal + (patch.hunks?.reduce((total, hunk) => (
+      total + hunk.lines.filter((line) => (
+        line.startsWith(' ')
+        || line.startsWith('+')
+        || line.startsWith('-')
+      )).length
+    ), 0) ?? 0)
+  ), 0);
 
   return Math.max(1, lineCount);
 }
