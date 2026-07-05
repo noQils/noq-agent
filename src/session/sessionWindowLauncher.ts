@@ -59,7 +59,7 @@ function tryLaunchWithWindowsTerminal(options: LaunchSessionWindowOptions): Laun
       '-1',
       'new-tab',
       '--tabColor',
-      '#1a1c24',
+      '#232530',
       '--title',
       formatWindowsTerminalTitle(options.sessionId),
       '--suppressApplicationTitle',

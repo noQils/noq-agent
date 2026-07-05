@@ -2,12 +2,12 @@ import { SyntaxStyle } from '@opentui/core';
 
 export type OpenTuiEntryRole = 'user' | 'assistant' | 'system';
 export type OpenTuiStatusTone = 'ready' | 'busy' | 'success' | 'warning' | 'danger';
-export const canvasColor = '#1a1c24';
+export const canvasColor = '#232530';
 
 export const openTuiTheme = {
   color: {
     canvas: canvasColor,
-    panelRaised: '#292c33',
+    panelRaised: '#323742',
     codeBlockBg: '#1f2129',
     rail: '#000000',
     line: '#3a3f49',
@@ -39,7 +39,7 @@ export const openTuiTheme = {
       label: 'User',
       accent: '#60c5ff',
       border: '#2dd4bf',
-      background: '#292c33',
+      background: '#323742',
       title: 'Prompt',
     },
     assistant: {
