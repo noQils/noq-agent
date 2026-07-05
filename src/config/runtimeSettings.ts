@@ -9,11 +9,13 @@ export const defaultProviderMaxToolRounds = 40;
 export const defaultProviderMaxRetries = 3;
 export const defaultMaxFlowRounds = 30;
 export const defaultMaxToolOutputChars = 16_384;
+export const defaultDebugLogMaxBytes = 10 * 1024 * 1024;
 export const minProviderTimeoutMs = 1_000;
 export const minProviderMaxToolRounds = 1;
 export const minProviderMaxRetries = 0;
 export const minMaxFlowRounds = 1;
 export const minMaxToolOutputChars = 256;
+export const minDebugLogMaxBytes = 1024;
 
 export interface RuntimeSettings {
   debug: boolean;
@@ -92,6 +94,14 @@ export function getMaxToolOutputChars(): number {
   );
 }
 
+export function getDebugLogMaxBytes(): number {
+  return parseIntegerSetting(
+    'NOQ_DEBUG_LOG_MAX_BYTES',
+    defaultDebugLogMaxBytes,
+    minDebugLogMaxBytes,
+  );
+}
+
 export function getRuntimeSettings(): RuntimeSettings {
   return {
     debug: isDebugLoggingEnabled(),
@@ -132,6 +142,29 @@ function formatDebugLogLine(args: unknown[]): string {
   return `[${new Date().toISOString()}] ${args.map(formatDebugLogArg).join(' ')}`;
 }
 
+// Keep the debug log from growing without bound across a long session: once it
+// would exceed the configured size, rotate the current file to a single .1
+// backup and start fresh. Best-effort — logging must never break the run.
+function rotateDebugLogIfNeeded(filePath: string, incomingBytes: number): void {
+  let currentSize: number;
+  try {
+    currentSize = fs.statSync(filePath).size;
+  } catch {
+    return;
+  }
+
+  if (currentSize + incomingBytes <= getDebugLogMaxBytes()) {
+    return;
+  }
+
+  try {
+    fs.rmSync(`${filePath}.1`, { force: true });
+    fs.renameSync(filePath, `${filePath}.1`);
+  } catch {
+    // If rotation fails, keep appending to the existing file.
+  }
+}
+
 export function debugLog(...args: unknown[]): void {
   if (!isDebugLoggingEnabled()) {
     return;
@@ -139,8 +172,10 @@ export function debugLog(...args: unknown[]): void {
 
   if (debugLogFilePath) {
     try {
+      const line = `${formatDebugLogLine(args)}\n`;
       fs.mkdirSync(path.dirname(debugLogFilePath), { recursive: true });
-      fs.appendFileSync(debugLogFilePath, `${formatDebugLogLine(args)}\n`, 'utf-8');
+      rotateDebugLogIfNeeded(debugLogFilePath, Buffer.byteLength(line));
+      fs.appendFileSync(debugLogFilePath, line, 'utf-8');
     } catch {
       // Debug logging must never break agent execution or corrupt the TUI.
     }

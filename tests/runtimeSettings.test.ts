@@ -30,6 +30,7 @@ const settingNames = [
   'NOQ_PROVIDER_MAX_RETRIES',
   'NOQ_MAX_FLOW_ROUNDS',
   'NOQ_MAX_TOOL_OUTPUT_CHARS',
+  'NOQ_DEBUG_LOG_MAX_BYTES',
 ];
 
 function withRuntimeEnv(values: Record<string, string>, callback: () => void): void {
@@ -169,6 +170,29 @@ test('debugLog appends to the active debug log file instead of stderr', () => {
     assert.match(fs.readFileSync(logFilePath, 'utf-8'), /^\[[^\]]+\] visible \{ value: 123 \}\n$/);
   } finally {
     console.error = originalError;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('debugLog rotates the active file once it exceeds the size limit', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noq-agent-debug-log-rotate-test-'));
+  const logFilePath = path.join(root, 'debug.log');
+
+  try {
+    withRuntimeEnv({ NOQ_DEBUG: 'true', NOQ_DEBUG_LOG_MAX_BYTES: '1024' }, () => {
+      setDebugLogFilePath(logFilePath);
+      // Each line is well over 1KB, so the second write forces a rotation.
+      debugLog('A'.repeat(2000));
+      debugLog('B'.repeat(2000));
+    });
+
+    assert.ok(fs.existsSync(`${logFilePath}.1`), 'expected a rotated .1 backup to exist');
+    assert.match(fs.readFileSync(`${logFilePath}.1`, 'utf-8'), /AAAA/);
+    // The live file holds only the most recent line.
+    const current = fs.readFileSync(logFilePath, 'utf-8');
+    assert.match(current, /BBBB/);
+    assert.ok(!current.includes('AAAA'));
+  } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
