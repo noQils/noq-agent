@@ -3,7 +3,6 @@
 import path from 'node:path';
 
 import { DiffRenderable, MacOSScrollAccel } from '@opentui/core';
-import { parsePatch } from 'diff';
 import { Dynamic, extend } from '@opentui/solid';
 
 import {
@@ -14,6 +13,7 @@ import {
 } from '../openTuiTheme';
 import { type OpenTuiSessionEntry, type OpenTuiSessionEntryKind } from '../openTuiTypes';
 import { resolveTranscriptRenderMode } from '../transcriptRenderMode';
+import { healUnifiedDiffForRender, parseUnifiedDiffStrict } from '../unifiedDiffHealing';
 
 extend({ diff: DiffRenderable });
 
@@ -54,51 +54,6 @@ const diffFiletypeByExtension: Record<string, string> = {
   yaml: 'yaml',
   yml: 'yaml',
 };
-
-function healUnifiedDiffForRender(text: string): string {
-  const lines = text.replaceAll('\r\n', '\n').split('\n');
-  const healedLines: string[] = [];
-  let insideHunk = false;
-
-  for (const line of lines) {
-    if (line.startsWith('@@ ')) {
-      insideHunk = true;
-      healedLines.push(line);
-      continue;
-    }
-
-    if (
-      line.startsWith('diff --git ')
-      || line.startsWith('index ')
-      || line.startsWith('--- ')
-      || line.startsWith('+++ ')
-    ) {
-      insideHunk = false;
-      healedLines.push(line);
-      continue;
-    }
-
-    if (!insideHunk) {
-      healedLines.push(line);
-      continue;
-    }
-
-    if (line.length === 0) {
-      healedLines.push(' ');
-      continue;
-    }
-
-    const prefix = line[0];
-    if (prefix === ' ' || prefix === '+' || prefix === '-' || prefix === '\\') {
-      healedLines.push(line);
-      continue;
-    }
-
-    healedLines.push(` ${line}`);
-  }
-
-  return healedLines.join('\n');
-}
 
 function normalizeDiffFilePath(filePath: string | undefined): string | null {
   if (!filePath) {
@@ -247,13 +202,15 @@ function getRenderableUnifiedDiff(text: string): RenderableUnifiedDiff | null {
     return null;
   }
 
+  // Parse strictly: the diff renderable re-parses the text with a strict
+  // parser, so a leniently accepted diff would still fail to render there.
   try {
-    const patches = parsePatch(text) as ParsedUnifiedDiffPatch[];
+    const patches = parseUnifiedDiffStrict(text) as ParsedUnifiedDiffPatch[];
     return buildRenderableUnifiedDiff(text, patches);
   } catch {
     const healedDiff = healUnifiedDiffForRender(text);
     try {
-      const patches = parsePatch(healedDiff) as ParsedUnifiedDiffPatch[];
+      const patches = parseUnifiedDiffStrict(healedDiff) as ParsedUnifiedDiffPatch[];
       return buildRenderableUnifiedDiff(healedDiff, patches);
     } catch {
       return null;
