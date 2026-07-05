@@ -191,11 +191,11 @@ export function ModelsPanel(props: {
                       <box
                         width="100%"
                         paddingX={1}
-                        backgroundColor={isSelected() ? openTuiTheme.color.tealFade : openTuiTheme.color.canvas}
+                        backgroundColor={isSelected() ? openTuiTheme.color.teal : openTuiTheme.color.canvas}
                         onMouseDown={() => props.onSelectProviderRow(provider)}
                       >
                         <text
-                          fg={isSelected() ? openTuiTheme.color.text : openTuiTheme.color.textSoft}
+                          fg={isSelected() ? openTuiTheme.color.canvas : openTuiTheme.color.textSoft}
                           truncate
                           flexGrow={1}
                         >
