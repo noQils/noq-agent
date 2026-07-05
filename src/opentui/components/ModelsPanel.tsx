@@ -15,6 +15,33 @@ import { openTuiTheme } from '../openTuiTheme';
 
 export const modelsPanelMaxVisibleRows = 11;
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getSelectedRowAnchorIndex(visibleCount: number): number {
+  return Math.max(0, Math.floor((visibleCount - 1) / 2));
+}
+
+function getVisibleModelRows(
+  rows: OpenTuiModelsSetupRow[],
+  selectedRowKey: string | null,
+): OpenTuiModelsSetupRow[] {
+  if (rows.length === 0) {
+    return rows;
+  }
+
+  const selectedIndex = selectedRowKey
+    ? rows.findIndex((row) => row.key === selectedRowKey)
+    : -1;
+  const safeSelectedIndex = clamp(selectedIndex >= 0 ? selectedIndex : 0, 0, rows.length - 1);
+  const visibleCount = Math.min(modelsPanelMaxVisibleRows, rows.length);
+  const anchorIndex = getSelectedRowAnchorIndex(visibleCount);
+  const startIndex = clamp(safeSelectedIndex - anchorIndex, 0, Math.max(0, rows.length - visibleCount));
+
+  return rows.slice(startIndex, startIndex + visibleCount);
+}
+
 export function ModelsPanel(props: {
   step: 'provider' | 'list' | 'custom';
 
@@ -47,6 +74,7 @@ export function ModelsPanel(props: {
   let providerSearchTextareaRef: TextareaRenderable | null = null;
   let searchTextareaRef: TextareaRenderable | null = null;
   let customTextareaRef: TextareaRenderable | null = null;
+  const visibleModelRows = () => getVisibleModelRows(props.rows, props.selectedRowKey);
 
   return (
     <box
@@ -272,7 +300,7 @@ export function ModelsPanel(props: {
                     <text fg={openTuiTheme.color.textSoft}>Loading models...</text>
                   </box>
                 ) : null}
-                <For each={props.rows}>
+                <For each={visibleModelRows()}>
                   {(row) => {
                     const isSelected = () => props.selectedRowKey === row.key;
                     return (
