@@ -431,3 +431,44 @@ test('undo restores files recorded outside the base workspace', async () => {
     });
   });
 });
+
+test('saveSession writes atomically and leaves no temp file behind', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(() => {
+      const sessionId = 'atomic-write-session';
+      loadOrCreateSession(sessionId);
+
+      const sessionFilePath = getSessionFilePath(sessionId);
+      assert.ok(fs.existsSync(sessionFilePath));
+      assert.ok(
+        !fs.existsSync(`${sessionFilePath}.tmp`),
+        'temp file should be renamed away after a successful save',
+      );
+      assert.doesNotThrow(() => JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8')));
+    });
+  });
+});
+
+test('a corrupt session file is recovered from its backup', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(() => {
+      const sessionId = 'recover-session';
+      // First save creates the file; the second save copies the known-good
+      // file to .bak before rewriting it.
+      loadOrCreateSession(sessionId);
+      setSessionPermissionOverride(sessionId, 'edit', 'allow');
+
+      const sessionFilePath = getSessionFilePath(sessionId);
+      assert.ok(
+        fs.existsSync(`${sessionFilePath}.bak`),
+        'expected a .bak backup to exist after a rewrite',
+      );
+
+      // Simulate a crash that left a truncated, unparseable session file.
+      fs.writeFileSync(sessionFilePath, '{ "turns": [', 'utf-8');
+
+      const session = loadExistingSession(sessionId);
+      assert.equal(session.id, sessionId);
+    });
+  });
+});

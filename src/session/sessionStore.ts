@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isAgentMode, type AgentMode } from '../agentMode';
+import { debugLog } from '../config/runtimeSettings';
 import { getGlobalSessionsDirectoryPath } from '../config/noqHome';
 import { buildReferencedPathGroups } from '../analysis/pathReferenceHints';
 import { resetPermissionDecisionCache } from '../permissions/decisionCache';
@@ -654,7 +655,25 @@ function saveSession(session: AgentSession): void {
   ensureSessionsDirectory();
   const sessionFilePath = getSessionFilePath(session.id);
   fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
-  fs.writeFileSync(sessionFilePath, JSON.stringify(session, null, 2), 'utf-8');
+
+  const serialized = JSON.stringify(session, null, 2);
+  const tempFilePath = `${sessionFilePath}.tmp`;
+  const backupFilePath = `${sessionFilePath}.bak`;
+
+  // Preserve the last known-good file as a backup before overwriting, so a crash
+  // mid-write can never leave the session unrecoverable.
+  if (fs.existsSync(sessionFilePath)) {
+    try {
+      fs.copyFileSync(sessionFilePath, backupFilePath);
+    } catch {
+      // A missing backup must not block saving the session.
+    }
+  }
+
+  // Write to a sibling temp file first, then atomically rename over the target.
+  // rename is atomic on the same filesystem, so readers never observe a partial file.
+  fs.writeFileSync(tempFilePath, serialized, 'utf-8');
+  fs.renameSync(tempFilePath, sessionFilePath);
 }
 
 function parseSessionFile(sessionId: string, sessionFilePath: string): AgentSession {
@@ -662,8 +681,25 @@ function parseSessionFile(sessionId: string, sessionFilePath: string): AgentSess
   try {
     parsedSession = JSON.parse(fs.readFileSync(sessionFilePath, 'utf-8'));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Session file "${sessionFilePath}" is not valid JSON: ${message}`);
+    // A truncated or corrupt session.json (e.g. a crash mid-write in an older
+    // build) can still be recovered from the last known-good backup.
+    const backupFilePath = `${sessionFilePath}.bak`;
+    if (fs.existsSync(backupFilePath)) {
+      try {
+        parsedSession = JSON.parse(fs.readFileSync(backupFilePath, 'utf-8'));
+        debugLog('Session file invalid; recovered from backup.', {
+          sessionFilePath,
+          backupFilePath,
+        });
+      } catch {
+        // Fall through to throw with the original parse error below.
+      }
+    }
+
+    if (parsedSession === undefined) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Session file "${sessionFilePath}" is not valid JSON: ${message}`);
+    }
   }
 
   const session = isRecord(parsedSession) ? parsedSession : {};
