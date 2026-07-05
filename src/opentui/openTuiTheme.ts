@@ -38,7 +38,7 @@ export const openTuiTheme = {
       label: 'User',
       accent: '#60c5ff',
       border: '#2dd4bf',
-      background: canvasColor,
+      background: '#292c33',
       title: 'Prompt',
     },
     assistant: {
