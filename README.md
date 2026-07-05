@@ -180,7 +180,7 @@ Useful interactive commands:
 ```text
 /permissions
 /connect
-/models
+/model
 /mode plan
 /mode build
 /plan show
@@ -196,13 +196,13 @@ Setup flow details:
   Opens a session-scoped permissions editor inside the TUI
 - `/connect`
   Opens a searchable provider chooser and saves provider credentials into `~/.noq/auth.json`
-- `/models`
-  Opens a searchable model picker and saves the global default provider and model in `~/.noq/config.json`
-- `/models` applies immediately to the next turn in the current session
-- `/connect` makes a provider available immediately, but does not change the active provider/model until `/models`
-- `/models` tries live model discovery first and falls back to curated presets when discovery is unavailable
-- `/models` groups choices by provider and supports saving a custom model id when the discovered list is not enough
-- Ollama does not need an API key for `/connect`; you can just use `/models`
+- `/model`
+  Opens a searchable provider chooser first, then a searchable model picker for that provider, and saves the global default provider and model in `~/.noq/config.json`
+- `/model` applies immediately to the next turn in the current session
+- `/connect` makes a provider available immediately, but does not change the active provider/model until `/model`
+- `/model` tries live model discovery first and falls back to curated presets when discovery is unavailable
+- `/model` supports saving a custom model id when the discovered list is not enough
+- Ollama does not need an API key for `/connect`; you can just use `/model`
 
 TUI details:
 
@@ -363,7 +363,7 @@ Global files under `~/.noq/`:
 
 ## Environment Variables
 
-Provider setup no longer comes from environment variables or `.env` files. Use `/connect` and `/models`, or edit `~/.noq/auth.json` and `~/.noq/config.json` directly.
+Provider setup no longer comes from environment variables or `.env` files. Use `/connect` and `/model`, or edit `~/.noq/auth.json` and `~/.noq/config.json` directly.
 
 Environment loading still exists for runtime settings and home-directory overrides.
 
@@ -412,7 +412,7 @@ noq
 5. Inside the TUI:
 
 - run `/connect` to save hosted-provider credentials into `~/.noq/auth.json`
-- run `/models` to choose the active global provider and model in `~/.noq/config.json`
+- run `/model` to choose the active global provider and model in `~/.noq/config.json`
 
 Fresh-install behavior:
 

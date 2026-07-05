@@ -46,7 +46,7 @@ export function EmptyTranscriptState(props: { isCompact: boolean }) {
             selectionBg={openTuiTheme.color.selectionBg}
             selectionFg={openTuiTheme.color.selectionFg}
           >
-            Send a prompt below, or use /permissions, /connect, /models, /diff, /plan show, /undo, and /exit.
+            Send a prompt below, or use /permissions, /connect, /model, /diff, /plan show, /undo, and /exit.
           </text>
         </>
       )}

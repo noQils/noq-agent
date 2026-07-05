@@ -93,7 +93,7 @@ Interactive session startup:
 Interactive session commands:
   /permissions
   /connect
-  /models
+  /model
   /mode plan
   /mode build
   /plan show

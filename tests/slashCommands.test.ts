@@ -15,7 +15,7 @@ test('parseSlashCommand recognizes /permissions', () => {
 
 test('parseSlashCommand keeps the existing command execution matrix intact', () => {
   assert.deepEqual(parseSlashCommand('/connect'), { type: 'connect' });
-  assert.deepEqual(parseSlashCommand('/models'), { type: 'models' });
+  assert.deepEqual(parseSlashCommand('/model'), { type: 'models' });
   assert.deepEqual(parseSlashCommand('/diff'), { type: 'diff' });
   assert.deepEqual(parseSlashCommand('/undo'), { type: 'undo' });
   assert.deepEqual(parseSlashCommand('/plan show'), { type: 'plan_show' });
@@ -49,7 +49,7 @@ test('getSlashCommandCatalogEntries returns the full command set and compact sub
     '/mode',
     '/permissions',
     '/connect',
-    '/models',
+    '/model',
     '/plan',
     '/diff',
     '/undo',
@@ -60,12 +60,12 @@ test('getSlashCommandCatalogEntries returns the full command set and compact sub
     '/mode',
     '/permissions',
     '/connect',
-    '/models',
+    '/model',
     '/exit',
   ]);
   assert.equal(fullEntries.find((entry) => entry.command === '/mode')?.acceptBehavior, 'insert');
   assert.equal(fullEntries.find((entry) => entry.command === '/exit')?.acceptBehavior, 'execute');
-  assert.equal(fullEntries.find((entry) => entry.command === '/models')?.acceptBehavior, 'execute');
+  assert.equal(fullEntries.find((entry) => entry.command === '/model')?.acceptBehavior, 'execute');
   assert.equal(fullEntries.find((entry) => entry.command === '/plan')?.acceptBehavior, 'execute');
 });
 
@@ -111,7 +111,7 @@ test('getSlashCommandSuggestions returns all commands for a bare slash', () => {
     '/mode',
     '/permissions',
     '/connect',
-    '/models',
+    '/model',
     '/plan',
     '/diff',
     '/undo',
@@ -122,7 +122,7 @@ test('getSlashCommandSuggestions returns all commands for a bare slash', () => {
 test('getSlashCommandSuggestions prioritizes prefix matches', () => {
   const suggestions = getSlashCommandSuggestions('/mo');
 
-  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode', '/models']);
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode', '/model']);
 });
 
 test('getSlashCommandSuggestions supports alias prefix matches', () => {
@@ -148,5 +148,5 @@ test('getSlashCommandSuggestions only considers the first line of composer input
   const suggestions = getSlashCommandSuggestions('/mo\nextra text');
 
   assert.equal(suggestions.query, '/mo');
-  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode', '/models']);
+  assert.deepEqual(suggestions.matches.map((entry) => entry.command), ['/mode', '/model']);
 });

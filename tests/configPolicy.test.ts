@@ -255,13 +255,13 @@ test('multiple configured providers are detected from auth store plus workspace/
   });
 });
 
-test('missing provider error points users to /connect and /models', async () => {
+test('missing provider error points users to /connect and /model', async () => {
   await withTempNoqHome(async () => {
     await withTempWorkspace(() => {
       const message = buildMissingProviderError();
 
       assert.match(message, /Run \/connect/);
-      assert.match(message, /Run \/models/);
+      assert.match(message, /Run \/model/);
       assert.match(message, /For Ollama, you can skip \/connect/);
       assert.match(message, /~\/\.noq\/auth\.json/);
       assert.match(message, /~\/\.noq\/config\.json/);
@@ -269,12 +269,12 @@ test('missing provider error points users to /connect and /models', async () => 
   });
 });
 
-test('missing hosted-provider credentials tell users to use /connect and /models', async () => {
+test('missing hosted-provider credentials tell users to use /connect and /model', async () => {
   await withTempNoqHome(async () => {
     await withTempWorkspace(() => {
       assert.throws(
         () => getRequiredProviderApiKey('openai'),
-        /Run \/connect to save them into .*auth\.json, then use \/models/,
+        /Run \/connect to save them into .*auth\.json, then use \/model/,
       );
     });
   });

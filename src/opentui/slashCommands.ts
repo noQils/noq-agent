@@ -63,10 +63,10 @@ export const slashCommandCatalog: SlashCommandCatalogEntry[] = [
       : null,
   },
   {
-    command: '/models',
+    command: '/model',
     description: 'Choose the active default model',
     acceptBehavior: 'execute',
-    parse: (inputLine) => inputLine === '/models'
+    parse: (inputLine) => inputLine === '/model'
       ? { type: 'models' }
       : null,
   },

@@ -166,7 +166,7 @@ export function getRequiredProviderApiKey(providerName: Exclude<ProviderName, 'o
 
     throw new Error(
       `${providerLabel} credentials are not configured. ` +
-      `Run /connect to save them into ${getAuthStorePath()}, then use /models to choose the active default provider and model.`,
+      `Run /connect to save them into ${getAuthStorePath()}, then use /model to choose the active default provider and model.`,
     );
   }
 
@@ -193,8 +193,8 @@ export function buildMissingProviderError(): string {
     '',
     'To get started:',
     '- Run /connect to add at least one hosted provider API key to ~/.noq/auth.json',
-    '- Run /models to choose the active default provider and model in ~/.noq/config.json',
-    '- For Ollama, you can skip /connect and just run /models',
+    '- Run /model to choose the active default provider and model in ~/.noq/config.json',
+    '- For Ollama, you can skip /connect and just run /model',
     '',
     'A provider is usable only when:',
     '- OpenAI/OpenRouter/Gemini/DeepSeek: auth exists in ~/.noq/auth.json and the chosen default provider/model exists in ~/.noq/config.json',
