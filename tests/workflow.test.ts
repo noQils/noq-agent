@@ -433,3 +433,38 @@ test('runAgentTurn rewrites a false denial of recorded prior tool usage', async 
     assert.match(getLastUserMessage(calls[1]!), /Recorded turn facts:/i);
   });
 });
+
+test('runAgentTurn stops after the max flow round cap', async () => {
+  await withTempWorkspace(async () => {
+    const previous = process.env.NOQ_MAX_FLOW_ROUNDS;
+    process.env.NOQ_MAX_FLOW_ROUNDS = '3';
+
+    try {
+      let calls = 0;
+      const provider: Provider = {
+        async chat() {
+          calls++;
+          // A successful mutation that is never read back keeps the workflow
+          // in the "verify your changes" continue loop indefinitely.
+          return {
+            text: `working ${calls}`,
+            executedToolCalls: [
+              { toolName: 'edit_file', args: { filePath: 'x.ts' }, succeeded: true },
+            ],
+          };
+        },
+      };
+
+      const result = await runAgentTurn('do something big', 'build', { provider });
+
+      assert.equal(calls, 3);
+      assert.equal(result.response, 'working 3');
+    } finally {
+      if (previous === undefined) {
+        delete process.env.NOQ_MAX_FLOW_ROUNDS;
+      } else {
+        process.env.NOQ_MAX_FLOW_ROUNDS = previous;
+      }
+    }
+  });
+});

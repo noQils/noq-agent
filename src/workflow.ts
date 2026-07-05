@@ -13,7 +13,7 @@ import {
 import { getSystemPrompt } from './systemPrompt';
 import { buildReferencedPathGroups } from './analysis/pathReferenceHints';
 import { resetPermissionDecisionCache } from './runtime/executeToolCall';
-import { debugLog } from './config/runtimeSettings';
+import { debugLog, getMaxFlowRounds } from './config/runtimeSettings';
 import { getToolsForMode } from './tools';
 import { formatTodoItems, hasTodoItems, hasUnfinishedTodoItems, resetTodoState } from './todoState';
 
@@ -662,6 +662,24 @@ function handleBuildModeCompletion(
     };
 }
 
+function buildFlowRoundCapSummary(workflowState: WorkflowState): string {
+    const unverifiedFiles = Array.from(workflowState.mutatedFilesNeedingVerification);
+    const parts = [
+        'I reached the internal limit on how many times I can continue this turn, so I am stopping here to avoid running indefinitely.',
+    ];
+
+    if (workflowState.sawSuccessfulMutation) {
+        parts.push('Some file changes were applied during this turn.');
+    }
+
+    if (unverifiedFiles.length > 0) {
+        parts.push(`These changed file(s) were not confirmed: ${unverifiedFiles.join(', ')}.`);
+    }
+
+    parts.push('Please re-run the request to continue if the work is not complete.');
+    return parts.join(' ');
+}
+
 // Function to run an agent turn
 export async function runAgentTurn(
     userPrompt: string,
@@ -738,7 +756,28 @@ export async function runAgentTurn(
         toolUsageContradictionRewriteIssued: false,
     }
     
+    const maxFlowRounds = getMaxFlowRounds();
+
     while (true) {
+        // Guard against an unbounded outer loop: the provider's tool loop is
+        // capped, but each reminder we inject re-invokes the provider, so a
+        // model that keeps tripping verify/continue reminders could run
+        // indefinitely. Stop after maxFlowRounds and return the best answer.
+        if (workflowState.flowRoundCount >= maxFlowRounds) {
+            debugLog('Agent turn reached max flow rounds; returning terminal response.', {
+                flowRoundCount: workflowState.flowRoundCount,
+                maxFlowRounds,
+            });
+            const text = response.text?.trim()
+                ? response.text
+                : buildFlowRoundCapSummary(workflowState);
+            return {
+                response: text,
+                executedToolCalls: response.executedToolCalls ?? [],
+                stopReason: response.stopReason,
+            };
+        }
+
         workflowState.flowRoundCount++;
         debugLog(`Flow round ${workflowState.flowRoundCount}`);
 
