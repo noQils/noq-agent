@@ -6,13 +6,16 @@ import { getRuntimeEnvVar } from '../runtimeEnv';
 
 export const defaultProviderTimeoutMs = 180_000;
 export const defaultProviderMaxToolRounds = 40;
+export const defaultProviderMaxRetries = 3;
 export const minProviderTimeoutMs = 1_000;
 export const minProviderMaxToolRounds = 1;
+export const minProviderMaxRetries = 0;
 
 export interface RuntimeSettings {
   debug: boolean;
   providerTimeoutMs: number;
   providerMaxToolRounds: number;
+  providerMaxRetries: number;
 }
 
 let debugLogFilePath: string | null = null;
@@ -59,11 +62,20 @@ export function getProviderMaxToolRounds(): number {
   );
 }
 
+export function getProviderMaxRetries(): number {
+  return parseIntegerSetting(
+    'NOQ_PROVIDER_MAX_RETRIES',
+    defaultProviderMaxRetries,
+    minProviderMaxRetries,
+  );
+}
+
 export function getRuntimeSettings(): RuntimeSettings {
   return {
     debug: isDebugLoggingEnabled(),
     providerTimeoutMs: getProviderTimeoutMs(),
     providerMaxToolRounds: getProviderMaxToolRounds(),
+    providerMaxRetries: getProviderMaxRetries(),
   };
 }
 

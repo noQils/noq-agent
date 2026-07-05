@@ -224,13 +224,13 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const completion = await runProviderRequest('OpenRouter', 'chat.completions.create', () =>
+    const completion = await runProviderRequest('OpenRouter', 'chat.completions.create', (signal) =>
       openrouter.chat.completions.create({
         model,
         messages: completionMessages,
         tools: openRouterTools,
         tool_choice: 'auto',
-      })
+      }, { signal })
     );
 
     const assistantMessage = toAssistantMessage(completion);

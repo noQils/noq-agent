@@ -176,13 +176,13 @@ export async function chat(
     maxToolRounds,
   });
 
-  let response = await runProviderRequest('OpenAI', 'responses.create', () =>
+  let response = await runProviderRequest('OpenAI', 'responses.create', (signal) =>
     openai.responses.create({
       model: model,
       instructions: instructions ?? null,
       input: input,
       tools: functionDeclarations,
-    })
+    }, { signal })
   );
   
   let toolRoundCount = 0;
@@ -285,13 +285,13 @@ export async function chat(
       };
     }
 
-    response = await runProviderRequest('OpenAI', 'responses.create', () =>
+    response = await runProviderRequest('OpenAI', 'responses.create', (signal) =>
       openai.responses.create({
         model,
         previous_response_id: response.id,
         input: toolOutputs,
         tools: functionDeclarations,
-      })
+      }, { signal })
     );
 
     toolRoundCount++;

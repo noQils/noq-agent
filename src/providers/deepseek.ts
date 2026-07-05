@@ -200,13 +200,13 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const completion = await runProviderRequest('DeepSeek', 'chat.completions.create', () =>
+    const completion = await runProviderRequest('DeepSeek', 'chat.completions.create', (signal) =>
       deepseek.chat.completions.create({
         model,
         messages: completionMessages,
         tools: deepSeekTools,
         tool_choice: 'auto',
-      })
+      }, { signal })
     );
 
     const assistantMessage = toAssistantMessage(completion);

@@ -268,12 +268,13 @@ export async function chat(
   let previousRoundCalls: ToolCallFingerprint[] = [];
 
   while (true) {
-    const response = await runProviderRequest('Gemini', 'models.generateContent', () =>
+    const response = await runProviderRequest('Gemini', 'models.generateContent', (signal) =>
       gemini.models.generateContent({
         model: model,
         contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Hello!' }] }],
         config: {
           ...(systemInstruction ? { systemInstruction } : {}),
+          abortSignal: signal,
           tools: [{functionDeclarations}],
           toolConfig: {
             functionCallingConfig: {

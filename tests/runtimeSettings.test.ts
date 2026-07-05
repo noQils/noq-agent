@@ -6,9 +6,11 @@ import test from 'node:test';
 
 import {
   debugLog,
+  defaultProviderMaxRetries,
   defaultProviderMaxToolRounds,
   defaultProviderTimeoutMs,
   getDebugLogFilePath,
+  getProviderMaxRetries,
   getProviderMaxToolRounds,
   getProviderTimeoutMs,
   getRuntimeSettings,
@@ -21,6 +23,7 @@ const settingNames = [
   'NOQ_DEBUG',
   'NOQ_PROVIDER_TIMEOUT_MS',
   'NOQ_PROVIDER_MAX_TOOL_ROUNDS',
+  'NOQ_PROVIDER_MAX_RETRIES',
 ];
 
 function withRuntimeEnv(values: Record<string, string>, callback: () => void): void {
@@ -72,6 +75,7 @@ test('runtime settings use quiet defaults', () => {
       debug: false,
       providerTimeoutMs: defaultProviderTimeoutMs,
       providerMaxToolRounds: defaultProviderMaxToolRounds,
+      providerMaxRetries: defaultProviderMaxRetries,
     });
   });
 });
@@ -88,9 +92,11 @@ test('provider numeric settings parse valid integer values', () => {
   withRuntimeEnv({
     NOQ_PROVIDER_TIMEOUT_MS: '2500',
     NOQ_PROVIDER_MAX_TOOL_ROUNDS: '3',
+    NOQ_PROVIDER_MAX_RETRIES: '5',
   }, () => {
     assert.equal(getProviderTimeoutMs(), 2500);
     assert.equal(getProviderMaxToolRounds(), 3);
+    assert.equal(getProviderMaxRetries(), 5);
   });
 });
 
