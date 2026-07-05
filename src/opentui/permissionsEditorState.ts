@@ -14,6 +14,7 @@ const permissionScopes: PermissionScope[] = [
   'grep',
   'bash',
   'external_directory',
+  'web_fetch',
 ];
 
 const permissionCycle: PermissionOutcome[] = ['ask', 'allow', 'deny'];
@@ -34,6 +35,8 @@ function getPermissionScopeDescription(scope: PermissionScope): string {
       return 'Run shell commands';
     case 'external_directory':
       return 'Access paths outside the workspace';
+    case 'web_fetch':
+      return 'Fetch content from URLs';
     case 'todo':
       return 'Manage the internal todo list';
   }

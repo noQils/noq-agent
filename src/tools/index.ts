@@ -10,6 +10,7 @@ import { todoWriteTool } from './todoWrite';
 import { applyPatchTool } from './applyPatch';
 import { getDiagnosticsTool } from './getDiagnostics';
 import { goToDefinitionTool } from './goToDefinition';
+import { webFetchTool } from './webFetch';
 import { PermissionScope } from '../permissions/types';
 import { type AgentMode } from '../agentMode';
 
@@ -22,6 +23,7 @@ export const allTools: InternalTool[] = [
   grepTool,
   getDiagnosticsTool,
   goToDefinitionTool,
+  webFetchTool,
   applyPatchTool,
   editFileTool,
   writeFileTool,
@@ -43,6 +45,7 @@ const planModeToolNames = new Set([
   grepTool.name,
   getDiagnosticsTool.name,
   goToDefinitionTool.name,
+  webFetchTool.name,
   listDirTool.name,
 ]);
 
