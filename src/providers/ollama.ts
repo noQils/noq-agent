@@ -16,6 +16,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
+import { capToolOutput } from './shared/toolOutput';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getProviderModelSetting } from '../config/providerSettings';
@@ -175,8 +176,8 @@ export async function chat(
       ollamaMessages.push({
         role: 'tool',
         content: executionResult.executedToolCall.succeeded
-          ? executionResult.output
-          : `Error: ${executionResult.output}`,
+          ? capToolOutput(executionResult.output)
+          : `Error: ${capToolOutput(executionResult.output)}`,
         tool_name: call.function.name,
       });
 

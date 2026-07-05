@@ -23,6 +23,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
+import { capToolOutput } from './shared/toolOutput';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getProviderModelSetting, getRequiredProviderApiKey } from '../config/providerSettings';
@@ -247,7 +248,7 @@ export async function chat(
       toolOutputs.push({
         type: 'function_call_output',
         call_id: item.call_id,
-        output: executionResult.output,
+        output: capToolOutput(executionResult.output),
       });
 
       executedToolCalls.push(executionResult.executedToolCall);

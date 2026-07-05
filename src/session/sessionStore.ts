@@ -20,6 +20,12 @@ const sessionFileName = 'session.json';
 const sessionDebugLogFileName = 'debug.log';
 const maxVerbatimTurns = 6;
 const maxCompactedTurns = 12;
+// Bound how much a single long session can grow on disk. Snapshots keep the
+// git diff plus the before-content needed for undo; the after-content is
+// redundant once the diff exists, and very large files are not worth storing
+// for undo. Older snapshots beyond the cap are pruned.
+const maxSnapshots = 50;
+const maxSnapshotContentChars = 256 * 1024;
 const permissionScopes: PermissionScope[] = [
   'todo',
   'read',
@@ -734,16 +740,24 @@ function loadSessionFile(sessionId: string): AgentSession | null {
   return parseSessionFile(sessionId, sessionFilePath);
 }
 
-function restoreBeforeState(change: SessionFileChange, workspaceRoot: string): void {
+function restoreBeforeState(change: SessionFileChange, workspaceRoot: string): boolean {
   const resolvedPath = path.resolve(workspaceRoot, change.filePath);
 
   if (!change.existedBefore) {
     fs.rmSync(resolvedPath, { force: true });
-    return;
+    return true;
+  }
+
+  // The file existed before but its content was too large to retain in the
+  // snapshot. Writing an empty string would destroy the file, so skip it and
+  // let the caller report that this file could not be restored.
+  if (typeof change.beforeContent !== 'string') {
+    return false;
   }
 
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-  fs.writeFileSync(resolvedPath, change.beforeContent ?? '', 'utf-8');
+  fs.writeFileSync(resolvedPath, change.beforeContent, 'utf-8');
+  return true;
 }
 
 export function loadOrCreateSession(sessionId: string): AgentSession {
@@ -954,6 +968,29 @@ export function saveSessionTuiMode(
   return session;
 }
 
+// Trim what a snapshot stores so a long session cannot grow without bound:
+// after-content is only needed to build the diff (already computed), and
+// before-content is retained for undo only when small enough to be worth it.
+function buildSnapshotFileChanges(fileChanges: SessionFileChange[]): SessionFileChange[] {
+  return fileChanges.map((change) => {
+    const snapshotChange: SessionFileChange = {
+      filePath: change.filePath,
+      existedBefore: change.existedBefore,
+      existedAfter: change.existedAfter,
+    };
+
+    if (
+      change.existedBefore
+      && typeof change.beforeContent === 'string'
+      && change.beforeContent.length <= maxSnapshotContentChars
+    ) {
+      snapshotChange.beforeContent = change.beforeContent;
+    }
+
+    return snapshotChange;
+  });
+}
+
 export function appendSessionTurn(
   sessionId: string,
   turn: SessionTurn,
@@ -963,15 +1000,22 @@ export function appendSessionTurn(
   session.turns.push(turn);
 
   if (fileChanges.length > 0) {
+    // Compute the diff from the full before/after content first, then persist
+    // only the trimmed change set.
+    const diff = buildSessionFileDiff(fileChanges);
     session.snapshots.push({
       id: createSnapshotId(),
       createdAt: turn.timestamp,
       mode: turn.mode,
       userPrompt: turn.userPrompt,
       response: turn.response,
-      fileChanges,
-      diff: buildSessionFileDiff(fileChanges),
+      fileChanges: buildSnapshotFileChanges(fileChanges),
+      diff,
     });
+
+    if (session.snapshots.length > maxSnapshots) {
+      session.snapshots = session.snapshots.slice(-maxSnapshots);
+    }
   }
 
   session.updatedAt = createTimestamp();
@@ -1056,15 +1100,28 @@ export function undoLastSessionSnapshot(sessionId: string): string {
     throw new Error(`Session "${sessionId}" has no recorded agent snapshot to undo.`);
   }
 
+  const unrestorableFiles: string[] = [];
   for (const change of latestSnapshot.fileChanges) {
-    restoreBeforeState(change, session.workspaceRoot);
+    if (!restoreBeforeState(change, session.workspaceRoot)) {
+      unrestorableFiles.push(change.filePath);
+    }
   }
 
-  const response = [
+  const responseLines = [
     `Reverted snapshot ${latestSnapshot.id} in session "${sessionId}".`,
     '',
     ...latestSnapshot.fileChanges.map((change) => `- ${change.filePath}`),
-  ].join('\n');
+  ];
+
+  if (unrestorableFiles.length > 0) {
+    responseLines.push(
+      '',
+      'Could not restore the following file(s) because their original content was too large to keep:',
+      ...unrestorableFiles.map((filePath) => `- ${filePath}`),
+    );
+  }
+
+  const response = responseLines.join('\n');
 
   session.turns.push({
     timestamp: createTimestamp(),

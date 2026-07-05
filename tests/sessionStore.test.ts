@@ -432,6 +432,83 @@ test('undo restores files recorded outside the base workspace', async () => {
   });
 });
 
+test('snapshots drop after-content but keep before-content for undo', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      const filePath = 'file.txt';
+      const absolutePath = workspace.path(filePath);
+      fs.writeFileSync(absolutePath, 'after\n', 'utf-8');
+
+      appendSessionTurn(
+        'trim-session',
+        {
+          timestamp: '2026-01-01T00:00:00.000Z',
+          mode: 'build',
+          userPrompt: 'edit file',
+          response: 'edited file',
+          stopReason: undefined,
+          executedToolCalls: undefined,
+        },
+        [{
+          filePath,
+          existedBefore: true,
+          beforeContent: 'before\n',
+          existedAfter: true,
+          afterContent: 'after\n',
+        }],
+      );
+
+      const snapshot = loadExistingSession('trim-session').snapshots.at(-1)!;
+      const change = snapshot.fileChanges[0]!;
+
+      assert.equal(change.afterContent, undefined);
+      assert.equal(change.beforeContent, 'before\n');
+      assert.ok(snapshot.diff.length > 0);
+
+      undoLastSessionSnapshot('trim-session');
+      assert.equal(fs.readFileSync(absolutePath, 'utf-8'), 'before\n');
+    });
+  });
+});
+
+test('snapshots skip oversized before-content and undo reports it', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace((workspace) => {
+      const filePath = 'big.txt';
+      const absolutePath = workspace.path(filePath);
+      const oversizedBefore = 'x'.repeat(256 * 1024 + 16);
+      fs.writeFileSync(absolutePath, 'changed\n', 'utf-8');
+
+      appendSessionTurn(
+        'oversized-session',
+        {
+          timestamp: '2026-01-01T00:00:00.000Z',
+          mode: 'build',
+          userPrompt: 'edit big file',
+          response: 'edited big file',
+          stopReason: undefined,
+          executedToolCalls: undefined,
+        },
+        [{
+          filePath,
+          existedBefore: true,
+          beforeContent: oversizedBefore,
+          existedAfter: true,
+          afterContent: 'changed\n',
+        }],
+      );
+
+      const change = loadExistingSession('oversized-session').snapshots.at(-1)!.fileChanges[0]!;
+      assert.equal(change.beforeContent, undefined);
+
+      const undoResponse = undoLastSessionSnapshot('oversized-session');
+      assert.match(undoResponse, /Could not restore/);
+      // The file must be left as-is rather than emptied.
+      assert.equal(fs.readFileSync(absolutePath, 'utf-8'), 'changed\n');
+    });
+  });
+});
+
 test('saveSession writes atomically and leaves no temp file behind', async () => {
   await withTempNoqHome(async () => {
     await withTempWorkspace(() => {

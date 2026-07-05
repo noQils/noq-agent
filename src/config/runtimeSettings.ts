@@ -8,10 +8,12 @@ export const defaultProviderTimeoutMs = 180_000;
 export const defaultProviderMaxToolRounds = 40;
 export const defaultProviderMaxRetries = 3;
 export const defaultMaxFlowRounds = 30;
+export const defaultMaxToolOutputChars = 16_384;
 export const minProviderTimeoutMs = 1_000;
 export const minProviderMaxToolRounds = 1;
 export const minProviderMaxRetries = 0;
 export const minMaxFlowRounds = 1;
+export const minMaxToolOutputChars = 256;
 
 export interface RuntimeSettings {
   debug: boolean;
@@ -19,6 +21,7 @@ export interface RuntimeSettings {
   providerMaxToolRounds: number;
   providerMaxRetries: number;
   maxFlowRounds: number;
+  maxToolOutputChars: number;
 }
 
 let debugLogFilePath: string | null = null;
@@ -81,6 +84,14 @@ export function getMaxFlowRounds(): number {
   );
 }
 
+export function getMaxToolOutputChars(): number {
+  return parseIntegerSetting(
+    'NOQ_MAX_TOOL_OUTPUT_CHARS',
+    defaultMaxToolOutputChars,
+    minMaxToolOutputChars,
+  );
+}
+
 export function getRuntimeSettings(): RuntimeSettings {
   return {
     debug: isDebugLoggingEnabled(),
@@ -88,6 +99,7 @@ export function getRuntimeSettings(): RuntimeSettings {
     providerMaxToolRounds: getProviderMaxToolRounds(),
     providerMaxRetries: getProviderMaxRetries(),
     maxFlowRounds: getMaxFlowRounds(),
+    maxToolOutputChars: getMaxToolOutputChars(),
   };
 }
 

@@ -27,6 +27,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { parseAndNormalizeToolArgsJson } from './shared/toolArgs';
+import { capToolOutput } from './shared/toolOutput';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getProviderModelSetting, getProviderSettings, getRequiredProviderApiKey } from '../config/providerSettings';
@@ -317,7 +318,7 @@ export async function chat(
       completionMessages.push({
         role: 'tool',
         tool_call_id: toolCall.id,
-        content: executionResult.output,
+        content: capToolOutput(executionResult.output),
       } satisfies ChatCompletionToolMessageParam);
       executedToolCalls.push(executionResult.executedToolCall);
       debugLog('OpenRouter tool call result:', {

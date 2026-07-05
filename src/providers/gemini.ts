@@ -24,6 +24,7 @@ import {
 } from './shared/toolFingerprint';
 import { buildInvalidToolArgsFailure } from './shared/toolFailures';
 import { normalizeToolArgs } from './shared/toolArgs';
+import { capToolOutput } from './shared/toolOutput';
 import { runProviderRequest } from './shared/providerRuntime';
 import { executeToolCall } from '../runtime/executeToolCall';
 import { getProviderModelSetting, getRequiredProviderApiKey } from '../config/providerSettings';
@@ -208,19 +209,20 @@ async function executeFunctionCalls(
         ...(options?.onMutation ? { onMutation: options.onMutation } : {}),
       },
     );
+    const cappedOutput = capToolOutput(executionResult.output);
     const response: FunctionResponse = executionResult.executedToolCall.succeeded
       ? {
           id: functionCall.id ?? '',
           name: toolName,
           response: {
-            output: executionResult.output,
+            output: cappedOutput,
           },
         }
       : {
           id: functionCall.id ?? '',
           name: toolName,
           response: {
-            error: executionResult.output,
+            error: cappedOutput,
           },
         };
 

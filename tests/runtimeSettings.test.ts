@@ -7,11 +7,13 @@ import test from 'node:test';
 import {
   debugLog,
   defaultMaxFlowRounds,
+  defaultMaxToolOutputChars,
   defaultProviderMaxRetries,
   defaultProviderMaxToolRounds,
   defaultProviderTimeoutMs,
   getDebugLogFilePath,
   getMaxFlowRounds,
+  getMaxToolOutputChars,
   getProviderMaxRetries,
   getProviderMaxToolRounds,
   getProviderTimeoutMs,
@@ -27,6 +29,7 @@ const settingNames = [
   'NOQ_PROVIDER_MAX_TOOL_ROUNDS',
   'NOQ_PROVIDER_MAX_RETRIES',
   'NOQ_MAX_FLOW_ROUNDS',
+  'NOQ_MAX_TOOL_OUTPUT_CHARS',
 ];
 
 function withRuntimeEnv(values: Record<string, string>, callback: () => void): void {
@@ -80,6 +83,7 @@ test('runtime settings use quiet defaults', () => {
       providerMaxToolRounds: defaultProviderMaxToolRounds,
       providerMaxRetries: defaultProviderMaxRetries,
       maxFlowRounds: defaultMaxFlowRounds,
+      maxToolOutputChars: defaultMaxToolOutputChars,
     });
   });
 });
@@ -98,11 +102,13 @@ test('provider numeric settings parse valid integer values', () => {
     NOQ_PROVIDER_MAX_TOOL_ROUNDS: '3',
     NOQ_PROVIDER_MAX_RETRIES: '5',
     NOQ_MAX_FLOW_ROUNDS: '12',
+    NOQ_MAX_TOOL_OUTPUT_CHARS: '4096',
   }, () => {
     assert.equal(getProviderTimeoutMs(), 2500);
     assert.equal(getProviderMaxToolRounds(), 3);
     assert.equal(getProviderMaxRetries(), 5);
     assert.equal(getMaxFlowRounds(), 12);
+    assert.equal(getMaxToolOutputChars(), 4096);
   });
 });
 
