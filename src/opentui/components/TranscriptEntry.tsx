@@ -2,8 +2,9 @@
 
 import path from 'node:path';
 
-import { DiffRenderable, MacOSScrollAccel } from '@opentui/core';
+import { CodeRenderable, DiffRenderable, MacOSScrollAccel, type RenderNodeContext } from '@opentui/core';
 import { Dynamic, extend } from '@opentui/solid';
+import type { Token } from 'marked';
 
 import {
   getOpenTuiDiffSyntaxStyle,
@@ -218,6 +219,18 @@ function getRenderableUnifiedDiff(text: string): RenderableUnifiedDiff | null {
   }
 }
 
+function renderMarkdownNode(token: Token, context: RenderNodeContext) {
+  if (token.type !== 'code') {
+    return undefined;
+  }
+
+  const rendered = context.defaultRender();
+  if (rendered instanceof CodeRenderable) {
+    rendered.bg = openTuiTheme.color.codeBlockBg;
+  }
+  return rendered;
+}
+
 function AssistantTranscriptContent(props: {
   text: string;
   backgroundColor: string;
@@ -231,6 +244,7 @@ function AssistantTranscriptContent(props: {
       conceal
       concealCode
       internalBlockMode="top-level"
+      renderNode={renderMarkdownNode}
       tableOptions={{
         style: 'grid',
         borders: true,
