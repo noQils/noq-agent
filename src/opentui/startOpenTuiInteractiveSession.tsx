@@ -55,7 +55,6 @@ import {
 import { parseSlashCommand, type SlashCommand } from './slashCommands';
 import {
   type OpenTuiDiffModalState,
-  type OpenTuiModelGroup,
   type OpenTuiCurrentModelSelection,
   type OpenTuiModelsSetupRow,
   type OpenTuiModelsSetupState,
@@ -102,53 +101,20 @@ function filterProviderChoices(providers: ProviderName[], query: string): Provid
   return providers.filter((providerName) => providerSearchMatches(providerName, query));
 }
 
-function getVisibleModelRows(groups: OpenTuiModelGroup[], query: string): OpenTuiModelsSetupRow[] {
+function getVisibleModelRows(models: string[], query: string): OpenTuiModelsSetupRow[] {
   const normalizedQuery = normalizeSearchText(query);
-  const rows: OpenTuiModelsSetupRow[] = [];
+  const matchedModels = normalizedQuery.length === 0
+    ? models
+    : models.filter((model) => normalizeSearchText(model).includes(normalizedQuery));
 
-  for (const group of groups) {
-    const providerMatches = providerSearchMatches(group.provider, query);
-    const matchedModels = normalizedQuery.length === 0 || providerMatches
-      ? group.models
-      : group.models.filter((model) => normalizeSearchText(model).includes(normalizedQuery));
-    const includeCustom = normalizedQuery.length === 0 || providerMatches || normalizeSearchText('custom').includes(normalizedQuery);
-
-    if (matchedModels.length === 0 && !includeCustom) {
-      continue;
-    }
-
-    rows.push({
-      key: `heading:${group.provider}`,
-      type: 'provider_heading',
-      provider: group.provider,
-      source: group.source,
-    });
-
-    for (const model of matchedModels) {
-      rows.push({
-        key: `model:${group.provider}:${model}`,
-        type: 'model',
-        provider: group.provider,
-        model,
-        source: group.source,
-      });
-    }
-
-    if (includeCustom) {
-      rows.push({
-        key: `custom:${group.provider}`,
-        type: 'custom',
-        provider: group.provider,
-        source: group.source,
-      });
-    }
-  }
-
-  return rows;
-}
-
-function getSelectableModelRows(rows: OpenTuiModelsSetupRow[]): Array<Extract<OpenTuiModelsSetupRow, { type: 'model' | 'custom' }>> {
-  return rows.filter((row): row is Extract<OpenTuiModelsSetupRow, { type: 'model' | 'custom' }> => row.type !== 'provider_heading');
+  return [
+    ...matchedModels.map((model): OpenTuiModelsSetupRow => ({
+      key: `model:${model}`,
+      type: 'model',
+      model,
+    })),
+    { key: 'custom', type: 'custom' },
+  ];
 }
 
 function appendEntry(
@@ -270,6 +236,7 @@ function SessionRoot(props: {
   modelsSetupState: () => OpenTuiModelsSetupState;
   providerChoices: ProviderName[];
   connectedProviders: ProviderName[];
+  modelProviderChoices: ProviderName[];
   modelRows: OpenTuiModelsSetupRow[];
   selectedModelRowKey: string | null;
   permissionItems: () => OpenTuiPermissionItem[];
@@ -288,6 +255,10 @@ function SessionRoot(props: {
   onProviderApiKeyInput: (value: string) => void;
   onSubmitProviderSelection: () => void;
   onSubmitProviderCredential: () => void;
+  onMoveModelProviderSelection: (direction: -1 | 1) => void;
+  onSelectModelProviderRow: (provider: ProviderName) => void;
+  onModelProviderQueryInput: (value: string) => void;
+  onSubmitModelProviderSelection: () => void;
   onMoveModelSelection: (direction: -1 | 1) => void;
   onSelectModelRow: (rowKey: string) => void;
   onModelsQueryInput: (value: string) => void;
@@ -314,6 +285,7 @@ function SessionRoot(props: {
       modelsSetupState={props.modelsSetupState}
       providerChoices={props.providerChoices}
       connectedProviders={props.connectedProviders}
+      modelProviderChoices={props.modelProviderChoices}
       modelRows={props.modelRows}
       selectedModelRowKey={props.selectedModelRowKey}
       permissionItems={props.permissionItems}
@@ -332,6 +304,10 @@ function SessionRoot(props: {
       onProviderApiKeyInput={props.onProviderApiKeyInput}
       onSubmitProviderSelection={props.onSubmitProviderSelection}
       onSubmitProviderCredential={props.onSubmitProviderCredential}
+      onMoveModelProviderSelection={props.onMoveModelProviderSelection}
+      onSelectModelProviderRow={props.onSelectModelProviderRow}
+      onModelProviderQueryInput={props.onModelProviderQueryInput}
+      onSubmitModelProviderSelection={props.onSubmitModelProviderSelection}
       onMoveModelSelection={props.onMoveModelSelection}
       onSelectModelRow={props.onSelectModelRow}
       onModelsQueryInput={props.onModelsQueryInput}
@@ -389,13 +365,16 @@ export async function startOpenTuiInteractiveSession(
     apiKeyInput: '',
   });
   const [modelsSetupState, setModelsSetupState] = createSignal<OpenTuiModelsSetupState>({
+    step: 'provider',
+    providerQuery: '',
+    providerSelectedIndex: 0,
+    activeProvider: null,
     query: '',
     selectedIndex: 0,
-    step: 'list',
-    activeProvider: null,
     customModelInput: '',
     isLoading: false,
-    groups: [],
+    models: [],
+    modelsSource: null,
   });
   const [permissionItems, setPermissionItems] = createSignal<OpenTuiPermissionItem[]>([]);
   const [activeSessionId, setActiveSessionId] = createSignal<string | null>(sessionId ?? null);
@@ -480,13 +459,16 @@ export async function startOpenTuiInteractiveSession(
       apiKeyInput: '',
     });
     setModelsSetupState({
+      step: 'provider',
+      providerQuery: '',
+      providerSelectedIndex: 0,
+      activeProvider: null,
       query: '',
       selectedIndex: 0,
-      step: 'list',
-      activeProvider: null,
       customModelInput: '',
       isLoading: false,
-      groups: [],
+      models: [],
+      modelsSource: null,
     });
   };
 
@@ -522,24 +504,37 @@ export async function startOpenTuiInteractiveSession(
   });
 
   createEffect(() => {
+    if (activeSetupModal() !== 'models' || modelsSetupState().step !== 'provider') {
+      return;
+    }
+
+    const filteredProviders = filterProviderChoices(getModelProviderChoices(), modelsSetupState().providerQuery);
+    const nextSelectedIndex = filteredProviders.length === 0
+      ? 0
+      : Math.min(modelsSetupState().providerSelectedIndex, filteredProviders.length - 1);
+
+    if (nextSelectedIndex !== modelsSetupState().providerSelectedIndex) {
+      setModelsSetupState((currentState) => ({
+        ...currentState,
+        providerSelectedIndex: nextSelectedIndex,
+      }));
+    }
+  });
+
+  createEffect(() => {
     if (activeSetupModal() !== 'models' || modelsSetupState().step !== 'list') {
       return;
     }
 
-    const selectableRows = getSelectableModelRows(visibleModelRows());
-    const nextSelectedIndex = selectableRows.length === 0
+    const rows = visibleModelRows();
+    const nextSelectedIndex = rows.length === 0
       ? 0
-      : Math.min(modelsSetupState().selectedIndex, selectableRows.length - 1);
-    const nextActiveProvider = selectableRows[nextSelectedIndex]?.provider ?? null;
+      : Math.min(modelsSetupState().selectedIndex, rows.length - 1);
 
-    if (
-      nextSelectedIndex !== modelsSetupState().selectedIndex
-      || nextActiveProvider !== modelsSetupState().activeProvider
-    ) {
+    if (nextSelectedIndex !== modelsSetupState().selectedIndex) {
       setModelsSetupState((currentState) => ({
         ...currentState,
         selectedIndex: nextSelectedIndex,
-        activeProvider: nextActiveProvider,
       }));
     }
   });
@@ -577,22 +572,32 @@ export async function startOpenTuiInteractiveSession(
     }
 
     if (activeSetupModal() === 'models' && modelsSetupState().step === 'custom') {
-      const selectableRows = getSelectableModelRows(visibleModelRows());
-      const customRowKey = modelsSetupState().activeProvider
-        ? `custom:${modelsSetupState().activeProvider}`
-        : null;
-      const selectedIndex = customRowKey
-        ? selectableRows.findIndex((row) => row.key === customRowKey)
-        : -1;
+      const rows = visibleModelRows();
+      const selectedIndex = rows.findIndex((row) => row.type === 'custom');
       setModelsSetupState((currentState) => ({
         ...currentState,
         step: 'list',
         selectedIndex: selectedIndex >= 0 ? selectedIndex : 0,
-        activeProvider: selectedIndex >= 0
-          ? selectableRows[selectedIndex]?.provider ?? currentState.activeProvider
-          : selectableRows[0]?.provider ?? currentState.activeProvider,
       }));
       setStatusMessage('Choose model');
+      renderer.requestRender();
+      return;
+    }
+
+    if (activeSetupModal() === 'models' && modelsSetupState().step === 'list') {
+      const filteredProviders = filterProviderChoices(getModelProviderChoices(), modelsSetupState().providerQuery);
+      const providerIndex = filteredProviders.findIndex((providerName) => providerName === modelsSetupState().activeProvider);
+      setModelsSetupState((currentState) => ({
+        ...currentState,
+        step: 'provider',
+        providerSelectedIndex: providerIndex >= 0 ? providerIndex : 0,
+        query: '',
+        selectedIndex: 0,
+        models: [],
+        modelsSource: null,
+        isLoading: false,
+      }));
+      setStatusMessage('Choose provider');
       renderer.requestRender();
       return;
     }
@@ -712,69 +717,66 @@ export async function startOpenTuiInteractiveSession(
   };
 
   const visibleModelRows = (): OpenTuiModelsSetupRow[] => getVisibleModelRows(
-    modelsSetupState().groups,
+    modelsSetupState().models,
     modelsSetupState().query,
   );
 
   const selectedModelRowKey = (): string | null => {
-    const selectableRows = getSelectableModelRows(visibleModelRows());
-    return selectableRows[modelsSetupState().selectedIndex]?.key ?? null;
+    const rows = visibleModelRows();
+    return rows[modelsSetupState().selectedIndex]?.key ?? null;
   };
 
   const setModelsSelectionFromQuery = (query: string): void => {
-    const nextRows = getSelectableModelRows(getVisibleModelRows(modelsSetupState().groups, query));
     setModelsSetupState((currentState) => ({
       ...currentState,
       query,
       selectedIndex: 0,
-      activeProvider: nextRows[0]?.provider ?? null,
     }));
     renderer.requestRender();
   };
 
   const selectModelRowBySelectableIndex = (nextIndex: number): void => {
-    const selectableRows = getSelectableModelRows(visibleModelRows());
-    if (selectableRows.length === 0) {
+    const rows = visibleModelRows();
+    if (rows.length === 0) {
       setModelsSetupState((currentState) => ({
         ...currentState,
         selectedIndex: 0,
-        activeProvider: null,
       }));
       renderer.requestRender();
       return;
     }
 
-    const normalizedIndex = Math.min(Math.max(nextIndex, 0), selectableRows.length - 1);
+    const normalizedIndex = Math.min(Math.max(nextIndex, 0), rows.length - 1);
     setModelsSetupState((currentState) => ({
       ...currentState,
       selectedIndex: normalizedIndex,
-      activeProvider: selectableRows[normalizedIndex]?.provider ?? null,
     }));
     renderer.requestRender();
   };
 
   const moveSelectedModel = (direction: -1 | 1): void => {
-    const selectableRows = getSelectableModelRows(visibleModelRows());
-    if (selectableRows.length === 0) {
+    const rows = visibleModelRows();
+    if (rows.length === 0) {
       return;
     }
 
-    const nextIndex = (modelsSetupState().selectedIndex + direction + selectableRows.length) % selectableRows.length;
+    const nextIndex = (modelsSetupState().selectedIndex + direction + rows.length) % rows.length;
     selectModelRowBySelectableIndex(nextIndex);
   };
 
   const selectModelRowByKey = (rowKey: string): void => {
-    const selectableRows = getSelectableModelRows(visibleModelRows());
-    const selectedIndex = selectableRows.findIndex((row) => row.key === rowKey);
+    const rows = visibleModelRows();
+    const selectedIndex = rows.findIndex((row) => row.key === rowKey);
     if (selectedIndex >= 0) {
       selectModelRowBySelectableIndex(selectedIndex);
     }
   };
 
   const submitSelectedModelRow = (): void => {
-    const selectableRows = getSelectableModelRows(visibleModelRows());
-    const selectedRow = selectableRows[modelsSetupState().selectedIndex] ?? selectableRows[0] ?? null;
-    if (!selectedRow) {
+    const rows = visibleModelRows();
+    const selectedRow = rows[modelsSetupState().selectedIndex] ?? rows[0] ?? null;
+    const activeProvider = modelsSetupState().activeProvider;
+    if (!selectedRow || !activeProvider) {
       setStatusMessage('No matching models');
       renderer.requestRender();
       return;
@@ -784,10 +786,9 @@ export async function startOpenTuiInteractiveSession(
       setModelsSetupState((currentState) => ({
         ...currentState,
         step: 'custom',
-        activeProvider: selectedRow.provider,
         customModelInput: '',
       }));
-      setStatusMessage(`Custom model for ${selectedRow.provider}`);
+      setStatusMessage(`Custom model for ${activeProvider}`);
       renderer.requestRender();
       return;
     }
@@ -795,13 +796,13 @@ export async function startOpenTuiInteractiveSession(
     const currentConfig = loadGlobalConfig();
     const previousProvider = currentConfig.defaultProvider;
     const previousModel = currentConfig.defaultModel;
-    saveGlobalModelSelection(selectedRow.provider, selectedRow.model);
+    saveGlobalModelSelection(activeProvider, selectedRow.model);
     refreshCurrentModelSelection();
     setPendingModelChange((currentChange) => updatePendingModelChange(
       currentChange,
       previousProvider,
       previousModel,
-      selectedRow.provider,
+      activeProvider,
       selectedRow.model,
     ));
     closeSetupModalWithStatus();
@@ -835,50 +836,108 @@ export async function startOpenTuiInteractiveSession(
     closeSetupModalWithStatus();
   };
 
-  const loadModelsForSelection = async (): Promise<void> => {
-    const requestId = ++modelLoadRequestId;
-    const providers = getModelProviderChoices();
-
-    setModelsSetupState({
-      query: '',
-      selectedIndex: 0,
-      step: 'list',
-      activeProvider: providers[0] ?? null,
-      customModelInput: '',
-      isLoading: true,
-      groups: [],
-    });
-    setStatusMessage('Loading models...');
+  const setModelProviderSelectionFromQuery = (query: string): void => {
+    setModelsSetupState((currentState) => ({
+      ...currentState,
+      providerQuery: query,
+      providerSelectedIndex: 0,
+    }));
     renderer.requestRender();
+  };
 
-    const groups: OpenTuiModelGroup[] = await Promise.all(
-      providers.map(async (provider) => {
-        const result = await getModelChoices(provider);
-        return {
-          provider,
-          models: result.models,
-          source: result.source,
-        };
-      }),
-    );
-
-    if (requestId !== modelLoadRequestId || activeSetupModal() !== 'models') {
+  const selectModelProviderByIndex = (nextIndex: number): void => {
+    const filteredProviders = filterProviderChoices(getModelProviderChoices(), modelsSetupState().providerQuery);
+    if (filteredProviders.length === 0) {
+      setModelsSetupState((currentState) => ({
+        ...currentState,
+        providerSelectedIndex: 0,
+      }));
+      renderer.requestRender();
       return;
     }
 
-    const selectableRows = getSelectableModelRows(getVisibleModelRows(groups, ''));
+    const normalizedIndex = Math.min(Math.max(nextIndex, 0), filteredProviders.length - 1);
     setModelsSetupState((currentState) => ({
       ...currentState,
-      query: '',
-      selectedIndex: 0,
-      step: 'list',
-      activeProvider: selectableRows[0]?.provider ?? null,
-      customModelInput: '',
+      providerSelectedIndex: normalizedIndex,
+    }));
+    renderer.requestRender();
+  };
+
+  const moveSelectedModelProvider = (direction: -1 | 1): void => {
+    const filteredProviders = filterProviderChoices(getModelProviderChoices(), modelsSetupState().providerQuery);
+    if (filteredProviders.length === 0) {
+      return;
+    }
+
+    const nextIndex = (modelsSetupState().providerSelectedIndex + direction + filteredProviders.length) % filteredProviders.length;
+    selectModelProviderByIndex(nextIndex);
+  };
+
+  const selectModelProvider = (provider: ProviderName): void => {
+    const filteredProviders = filterProviderChoices(getModelProviderChoices(), modelsSetupState().providerQuery);
+    const selectedIndex = filteredProviders.indexOf(provider);
+    if (selectedIndex >= 0) {
+      selectModelProviderByIndex(selectedIndex);
+    }
+  };
+
+  const loadModelsForProvider = async (provider: ProviderName): Promise<void> => {
+    const requestId = ++modelLoadRequestId;
+
+    const result = await getModelChoices(provider);
+
+    if (
+      requestId !== modelLoadRequestId
+      || activeSetupModal() !== 'models'
+      || modelsSetupState().step !== 'list'
+      || modelsSetupState().activeProvider !== provider
+    ) {
+      return;
+    }
+
+    setModelsSetupState((currentState) => ({
+      ...currentState,
       isLoading: false,
-      groups,
+      models: result.models,
+      modelsSource: result.source,
     }));
     setStatusMessage('Choose model');
     renderer.requestRender();
+  };
+
+  const submitSelectedModelProvider = (): void => {
+    const filteredProviders = filterProviderChoices(getModelProviderChoices(), modelsSetupState().providerQuery);
+    const provider = filteredProviders[modelsSetupState().providerSelectedIndex] ?? filteredProviders[0] ?? null;
+    if (!provider) {
+      setStatusMessage('No matching providers');
+      renderer.requestRender();
+      return;
+    }
+
+    setModelsSetupState((currentState) => ({
+      ...currentState,
+      step: 'list',
+      activeProvider: provider,
+      query: '',
+      selectedIndex: 0,
+      isLoading: true,
+      models: [],
+      modelsSource: null,
+    }));
+    setStatusMessage('Loading models...');
+    renderer.requestRender();
+
+    void loadModelsForProvider(provider).catch((error) => {
+      if (activeSetupModal() === 'models' && modelsSetupState().step === 'list' && modelsSetupState().activeProvider === provider) {
+        setModelsSetupState((currentState) => ({
+          ...currentState,
+          isLoading: false,
+        }));
+        setStatusMessage(`Loading models failed: ${formatErrorMessage(error)}`);
+        renderer.requestRender();
+      }
+    });
   };
 
   const cycleSelectedPermissionItem = (selectedIndex: number): void => {
@@ -956,25 +1015,19 @@ export async function startOpenTuiInteractiveSession(
 
       case 'models': {
         setModelsSetupState({
+          step: 'provider',
+          providerQuery: '',
+          providerSelectedIndex: 0,
+          activeProvider: getModelProviderChoices()[0] ?? null,
           query: '',
           selectedIndex: 0,
-          step: 'list',
-          activeProvider: null,
           customModelInput: '',
-          isLoading: true,
-          groups: [],
+          isLoading: false,
+          models: [],
+          modelsSource: null,
         });
         setActiveSetupModal('models');
-        void loadModelsForSelection().catch((error) => {
-          if (activeSetupModal() === 'models') {
-            setModelsSetupState((currentState) => ({
-              ...currentState,
-              isLoading: false,
-            }));
-            setStatusMessage(`Loading models failed: ${formatErrorMessage(error)}`);
-            renderer.requestRender();
-          }
-        });
+        setStatusMessage('Choose provider');
         renderer.requestRender();
         return true;
       }
@@ -1154,6 +1207,7 @@ export async function startOpenTuiInteractiveSession(
           modelsSetupState={modelsSetupState}
           providerChoices={filterProviderChoices(connectProviderChoices, providerSetupState().query)}
           connectedProviders={connectedProviders()}
+          modelProviderChoices={filterProviderChoices(getModelProviderChoices(), modelsSetupState().providerQuery)}
           modelRows={visibleModelRows()}
           selectedModelRowKey={selectedModelRowKey()}
           permissionItems={permissionItems}
@@ -1185,6 +1239,10 @@ export async function startOpenTuiInteractiveSession(
           }}
           onSubmitProviderSelection={submitSelectedProvider}
           onSubmitProviderCredential={submitProviderCredential}
+          onMoveModelProviderSelection={moveSelectedModelProvider}
+          onSelectModelProviderRow={selectModelProvider}
+          onModelProviderQueryInput={setModelProviderSelectionFromQuery}
+          onSubmitModelProviderSelection={submitSelectedModelProvider}
           onMoveModelSelection={moveSelectedModel}
           onSelectModelRow={selectModelRowByKey}
           onModelsQueryInput={setModelsSelectionFromQuery}

@@ -67,6 +67,7 @@ interface OpenTuiInteractiveSessionAppProps {
   modelsSetupState: Accessor<OpenTuiModelsSetupState>;
   providerChoices: ProviderName[];
   connectedProviders: ProviderName[];
+  modelProviderChoices: ProviderName[];
   modelRows: OpenTuiModelsSetupRow[];
   selectedModelRowKey: string | null;
   permissionItems: Accessor<OpenTuiPermissionItem[]>;
@@ -85,6 +86,10 @@ interface OpenTuiInteractiveSessionAppProps {
   onProviderApiKeyInput: (value: string) => void;
   onSubmitProviderSelection: () => void;
   onSubmitProviderCredential: () => void;
+  onMoveModelProviderSelection: (direction: -1 | 1) => void;
+  onSelectModelProviderRow: (provider: ProviderName) => void;
+  onModelProviderQueryInput: (value: string) => void;
+  onSubmitModelProviderSelection: () => void;
   onMoveModelSelection: (direction: -1 | 1) => void;
   onSelectModelRow: (rowKey: string) => void;
   onModelsQueryInput: (value: string) => void;
@@ -194,10 +199,12 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
   let diffPreviewScrollBox: ScrollBoxRenderable | null = null;
   let permissionsScrollBox: ScrollBoxRenderable | null = null;
   let providersScrollBox: ScrollBoxRenderable | null = null;
+  let modelsProviderScrollBox: ScrollBoxRenderable | null = null;
   let modelsScrollBox: ScrollBoxRenderable | null = null;
   let composerTextarea: TextareaRenderable | null = null;
   let providerSearchTextarea: TextareaRenderable | null = null;
   let providerApiKeyTextarea: TextareaRenderable | null = null;
+  let modelsProviderSearchTextarea: TextareaRenderable | null = null;
   let modelsSearchTextarea: TextareaRenderable | null = null;
   let modelsCustomTextarea: TextareaRenderable | null = null;
 
@@ -596,6 +603,38 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
         return;
       }
 
+      if (props.modelsSetupState().step === 'provider') {
+        if (keyName === 'up') {
+          const providerCount = props.modelProviderChoices.length;
+          const nextIndex = providerCount === 0
+            ? 0
+            : (props.modelsSetupState().providerSelectedIndex - 1 + providerCount) % providerCount;
+          props.onMoveModelProviderSelection(-1);
+          modelsProviderScrollBox?.scrollTo(nextIndex);
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        if (keyName === 'down') {
+          const providerCount = props.modelProviderChoices.length;
+          const nextIndex = providerCount === 0
+            ? 0
+            : (props.modelsSetupState().providerSelectedIndex + 1) % providerCount;
+          props.onMoveModelProviderSelection(1);
+          modelsProviderScrollBox?.scrollTo(nextIndex);
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        if (keyName === 'enter' || keyName === 'return' || keyName === 'kpenter') {
+          props.onSubmitModelProviderSelection();
+          stopPermissionKeyEvent(key);
+          return;
+        }
+
+        return;
+      }
+
       if (props.modelsSetupState().step === 'list') {
         if (keyName === 'up') {
           props.onMoveModelSelection(-1);
@@ -731,6 +770,17 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
 
   createEffect(() => {
     if (props.activeSetupModal() !== 'models') {
+      return;
+    }
+
+    if (props.modelsSetupState().step === 'provider') {
+      if (
+        modelsProviderSearchTextarea
+        && modelsProviderSearchTextarea.plainText !== props.modelsSetupState().providerQuery
+      ) {
+        modelsProviderSearchTextarea.setText(props.modelsSetupState().providerQuery);
+        modelsProviderSearchTextarea.cursorOffset = props.modelsSetupState().providerQuery.length;
+      }
       return;
     }
 
@@ -874,7 +924,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
     return Math.max(0, Math.floor((width - modalPanelMaxWidth) / 2));
   };
   const modalPanelMaxHeight = () => (
-    props.modelsSetupState().step === 'list'
+    props.modelsSetupState().step === 'list' || props.modelsSetupState().step === 'provider'
       ? modelsPanelMaxVisibleRows + 7
       : 12
   );
@@ -1082,10 +1132,22 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
           zIndex={1}
         >
           <ModelsPanel
+            step={props.modelsSetupState().step}
+            providers={props.modelProviderChoices}
+            providerSelectedIndex={props.modelsSetupState().providerSelectedIndex}
+            providerQuery={props.modelsSetupState().providerQuery}
+            onProviderQueryInput={props.onModelProviderQueryInput}
+            onSelectProviderRow={props.onSelectModelProviderRow}
+            onSubmitProviderSelection={props.onSubmitModelProviderSelection}
+            providerScrollRef={(scrollbox) => {
+              modelsProviderScrollBox = scrollbox;
+            }}
+            providerSearchInputRef={(textarea) => {
+              modelsProviderSearchTextarea = textarea;
+            }}
             rows={props.modelRows}
             selectedRowKey={props.selectedModelRowKey}
             query={props.modelsSetupState().query}
-            step={props.modelsSetupState().step}
             activeProvider={props.modelsSetupState().activeProvider}
             customModelInput={props.modelsSetupState().customModelInput}
             isLoading={props.modelsSetupState().isLoading}
