@@ -64,27 +64,6 @@ function inferPatchFiletype(patch: ParsedUnifiedDiffPatch): string | undefined {
   return normalizedPath ? pathToFiletype(normalizedPath) : undefined;
 }
 
-function inferUnifiedDiffFiletype(patches: ParsedUnifiedDiffPatch[]): string | undefined {
-  const firstFiletype = patches[0] ? inferPatchFiletype(patches[0]) : undefined;
-  if (!firstFiletype) {
-    return undefined;
-  }
-
-  const allSameFiletype = patches.every((patch) => inferPatchFiletype(patch) === firstFiletype);
-  return allSameFiletype ? firstFiletype : undefined;
-}
-
-function inferUnifiedDiffFilePath(patches: ParsedUnifiedDiffPatch[]): string | undefined {
-  const firstPatch = patches[0];
-  if (!firstPatch) {
-    return undefined;
-  }
-
-  return normalizeDiffFilePath(firstPatch.newFileName)
-    ?? normalizeDiffFilePath(firstPatch.oldFileName)
-    ?? undefined;
-}
-
 function getCompactDiffFilePath(filePath: string): string {
   const normalizedPath = filePath.replaceAll('\\', '/');
   const fileName = path.posix.basename(normalizedPath);
@@ -99,31 +78,56 @@ function getPatchMutationKind(patch: ParsedUnifiedDiffPatch): 'edit' | 'write' {
   return normalizeDiffFilePath(patch.oldFileName) ? 'edit' : 'write';
 }
 
-function inferUnifiedDiffMutationKind(
-  patches: ParsedUnifiedDiffPatch[],
-): RenderableUnifiedDiff['mutationKind'] {
-  const firstPatch = patches[0];
-  if (!firstPatch) {
-    return undefined;
-  }
-
-  const firstKind = getPatchMutationKind(firstPatch);
-  const allSameKind = patches.every((patch) => getPatchMutationKind(patch) === firstKind);
-  return allSameKind ? firstKind : undefined;
-}
-
-function getUnifiedDiffRenderedLineCount(patches: ParsedUnifiedDiffPatch[]): number {
-  const lineCount = patches.reduce((patchTotal, patch) => (
-    patchTotal + (patch.hunks?.reduce((total, hunk) => (
-      total + hunk.lines.filter((line) => (
-        line.startsWith(' ')
-        || line.startsWith('+')
-        || line.startsWith('-')
-      )).length
-    ), 0) ?? 0)
-  ), 0);
+function getUnifiedDiffRenderedLineCount(patch: ParsedUnifiedDiffPatch): number {
+  const lineCount = patch.hunks?.reduce((total, hunk) => (
+    total + hunk.lines.filter((line) => (
+      line.startsWith(' ')
+      || line.startsWith('+')
+      || line.startsWith('-')
+    )).length
+  ), 0) ?? 0;
 
   return Math.max(1, lineCount);
+}
+
+// The diff renderable (@opentui/core) only ever parses and draws the FIRST
+// file section of the text it's given — it ignores every subsequent file in
+// a multi-file diff. Sizing the scrollbox off every patch's line count while
+// only one patch's worth of content ever gets drawn leaves a tall blank gap
+// below it, so the preview must be pinned to a single patch: the first one
+// that actually has hunks (a patch can have zero, e.g. a new empty file or a
+// pure rename, in which case the renderable draws nothing at all).
+function pickActiveDiffPatch(
+  patches: ParsedUnifiedDiffPatch[],
+): { patch: ParsedUnifiedDiffPatch; index: number } | null {
+  const index = patches.findIndex((patch) => (patch.hunks?.length ?? 0) > 0);
+  return index === -1 ? null : { patch: patches[index]!, index };
+}
+
+// Splits a git-style multi-file diff back into its per-file sections so the
+// active patch's own text (and only that text) can be handed to the diff
+// renderable, matching what `pickActiveDiffPatch` selected.
+function splitUnifiedDiffFileSections(text: string): string[] {
+  if (!/^diff --git /m.test(text)) {
+    return [text];
+  }
+
+  const sections: string[] = [];
+  let currentLines: string[] = [];
+
+  for (const line of text.split('\n')) {
+    if (line.startsWith('diff --git ') && currentLines.length > 0) {
+      sections.push(currentLines.join('\n'));
+      currentLines = [];
+    }
+    currentLines.push(line);
+  }
+
+  if (currentLines.length > 0) {
+    sections.push(currentLines.join('\n'));
+  }
+
+  return sections;
 }
 
 function getMoreFilesSuffix(fileCount: number): string {
@@ -173,14 +177,24 @@ function getDiffTranscriptTitle(
 function buildRenderableUnifiedDiff(
   diffText: string,
   patches: ParsedUnifiedDiffPatch[],
-): RenderableUnifiedDiff {
-  const filePath = inferUnifiedDiffFilePath(patches);
-  const filetype = inferUnifiedDiffFiletype(patches);
-  const mutationKind = inferUnifiedDiffMutationKind(patches);
+): RenderableUnifiedDiff | null {
+  const active = pickActiveDiffPatch(patches);
+  if (!active) {
+    return null;
+  }
+
+  const filePath = normalizeDiffFilePath(active.patch.newFileName)
+    ?? normalizeDiffFilePath(active.patch.oldFileName)
+    ?? undefined;
+  const filetype = inferPatchFiletype(active.patch);
+  const mutationKind = getPatchMutationKind(active.patch);
+  const activeDiffText = patches.length > 1
+    ? splitUnifiedDiffFileSections(diffText)[active.index] ?? diffText
+    : diffText;
 
   return {
-    diffText,
-    renderedLineCount: getUnifiedDiffRenderedLineCount(patches),
+    diffText: activeDiffText,
+    renderedLineCount: getUnifiedDiffRenderedLineCount(active.patch),
     fileCount: patches.length,
     ...(filePath ? { filePath } : {}),
     ...(filetype ? { filetype } : {}),
