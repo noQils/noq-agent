@@ -286,7 +286,7 @@ function SystemDiffTranscriptContent(props: {
   isCompact: boolean;
   backgroundColor: string;
 }) {
-  const scrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3 });
+  const scrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 6 });
 
   return (
     <box flexDirection="column" gap={1}>
