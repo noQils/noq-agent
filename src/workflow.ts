@@ -693,7 +693,7 @@ export async function runAgentTurn(
     resetPermissionDecisionCache();
     resetTodoState();
 
-    const messages: ChatMessage[] = [{ role: 'system', content: getSystemPrompt(mode) }];
+    const messages: ChatMessage[] = [{ role: 'system', content: getSystemPrompt(mode, process.cwd()) }];
     if (options?.historyMessages?.length) {
         messages.push(...options.historyMessages);
     }

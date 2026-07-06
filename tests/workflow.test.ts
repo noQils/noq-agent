@@ -72,6 +72,31 @@ test('runAgentTurn can use an injected provider without configured API keys', as
   });
 });
 
+test('runAgentTurn grounds the model in the real working directory', async () => {
+  await withTempWorkspace(async (workspace) => {
+    const observed: { messages: ChatMessage[] | undefined } = { messages: undefined };
+
+    const provider: Provider = {
+      async chat(messages) {
+        observed.messages = messages;
+        return {
+          text: 'ok',
+          executedToolCalls: [],
+          stopReason: 'no_tool_calls',
+        };
+      },
+    };
+
+    await runAgentTurn('answer briefly', 'plan', { provider });
+
+    const systemMessage = observed.messages?.find((message) => message.role === 'system');
+    assert.ok(systemMessage);
+    const content = systemMessage!.content ?? '';
+    assert.match(content, /working directory/i);
+    assert.ok(content.includes(workspace.root));
+  });
+});
+
 test('runAgentTurn sends blocked tool reminders instead of retrying blindly', async () => {
   await withTempWorkspace(async () => {
     const { calls, provider } = createSequenceProvider([

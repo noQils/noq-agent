@@ -62,7 +62,7 @@ function getPlanModeResponseRules(): string {
   "I inspected X. I would create or edit Y. I would add or change Z there. Then I would verify or follow up by ..."`; 
 }
 
-export function getSystemPrompt(mode: AgentMode): string {
+export function getSystemPrompt(mode: AgentMode, workspaceRoot: string): string {
     const modeInstructions = mode === 'plan'
         ? getPlanModeInstructions()
         : getBuildModeInstructions();
@@ -71,6 +71,9 @@ export function getSystemPrompt(mode: AgentMode): string {
         : getBuildModeResponseRules();
 
     return `You are an AI coding assistant working inside a local code project.
+
+Your current working directory (project root) is: ${workspaceRoot}
+All relative file paths you use with tools are resolved against this directory. Never invent or guess a different path (e.g. a placeholder like /home/user/projects/...); if you are unsure a path exists, use list_dir or glob to check it first.
 
 Your job is to help the user accurately and efficiently using the available tools when needed.
 
