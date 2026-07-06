@@ -363,6 +363,11 @@ test('runAgentTurn does not finalize a capped build response while verification 
     assert.equal(response.response, 'Reran verification and finished.');
     assert.match(getLastUserMessage(calls[2]!), /Run the verification command\(s\) again/);
     assert.match(getLastUserMessage(calls[2]!), /npm test/);
+    assert.equal(response.executedToolCalls.length, 4);
+    assert.deepEqual(
+      response.executedToolCalls.map((call) => call.toolName),
+      ['run_command', 'edit_file', 'read_file', 'run_command'],
+    );
   });
 });
 

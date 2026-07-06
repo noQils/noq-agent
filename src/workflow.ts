@@ -745,6 +745,7 @@ export async function runAgentTurn(
     }
 
     let response: ChatResult = { text: ''};
+    const allExecutedToolCalls: ExecutedToolCall[] = [];
     let workflowState: WorkflowState = {
         mutatedFilesNeedingVerification: new Set(),
         verificationCommandsNeedingRerun: new Set(),
@@ -775,7 +776,7 @@ export async function runAgentTurn(
                 : buildFlowRoundCapSummary(workflowState);
             return {
                 response: text,
-                executedToolCalls: response.executedToolCalls ?? [],
+                executedToolCalls: [...allExecutedToolCalls],
                 stopReason: response.stopReason,
             };
         }
@@ -805,6 +806,7 @@ export async function runAgentTurn(
         messages.push({ role: 'model' as const, content: response.text });
 
         const executedToolCalls = response.executedToolCalls ?? [];
+        allExecutedToolCalls.push(...executedToolCalls);
         const { updatedWorkflowState, turnState } = collectTurnState(executedToolCalls, workflowState);
         workflowState = updatedWorkflowState;
 
@@ -815,7 +817,7 @@ export async function runAgentTurn(
                 });
                 return {
                     response: response.text,
-                    executedToolCalls,
+                    executedToolCalls: [...allExecutedToolCalls],
                     stopReason: response.stopReason,
                 };
             }
@@ -888,7 +890,7 @@ export async function runAgentTurn(
                 });
                 return {
                     response: completionAction.text,
-                    executedToolCalls,
+                    executedToolCalls: [...allExecutedToolCalls],
                     stopReason: response.stopReason,
                 };
             }
@@ -923,7 +925,7 @@ export async function runAgentTurn(
             });
             return {
                 response: response.text,
-                executedToolCalls,
+                executedToolCalls: [...allExecutedToolCalls],
                 stopReason: response.stopReason,
             };
         }
