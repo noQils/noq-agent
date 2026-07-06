@@ -8,8 +8,8 @@ import { openTuiTheme } from '../openTuiTheme';
 
 const GLINT_BAND_WIDTH = 5;
 const GLINT_TICK_MS = 90;
-const GLINT_BASE = openTuiTheme.color.textFaint;
-const GLINT_HIGHLIGHT = openTuiTheme.color.cyanStrong;
+const GLINT_BASE = openTuiTheme.color.glintBase;
+const GLINT_HIGHLIGHT = openTuiTheme.color.glintHighlight;
 
 function hexToRgb(hex: string): [number, number, number] {
   const normalized = hex.replace('#', '');

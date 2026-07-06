@@ -33,6 +33,8 @@ export const openTuiTheme = {
     diffAddedContentBg: '#1f3220',
     diffRemovedBg: '#2e1c1c',
     diffRemovedContentBg: '#381f1f',
+    glintBase: '#5b6472',
+    glintHighlight: '#eaf6ff',
   },
   role: {
     user: {
