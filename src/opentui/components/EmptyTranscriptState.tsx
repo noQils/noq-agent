@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import { OPEN_TUI_ASCII_LOGO } from '../asciiLogo';
 import { openTuiTheme } from '../openTuiTheme';
+import { NoqLogo } from './NoqLogo';
 
 export function EmptyTranscriptState(props: { isCompact: boolean }) {
   return (
@@ -16,9 +16,7 @@ export function EmptyTranscriptState(props: { isCompact: boolean }) {
       alignItems="center"
     >
       <box flexDirection="row" gap={1}>
-        <text fg={openTuiTheme.color.teal} selectable={false}>
-          {OPEN_TUI_ASCII_LOGO}
-        </text>
+        <NoqLogo />
       </box>
       {props.isCompact ? (
         <text

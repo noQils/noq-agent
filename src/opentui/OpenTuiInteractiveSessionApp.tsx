@@ -1026,6 +1026,7 @@ export function OpenTuiInteractiveSessionApp(props: OpenTuiInteractiveSessionApp
               workspacePath={props.workspacePath}
               isShort={isSidebarShort()}
               isVeryShort={isSidebarVeryShort()}
+              showLogo={props.entries().length > 0}
             />
           </box>
         ) : null}

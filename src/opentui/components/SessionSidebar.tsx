@@ -3,11 +3,11 @@
 import { MacOSScrollAccel } from '@opentui/core';
 
 import { type AgentMode } from '../../agentMode';
-import { OPEN_TUI_ASCII_LOGO } from '../asciiLogo';
 import { type OpenTuiCurrentModelSelection } from '../openTuiTypes';
 import { openTuiTheme, truncateMiddle } from '../openTuiTheme';
 import { formatProviderLabel } from '../providerLabels';
 import { formatWorkspacePathLabel } from '../workspacePathLabel';
+import { NoqLogo } from './NoqLogo';
 
 function sectionLabel(label: string) {
   return (
@@ -50,6 +50,7 @@ export function SessionSidebar(props: {
   workspacePath: string;
   isShort: boolean;
   isVeryShort: boolean;
+  showLogo: boolean;
 }) {
   const scrollAcceleration = new MacOSScrollAccel({ maxMultiplier: 3 });
   const sectionGap = () => props.isShort ? 0 : 1;
@@ -66,11 +67,11 @@ export function SessionSidebar(props: {
       gap={sectionGap()}
       paddingBottom={props.isVeryShort ? 1 : 0}
     >
-      <box flexDirection="column" flexShrink={0}>
-        <text fg={openTuiTheme.color.teal} bg={openTuiTheme.color.canvas} selectable={false}>
-          {OPEN_TUI_ASCII_LOGO}
-        </text>
-      </box>
+      {props.showLogo ? (
+        <box flexDirection="column" flexShrink={0}>
+          <NoqLogo />
+        </box>
+      ) : null}
 
       <box backgroundColor={modeBadgeColor(props.mode)} paddingX={1} width={props.mode.length + 2} flexShrink={0}>
         <text fg={openTuiTheme.color.canvas} selectable={false} truncate>
