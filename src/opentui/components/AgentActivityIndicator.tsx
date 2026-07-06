@@ -66,33 +66,35 @@ export function AgentActivityIndicator(props: {
     return activity && props.isBusy() ? describeAgentActivity(activity) : null;
   });
 
-  const displayText = () => {
+  const headlineChars = () => [...(label()?.headline ?? '')];
+
+  const suffixText = () => {
     const current = label();
     if (!current) {
       return '';
     }
 
-    const suffix = current.action
-      ? ` — (${current.action})${current.detail ? ` ${current.detail}` : ''}`
-      : ` ${'.'.repeat(frame() % 4)}`;
+    if (!current.action) {
+      return ` ${'.'.repeat(frame() % 4)}`;
+    }
 
-    return `${current.headline}${suffix}`;
+    const detailSuffix = current.detail ? ` ${current.detail}` : '';
+    return ` — (${current.action})${detailSuffix}`;
   };
-
-  const displayChars = () => [...displayText()];
 
   return (
     <>
       {label() ? (
         <box flexDirection="row" gap={1} marginBottom={1} paddingX={1}>
           <text>
-            <Index each={displayChars()}>
+            <Index each={headlineChars()}>
               {(character, index) => (
-                <span style={{ fg: glintColorAt(index, displayChars().length, frame()) }}>
+                <span style={{ fg: glintColorAt(index, headlineChars().length, frame()) }}>
                   {character()}
                 </span>
               )}
             </Index>
+            <span style={{ fg: openTuiTheme.color.ghost }}>{suffixText()}</span>
           </text>
         </box>
       ) : null}
