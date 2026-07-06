@@ -34,7 +34,7 @@ export const openTuiTheme = {
     diffRemovedBg: '#2e1c1c',
     diffRemovedContentBg: '#381f1f',
     glintBase: '#5b6472',
-    glintHighlight: '#ffcb6b',
+    glintHighlight: '#eaffff',
   },
   role: {
     user: {
