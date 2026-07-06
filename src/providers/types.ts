@@ -61,10 +61,17 @@ export type StopReason =
   | 'repeated_tool_calls'
   | 'tool_round_limit_reached';
 
+export interface RoundLimitSummary {
+  toolRoundCount: number;
+  maxToolRounds: number;
+  executedToolCalls: ExecutedToolCall[];
+}
+
 export interface ChatResult {
   text: string;
   executedToolCalls?: ExecutedToolCall[];
   stopReason?: StopReason;
+  roundLimitSummary?: RoundLimitSummary;
 }
 
 export interface ChatOptions {

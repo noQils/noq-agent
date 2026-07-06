@@ -561,7 +561,7 @@ function formatToolArgs(args: Record<string, unknown>): string {
   return entries.join(', ');
 }
 
-function formatToolCallSummary(call: ExecutedToolCall): string {
+export function formatToolCallSummary(call: ExecutedToolCall): string {
   const formattedArgs = formatToolArgs(call.args);
   const argsSuffix = formattedArgs.length > 0 ? `(${formattedArgs})` : '()';
   const outcome = call.succeeded

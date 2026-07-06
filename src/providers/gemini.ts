@@ -330,6 +330,7 @@ export async function chat(
         text: response.text ?? '',
         executedToolCalls,
         stopReason: 'tool_round_limit_reached',
+        roundLimitSummary: { toolRoundCount, maxToolRounds, executedToolCalls },
       };
     }
 

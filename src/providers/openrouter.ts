@@ -277,6 +277,7 @@ export async function chat(
         text: getAssistantText(assistantMessage),
         executedToolCalls,
         stopReason: 'tool_round_limit_reached',
+        roundLimitSummary: { toolRoundCount, maxToolRounds, executedToolCalls },
       };
     }
 

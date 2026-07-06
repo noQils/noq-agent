@@ -8,6 +8,7 @@ import {
   type ChatResult,
   type ExecutedToolCall,
   type Provider,
+  type RoundLimitSummary,
   type StopReason,
   type ToolMutationCallback,
 } from './providers/types';
@@ -17,6 +18,7 @@ import { resetPermissionDecisionCache } from './runtime/executeToolCall';
 import { debugLog, getMaxFlowRounds } from './config/runtimeSettings';
 import { getToolsForMode } from './tools';
 import { formatTodoItems, hasTodoItems, hasUnfinishedTodoItems, resetTodoState } from './todoState';
+import { formatToolCallSummary } from './session/sessionStore';
 
 export interface RunAgentTurnOptions {
     historyMessages?: ChatMessage[];
@@ -159,6 +161,28 @@ function buildContinueMessage(affectedFiles: string[]): string {
         'Your last response indicates the task is still incomplete. ' +
         'Continue working until the request is fully satisfied and the affected code appears internally consistent.' +
         suffix
+    );
+}
+
+function buildToolRoundLimitContinueMessage(
+    summary: RoundLimitSummary,
+    affectedFiles: string[],
+): string {
+    const callFacts = summary.executedToolCalls.map(formatToolCallSummary).join('; ');
+    const callsSuffix = callFacts.length > 0
+        ? ` Actions already performed this round (do not repeat or re-derive these from assumptions): ${callFacts}.`
+        : '';
+    const filesSuffix = affectedFiles.length > 0
+        ? ` Files changed so far still needing verification: ${affectedFiles.join(', ')}.`
+        : '';
+
+    return buildWorkflowReminder(
+        `You reached the internal per-request tool-call limit (${summary.toolRoundCount} of ${summary.maxToolRounds}) mid-task, ` +
+        'so your reasoning in that request was cut off. The task is not finished. ' +
+        'Continue from where you left off using only the facts below and what you already know from this conversation; ' +
+        'do not guess a different project path or working directory.' +
+        callsSuffix +
+        filesSuffix
     );
 }
 
@@ -803,12 +827,30 @@ export async function runAgentTurn(
             textLength: response.text?.length ?? 0,
             executedToolCallCount: response.executedToolCalls?.length ?? 0,
         });
-        messages.push({ role: 'model' as const, content: response.text });
+        if (response.text?.trim()) {
+            messages.push({ role: 'model' as const, content: response.text });
+        }
 
         const executedToolCalls = response.executedToolCalls ?? [];
         allExecutedToolCalls.push(...executedToolCalls);
         const { updatedWorkflowState, turnState } = collectTurnState(executedToolCalls, workflowState);
         workflowState = updatedWorkflowState;
+
+        if (response.stopReason === 'tool_round_limit_reached' && response.roundLimitSummary) {
+            debugLog('Workflow continuing after tool round limit reset.', {
+                flowRound: workflowState.flowRoundCount,
+                toolRoundCount: response.roundLimitSummary.toolRoundCount,
+                maxToolRounds: response.roundLimitSummary.maxToolRounds,
+            });
+            messages.push({
+                role: 'user' as const,
+                content: buildToolRoundLimitContinueMessage(
+                    response.roundLimitSummary,
+                    Array.from(turnState.mutatedFiles),
+                ),
+            });
+            continue;
+        }
 
         if (turnState.blockedActionCalls.length > 0) {
             if (response.text?.trim()) {

@@ -315,6 +315,64 @@ test('runAgentTurn does not finalize a capped build response while todos are unf
   });
 });
 
+test('runAgentTurn restates prior actions after a tool round limit reset instead of losing context', async () => {
+  await withTempWorkspace(async () => {
+    const { calls, provider } = createSequenceProvider([
+      {
+        text: '',
+        stopReason: 'tool_round_limit_reached',
+        executedToolCalls: [
+          {
+            toolName: 'read_file',
+            args: { filePath: 'src/rateLimiter.ts' },
+            succeeded: true,
+          },
+          {
+            toolName: 'list_dir',
+            args: { path: 'src' },
+            succeeded: true,
+          },
+        ],
+        roundLimitSummary: {
+          toolRoundCount: 10,
+          maxToolRounds: 10,
+          executedToolCalls: [
+            {
+              toolName: 'read_file',
+              args: { filePath: 'src/rateLimiter.ts' },
+              succeeded: true,
+            },
+            {
+              toolName: 'list_dir',
+              args: { path: 'src' },
+              succeeded: true,
+            },
+          ],
+        },
+      },
+      {
+        text: 'Finished the rate limiter.',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [],
+      },
+    ]);
+
+    const response = await runAgentTurn('add rate limiting', 'build', { provider });
+
+    assert.equal(response.response, 'Finished the rate limiter.');
+    assert.equal(calls.length, 2);
+    const continueMessage = getLastUserMessage(calls[1]!);
+    assert.match(continueMessage, /tool-call limit \(10 of 10\)/);
+    assert.match(continueMessage, /read_file/);
+    assert.match(continueMessage, /list_dir/);
+    assert.match(continueMessage, /src\/rateLimiter\.ts/);
+    assert.equal(
+      calls[1]!.some((message) => message.role === 'model' && message.content === ''),
+      false,
+    );
+  });
+});
+
 test('runAgentTurn does not finalize a capped build response while verification needs rerun', async () => {
   await withTempWorkspace(async () => {
     const { calls, provider } = createSequenceProvider([
