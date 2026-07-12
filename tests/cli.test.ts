@@ -7,6 +7,7 @@ import test from 'node:test';
 import { type AgentMode } from '../src/agentMode';
 import {
   runCli,
+  parseCliArgs,
   resolveResumeWorkingDirectory,
   type InteractiveSessionOptions,
   type ResumeWorkingDirectoryChoice,
@@ -97,6 +98,20 @@ test('resolveResumeWorkingDirectory throws when prompting is unavailable and an 
     ),
     /resume cwd choice required/,
   );
+});
+
+test('parseCliArgs sets yes to true when --yes is passed', () => {
+  const parsed = parseCliArgs(['--yes', 'do', 'it'], 'build');
+
+  assert.equal(parsed.yes, true);
+  assert.deepEqual(parsed.promptParts, ['do', 'it']);
+});
+
+test('parseCliArgs defaults yes to false when --yes is not passed', () => {
+  const parsed = parseCliArgs(['do', 'it'], 'build');
+
+  assert.equal(parsed.yes, false);
+  assert.deepEqual(parsed.promptParts, ['do', 'it']);
 });
 
 test('runCli passes the resolved resume cwd to current-terminal interactive startup', async () => {
