@@ -15,6 +15,7 @@ import {
   undoLastSessionSnapshot,
 } from './session/sessionStore';
 import { runSessionTurn } from './session/sessionTurnRunner';
+import { type ExecutedToolCall } from './providers/types';
 
 export type InteractiveLaunchMode = 'terminal' | 'popup';
 export type CliAction = 'chat' | 'diff' | 'undo';
@@ -135,6 +136,28 @@ function printVersion() {
 
 function printSessionContinuationHint(sessionId: string): void {
   console.log(`\nTo continue this conversation use: noq --session ${sessionId}`);
+}
+
+export function formatBlockedActionLine(call: ExecutedToolCall): string {
+  const target = call.target ? ` on "${call.target}"` : '';
+  const reason = call.failureKind === 'mode_denied'
+    ? `unavailable in ${call.blockedByMode ?? 'current'} mode`
+    : call.permissionDeniedBy === 'user'
+      ? 'rejected by user'
+      : 'blocked by permission policy';
+
+  return `  - ${call.toolName}${target} (${reason})`;
+}
+
+export function printBlockedActionsSummary(blockedActionCalls: ExecutedToolCall[]): void {
+  if (blockedActionCalls.length === 0) {
+    return;
+  }
+
+  console.log('\n[blocked actions]');
+  for (const call of blockedActionCalls) {
+    console.log(formatBlockedActionLine(call));
+  }
 }
 
 async function promptForResumeWorkingDirectoryChoice(
@@ -477,10 +500,11 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
 
     setPermissionApprovalSession(activeSessionId);
 
-    const { response } = await runSessionTurn(activeSessionId, userPrompt, mode, {
+    const { response, blockedActionCalls } = await runSessionTurn(activeSessionId, userPrompt, mode, {
       ...(resolvedResumeWorkingDirectory ? { workingDirectory: resolvedResumeWorkingDirectory } : {}),
     });
     console.log(response);
+    printBlockedActionsSummary(blockedActionCalls);
     printSessionContinuationHint(activeSessionId);
   } finally {
     if (yes) {
