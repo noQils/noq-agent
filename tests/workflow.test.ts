@@ -247,6 +247,96 @@ test('runAgentTurn reruns verification commands after later mutations', async ()
   });
 });
 
+test('runAgentTurn does not re-request verification when the command already ran after the edit in the same round', async () => {
+  await withTempWorkspace(async () => {
+    const { calls, provider } = createSequenceProvider([
+      {
+        text: '',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [
+          {
+            toolName: 'edit_file',
+            args: {
+              filePath: 'src/app.ts',
+              oldText: 'before',
+              newText: 'after',
+            },
+            succeeded: true,
+          },
+          {
+            toolName: 'run_command',
+            args: { command: 'npm test' },
+            succeeded: true,
+          },
+          {
+            toolName: 'read_file',
+            args: { filePath: 'src/app.ts' },
+            succeeded: true,
+          },
+        ],
+      },
+      {
+        text: 'All done.',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [],
+      },
+    ]);
+
+    const response = await runAgentTurn('update src/app.ts and test it', 'build', { provider });
+
+    assert.equal(response.response, 'All done.');
+    assert.equal(calls.length, 2);
+  });
+});
+
+test('runAgentTurn still requires a rerun when the same-round command fails after the edit', async () => {
+  await withTempWorkspace(async () => {
+    const { calls, provider } = createSequenceProvider([
+      {
+        text: '',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [
+          {
+            toolName: 'edit_file',
+            args: {
+              filePath: 'src/app.ts',
+              oldText: 'before',
+              newText: 'after',
+            },
+            succeeded: true,
+          },
+          {
+            toolName: 'run_command',
+            args: { command: 'npm test' },
+            succeeded: false,
+            error: 'Command npm test failed:\nexit status: 1',
+          },
+          {
+            toolName: 'read_file',
+            args: { filePath: 'src/app.ts' },
+            succeeded: true,
+          },
+        ],
+      },
+      {
+        text: 'Reran npm test after fixing the failure.',
+        stopReason: 'no_tool_calls',
+        executedToolCalls: [{
+          toolName: 'run_command',
+          args: { command: 'npm test' },
+          succeeded: true,
+        }],
+      },
+    ]);
+
+    const response = await runAgentTurn('update src/app.ts and test it', 'build', { provider });
+
+    assert.equal(response.response, 'Reran npm test after fixing the failure.');
+    assert.match(getLastUserMessage(calls[1]!), /Run the verification command\(s\) again/);
+    assert.match(getLastUserMessage(calls[1]!), /npm test/);
+  });
+});
+
 test('runAgentTurn asks for a summary when provider tool rounds hit their limit', async () => {
   await withTempWorkspace(async () => {
     const { calls, provider } = createSequenceProvider([
