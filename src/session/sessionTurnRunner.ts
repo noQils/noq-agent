@@ -12,7 +12,12 @@ import {
   loadOrCreateSession,
   saveSessionPlanArtifact,
 } from './sessionStore';
-import { type AgentActivityCallback, type Provider, type ToolMutationCallback } from '../providers/types';
+import {
+  type AgentActivityCallback,
+  type ExecutedToolCall,
+  type Provider,
+  type ToolMutationCallback,
+} from '../providers/types';
 import { debugLog, getDebugLogFilePath, setDebugLogFilePath } from '../config/runtimeSettings';
 import { runAgentTurn } from '../workflow';
 
@@ -20,6 +25,13 @@ export interface SessionTurnResult {
   sessionId: string;
   response: string;
   fileChanges: SessionFileChange[];
+  blockedActionCalls: ExecutedToolCall[];
+}
+
+export function filterBlockedActionCalls(executedToolCalls: ExecutedToolCall[]): ExecutedToolCall[] {
+  return executedToolCalls.filter(
+    (call) => call.failureKind === 'permission_denied' || call.failureKind === 'mode_denied',
+  );
 }
 
 export interface SessionTurnOptions {
@@ -113,6 +125,7 @@ export async function runSessionTurn(
       sessionId,
       response: turnResult.response,
       fileChanges,
+      blockedActionCalls: filterBlockedActionCalls(turnResult.executedToolCalls),
     };
   } finally {
     setDebugLogFilePath(previousDebugLogFilePath);
