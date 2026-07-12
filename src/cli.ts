@@ -6,6 +6,8 @@ import { stdin as input, stdout as output } from 'node:process';
 import { isAgentMode, type AgentMode } from './agentMode';
 import { getConfig } from './config/config';
 import { resetPermissionApprovalState, setPermissionApprovalSession } from './permissions/approvals';
+import { resetPermissionPromptHandler, setPermissionPromptHandler } from './permissions/prompt';
+import { debugLog } from './config/runtimeSettings';
 import {
   createSessionWithGeneratedId,
   getLatestSessionDiff,
@@ -55,6 +57,7 @@ interface ParsedCliArgs {
   directTui: boolean;
   internalOpenTui: boolean;
   restoreStoredMode: boolean;
+  yes: boolean;
 }
 
 function printHelp() {
@@ -70,6 +73,7 @@ Usage:
   noq --session <session-id> --diff
   noq --session <session-id> --undo
   noq --plan "your prompt"
+  noq --yes "your prompt"
   noq --help
   noq --version
 
@@ -78,10 +82,16 @@ Examples:
   noq "Read src/tools/runCommand.ts and summarize it."
   noq --mode plan "Read src/tools and tell me how you would add a todo tool."
   noq "Use run_command to run npx tsc --noEmit and summarize the result."
+  noq --yes "Run the tests, fix any failures, and rerun them to confirm."
   noq --session session-20260527-114600
   noq --session session-20260527-114600 "Create src/example.ts and verify it."
   noq --session session-20260527-114600 --diff
   noq --session session-20260527-114600 --undo
+
+Non-interactive approval:
+  --yes auto-approves ask-scoped permission prompts (edit, bash, etc.) for a one-shot run, without a TTY.
+  It cannot bypass permission scopes configured as "deny" or hard-blocked commands. Each auto-approved
+  request is still recorded in the session debug log.
 
 Interactive session startup:
   Starting or resuming a conversation first asks whether to use:
@@ -226,7 +236,18 @@ function printPopupFallbackMessage(message: string): void {
   console.log(message);
 }
 
-function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
+function installAutoApprovePermissionHandler(): void {
+  setPermissionPromptHandler(async (request) => {
+    debugLog('Auto-approving permission request via --yes flag:', {
+      scope: request.scope,
+      target: request.target,
+      toolName: request.toolName,
+    });
+    return 'allow_once';
+  });
+}
+
+export function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
   const promptParts: string[] = [];
   let mode = defaultMode;
   let modeExplicit = false;
@@ -235,6 +256,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
   let directTui = false;
   let internalOpenTui = false;
   let restoreStoredMode = false;
+  let yes = false;
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -271,6 +293,11 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
 
     if (arg === '--restore-mode') {
       restoreStoredMode = true;
+      continue;
+    }
+
+    if (arg === '--yes') {
+      yes = true;
       continue;
     }
 
@@ -328,6 +355,7 @@ function parseCliArgs(args: string[], defaultMode: AgentMode): ParsedCliArgs {
     directTui,
     internalOpenTui,
     restoreStoredMode,
+    yes,
     ...(sessionId ? { sessionId } : {}),
   };
 }
@@ -353,6 +381,7 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
     directTui,
     internalOpenTui,
     restoreStoredMode,
+    yes,
   } = parseCliArgs(args, config.defaultMode);
   const userPrompt = promptParts.join(' ').trim();
 
@@ -396,6 +425,9 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
   }
 
   resetPermissionApprovalState();
+  if (yes) {
+    installAutoApprovePermissionHandler();
+  }
 
   try {
     if (userPrompt.length === 0) {
@@ -451,6 +483,9 @@ export async function runCli(args: string[], runtime: CliRuntime): Promise<void>
     console.log(response);
     printSessionContinuationHint(activeSessionId);
   } finally {
+    if (yes) {
+      resetPermissionPromptHandler();
+    }
     resetPermissionApprovalState();
   }
 }
