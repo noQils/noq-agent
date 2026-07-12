@@ -124,6 +124,76 @@ test('runSessionTurn persists workingDirectory, stopReason, and executedToolCall
   });
 });
 
+test('runSessionTurn surfaces blocked permission-denied tool calls in blockedActionCalls', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(async (workspace) => {
+      const sessionId = 'session-turn-runner-blocked-actions';
+      const workingDirectory = path.join(workspace.root, 'downloads-like-dir');
+      const blockedCall: ExecutedToolCall = {
+        toolName: 'run_command',
+        args: { command: 'node math_utils.test.js' },
+        succeeded: false,
+        failureKind: 'permission_denied',
+        permissionScope: 'bash',
+        target: 'node math_utils.test.js',
+        permissionDeniedBy: 'policy',
+      };
+
+      fs.mkdirSync(workingDirectory, { recursive: true });
+
+      const provider: Provider = {
+        async chat() {
+          return {
+            text: 'I could not run the command.',
+            executedToolCalls: [
+              { toolName: 'read_file', args: { filePath: 'a.ts' }, succeeded: true },
+              blockedCall,
+            ],
+            stopReason: 'no_tool_calls',
+          };
+        },
+      };
+
+      const result = await runSessionTurn(sessionId, 'run the tests', 'build', {
+        workingDirectory,
+        provider,
+      });
+
+      assert.deepEqual(result.blockedActionCalls, [blockedCall]);
+    });
+  });
+});
+
+test('runSessionTurn returns an empty blockedActionCalls array when nothing was blocked', async () => {
+  await withTempNoqHome(async () => {
+    await withTempWorkspace(async (workspace) => {
+      const sessionId = 'session-turn-runner-no-blocked-actions';
+      const workingDirectory = path.join(workspace.root, 'downloads-like-dir');
+
+      fs.mkdirSync(workingDirectory, { recursive: true });
+
+      const provider: Provider = {
+        async chat() {
+          return {
+            text: 'All good.',
+            executedToolCalls: [
+              { toolName: 'read_file', args: { filePath: 'a.ts' }, succeeded: true },
+            ],
+            stopReason: 'no_tool_calls',
+          };
+        },
+      };
+
+      const result = await runSessionTurn(sessionId, 'read a.ts', 'build', {
+        workingDirectory,
+        provider,
+      });
+
+      assert.deepEqual(result.blockedActionCalls, []);
+    });
+  });
+});
+
 test('runSessionTurn reuses recorded tool facts to correct a false tool-usage denial on a later turn', async () => {
   await withTempNoqHome(async () => {
     await withTempWorkspace(async (workspace) => {
