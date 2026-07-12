@@ -78,6 +78,7 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
         failedMutationCounts: new Map(),
         blockedActionCalls: [],
     };
+    let editedSinceLastCommandCheckInBatch = false;
 
     for (const call of calls) {
         const toolName = call.toolName;
@@ -97,6 +98,7 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
                 }
                 workflowState.commandsRunSinceLastMutation.clear();
                 workflowState.sawSuccessfulMutation = true;
+                editedSinceLastCommandCheckInBatch = true;
                 turnState.mutatedFiles.add(filePath);
                 turnState.failedMutationCounts.delete(filePath);
             } else if (call.failureKind !== 'permission_denied' && call.failureKind !== 'mode_denied') {
@@ -120,7 +122,10 @@ function collectTurnState(calls: ExecutedToolCall[], currentState: WorkflowState
             const command = getRunCommandArg(call.args);
             if (!command || !didCommandReachExecution(call, command)) continue;
 
-            if (workflowState.mutatedFilesNeedingVerification.size > 0) {
+            if (editedSinceLastCommandCheckInBatch && call.succeeded) {
+                workflowState.verificationCommandsNeedingRerun.delete(command);
+                editedSinceLastCommandCheckInBatch = false;
+            } else if (workflowState.mutatedFilesNeedingVerification.size > 0) {
                 workflowState.verificationCommandsNeedingRerun.add(command);
             } else {
                 workflowState.commandsRunSinceLastMutation.add(command);
