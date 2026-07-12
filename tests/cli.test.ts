@@ -8,11 +8,28 @@ import { type AgentMode } from '../src/agentMode';
 import {
   runCli,
   parseCliArgs,
+  formatBlockedActionLine,
+  printBlockedActionsSummary,
   resolveResumeWorkingDirectory,
   type InteractiveSessionOptions,
   type ResumeWorkingDirectoryChoice,
 } from '../src/cli';
 import { getSessionFilePath } from '../src/session/sessionStore';
+import { type ExecutedToolCall } from '../src/providers/types';
+
+function captureConsoleLog(callback: () => void): string[] {
+  const originalLog = console.log;
+  const lines: string[] = [];
+  console.log = (...args: unknown[]) => {
+    lines.push(args.map(String).join(' '));
+  };
+  try {
+    callback();
+    return lines;
+  } finally {
+    console.log = originalLog;
+  }
+}
 
 async function withTempNoqHome<T>(callback: () => Promise<T> | T): Promise<T> {
   const previousNoqHome = process.env.NOQ_HOME;
@@ -112,6 +129,97 @@ test('parseCliArgs defaults yes to false when --yes is not passed', () => {
 
   assert.equal(parsed.yes, false);
   assert.deepEqual(parsed.promptParts, ['do', 'it']);
+});
+
+test('formatBlockedActionLine describes a policy-level permission denial', () => {
+  const call: ExecutedToolCall = {
+    toolName: 'run_command',
+    args: { command: 'node math_utils.test.js' },
+    succeeded: false,
+    failureKind: 'permission_denied',
+    permissionScope: 'bash',
+    target: 'node math_utils.test.js',
+    permissionDeniedBy: 'policy',
+  };
+
+  assert.equal(
+    formatBlockedActionLine(call),
+    '  - run_command on "node math_utils.test.js" (blocked by permission policy)',
+  );
+});
+
+test('formatBlockedActionLine describes a user-rejected permission denial', () => {
+  const call: ExecutedToolCall = {
+    toolName: 'edit_file',
+    args: { filePath: 'math_utils.js' },
+    succeeded: false,
+    failureKind: 'permission_denied',
+    permissionScope: 'edit',
+    target: 'math_utils.js',
+    permissionDeniedBy: 'user',
+  };
+
+  assert.equal(
+    formatBlockedActionLine(call),
+    '  - edit_file on "math_utils.js" (rejected by user)',
+  );
+});
+
+test('formatBlockedActionLine describes a mode-denied tool call', () => {
+  const call: ExecutedToolCall = {
+    toolName: 'run_command',
+    args: { command: 'npm test' },
+    succeeded: false,
+    failureKind: 'mode_denied',
+    target: 'npm test',
+    blockedByMode: 'plan',
+  };
+
+  assert.equal(
+    formatBlockedActionLine(call),
+    '  - run_command on "npm test" (unavailable in plan mode)',
+  );
+});
+
+test('printBlockedActionsSummary prints nothing when there are no blocked calls', () => {
+  const lines = captureConsoleLog(() => {
+    printBlockedActionsSummary([]);
+  });
+
+  assert.deepEqual(lines, []);
+});
+
+test('printBlockedActionsSummary prints a header and one line per blocked call', () => {
+  const calls: ExecutedToolCall[] = [
+    {
+      toolName: 'run_command',
+      args: { command: 'node math_utils.test.js' },
+      succeeded: false,
+      failureKind: 'permission_denied',
+      permissionScope: 'bash',
+      target: 'node math_utils.test.js',
+      permissionDeniedBy: 'policy',
+    },
+    {
+      toolName: 'edit_file',
+      args: { filePath: 'math_utils.js' },
+      succeeded: false,
+      failureKind: 'permission_denied',
+      permissionScope: 'edit',
+      target: 'math_utils.js',
+      permissionDeniedBy: 'policy',
+    },
+  ];
+
+  const lines = captureConsoleLog(() => {
+    printBlockedActionsSummary(calls);
+  });
+
+  assert.deepEqual(lines, [
+    '\n[blocked actions]',
+    '  - run_command on "node math_utils.test.js" (blocked by permission policy)',
+    '  - edit_file on "math_utils.js" (blocked by permission policy)',
+  ]);
 });
 
 test('runCli passes the resolved resume cwd to current-terminal interactive startup', async () => {
